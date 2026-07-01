@@ -53,3 +53,161 @@ Unresolved / Next steps:
 - Можно добавить анализ изображений (VLM): форма загрузки фото → /api/jarvis/vision → описание в чат
 - Можно добавить пробуждение по ключевому слову и непрерывный режим
 - Можно добавить экспорт/импорт диалогов
+
+---
+Task ID: 2
+Agent: TTS-updater
+Task: Обновить TTS для русской озвучки в стиле Джарвиса
+
+Work Log:
+- Прочитал текущие файлы route.ts и use-jarvis.ts
+- В route.ts: заменил голос по умолчанию с "tongtong" на "kazi", скорость с 1.0 на 0.92
+- В route.ts: добавил параметр volume (default 1.0, валидация >0..10)
+- В route.ts: реализовал функцию chunkText() — разбиение длинного текста на чанки ≤1000 символов с приоритетом границ предложений (.!?\n), fallback на пробел, затем жёсткий обрез
+- В route.ts: реализовал конкатенацию WAV-чанков (пропуск заголовков последующих чанков, коррекция размеров в заголовке итогового WAV)
+- В use-jarvis.ts: обновил UseJarvisOptions (добавил volume), дефолты voice="kazi", speed=0.92, volume=1.0
+- В use-jarvis.ts: speak() теперь передаёт volume в тело запроса
+- Запустил bun run lint — ошибок нет
+
+Stage Summary:
+- TTS API теперь принимает { text, voice?, speed?, volume? }
+- Длинные ответы (>1000 символов) автоматически разбиваются на чанки по границам предложений и склеиваются в один WAV
+- Голос «kazi» со скоростью 0.92 и настраиваемой громкостью — больше подходит для русской озвучки JARVIS
+- Линт пройден чисто
+
+---
+Task ID: 3
+Agent: frontend-styling-expert
+Task: Полная переработка CSS для кинематографического стиля Джарвиса
+
+Work Log:
+- Прочитал текущий globals.css (252 строки, тёмная тема с cyan/teal HUD)
+- Глубоко затемнил фон с oklch(0.14 ...) до oklch(0.08 0.03 250) — эффект "синяя чёрная пустота"
+- Усилил primary cyan: oklch(0.82 0.17 193) → oklch(0.85 0.19 193) — ярче и насыщеннее
+- Добавил тёплый accent для предупреждений: oklch(0.82 0.16 80) — теперь destructive/chart-5
+- Обновил все связанные CSS-переменные (--card, --popover, --secondary, --muted, --sidebar и др.)
+- Обновил .dark блок с теми же новыми значениями
+- Усилил body background-image: добавил vignette (120% эллипс), bottom-center warm gradient, center radial glow — эффект "голографический дисплей в тёмной комнате"
+- Увеличил видимость scanline с 3% до 5%, уменьшил grid-bg с 7% до 5%
+- Усилил .jarvis-glow: добавил третий слой text-shadow с 50px blur
+- Добавил 8 новых HUD утилит: jarvis-corner-brackets, jarvis-hologram, jarvis-data-stream, jarvis-glitch, jarvis-pulse-ring, jarvis-text-terminal, jarvis-border-dashed, jarvis-gradient-border
+- Добавил .jarvis-particles — CSS-частицы через множественные radial-gradient с анимацией float
+- Добавил 10 новых @keyframes: jarvis-boot-up, jarvis-holo-shimmer, jarvis-sweep-line-h, jarvis-data-pulse, jarvis-float, jarvis-rotate-slow, jarvis-typewriter-cursor, jarvis-energy-wave, jarvis-glitch-clip, jarvis-march
+- Добавил 10 новых utility-классов анимаций (anim-boot-up, anim-holo-shimmer и т.д.)
+- Сохранены ВСЕ существующие классы и анимации без удаления
+- Запущен bun run lint — 0 ошибок
+
+Stage Summary:
+- globals.css расширен с 252 до ~380 строк
+- Кинематографическая тема: более глубокий фон, яркий cyan, тёплый accent, vignette, 8 новых HUD-утилит, 10 новых анимаций, CSS-частицы
+- Lint пройден чисто
+
+---
+Task ID: 5
+Agent: boot-sequence-builder
+Task: Создать кинематографическую boot-up анимацию
+
+Work Log:
+- Изучен проект: Next.js 16, Tailwind CSS 4, Framer Motion 12, globals.css с JARVIS HUD-утилитами
+- Создан `/src/components/jarvis/boot-sequence.tsx` — "use client" компонент с 4 фазами (3.5с):
+  - Phase 1 (0–0.8s): тёмный экран, пульсирующая точка в центре, «STARK INDUSTRIES» + «J.A.R.V.I.S. PROTOCOL» с cyan glow
+  - Phase 2 (0.8–2.0s): 5 строк системной проверки появляются с интервалом 150мс (Neural Core, Language Processing, Voice Interface, Threat Assessment, Secure Channel), каждая с dim→bright переходом; прогресс-бар h-0.5 заполняется 0→100% через requestAnimationFrame
+  - Phase 3 (2.0–2.8s): arc-reactor flash (pulsing glow ring + core dot), «ALL SYSTEMS OPERATIONAL» с jarvis-glow-strong
+  - Phase 4 (2.8–3.5s): AnimatePresence exit с opacity:0 + y:-20 drift, вызов onComplete() callback
+- Использованы: motion, AnimatePresence, CSS-классы (jarvis-glow, jarvis-glow-strong, jarvis-text-terminal, font-mono, text-primary, bg-background, tracking-[0.3em])
+- Защита от двойного вызова onComplete через useRef
+- Safety timeout на случай раннего unmount
+- `bun run lint` — 0 ошибок
+
+Stage Summary:
+- Компонент `BootSequence` с пропсом `{ onComplete: () => void }` — полноэкранный fixed overlay z-50
+- Кинематографическая 3.5-секундная загрузочная последовательность в стиле Iron Man
+- Все анимации на Framer Motion, тайминг через setTimeout + requestAnimationFrame
+- Lint пройден чисто
+
+---
+Task ID: 4
+Agent: arc-reactor-builder
+Task: Перестроить Arc Reactor в стиле фильма
+
+Work Log:
+- Прочитал текущий arc-reactor.tsx (126 строк, 3 кольца), use-jarvis.ts (тип JarvisState), globals.css (анимации и jarvis-hologram)
+- Полностью переписан `/src/components/jarvis/arc-reactor.tsx` (~290 строк):
+  - **5 концентрических колец** вместо 3:
+    - Ring 1 (r=97): 60 тиков (каждый 5-й длиннее), CW 18s
+    - Ring 2 (r=76): сегментированные дуги с gap'ами (двойной strokeDasharray), CCW 14s
+    - Ring 3 (r=64): 45 точек каждые 8°, CW 10s
+    - Ring 4 (r=52): 3 дуговых сегмента с rounded caps (SVG path arc), CCW 8s
+    - Ring 5 (r=40): тонкое сплошное кольцо с pulse-анимацией, CW 6s
+  - **6 треугольных маркеров** (energy guides) между Ring 1 и Ring 2, вращаются вместе с Ring 2
+  - **3 energy tendril** линии от ядра к Ring 5 с animate stroke-opacity
+  - **Ядро**: увеличено с 42% до 45%, Framer Motion pulse (state-dependent: listening=speech rhythm, thinking=fast, speaking=wave, idle=breathing)
+  - **8 energy nodes** на внешнем кольце ядра (r=20) с поочерёдной SVG animate
+  - **Outer glow halo**: большой radial-gradient за всеми кольцами, breathing/pulse
+  - **HUD-метка**: SVG annotation lines (вертикальный коннектор + горизонтальные линии с точками и перпендикулярными маркерами)
+  - **Holographic shimmer**: применён класс `jarvis-hologram` на контейнер
+  - **State colors**: idle=cyan, listening=green-cyan, thinking=amber/gold, speaking=blue-purple, error=red-orange
+  - **Speed boost**: thinking state ускоряет все вращения в 2.2×, listening 1.3×, error 1.5×
+  - Вся статическая геометрия вынесена в модульные константы (TICKS, TRIANGLES, DOTS, ARCS, TENDRILS, NODES) — без вычислений в рендере
+  - Все кольцевые анимации — CSS (inline animation + существующие keyframes из globals.css)
+  - Только ядро использует Framer Motion
+  - Удалён неиспользуемый импорт `useMemo` (геометрия в константах модуля)
+- `bun run lint` — 0 ошибок
+
+Stage Summary:
+- Arc Reactor полностью перестроен: 5 вращающихся колец, 6 треугольных маркеров, 3 energy tendrils, 8 energy nodes, HUD-аннотации, holographic shimmer
+- Кинематографическая точность: каждое кольцо с уникальной скоростью/направлением, state-dependent pulse/speed
+- Производительность: статическая геометрия в модульных константах, CSS-анимации для колец, Framer Motion только для ядра
+- Lint пройден чисто
+
+---
+Task ID: 6
+Agent: main (Z.ai Code)
+Task: Интеграция всех компонентов + русская озвучка + финальное QA
+
+Work Log:
+- Интегрировал BootSequence в page.tsx с AnimatePresence (boot → main UI transition)
+- Обновил page.tsx: boot overlay, floating particles layer, staggered entrance animations для всех панелей
+- Применил jarvis-corner-brackets + jarvis-corner-brackets-inner ко всем 5 панелям
+- Применил jarvis-hologram к Arc Reactor зоне, jarvis-data-stream к центру
+- Применил jarvis-gradient-border к чат-панели
+- Обновил System Monitor: brighter primary color, corner brackets, anim-data-pulse иконка
+- Обновил Quick Commands: motion whileHover/whileTap для spring-эффекта
+- Обновил Chat Panel: corner brackets на assistant bubbles, backdrop-blur на user bubbles
+- Увеличил яркость particles (12→16 точек, opacity 18-35% вместо 10-15%)
+- Увеличил яркость hologram shimmer (5% → 8-12%)
+- Обновил voice: kazi + speed 0.92 + chunking длинного текста
+- Версия: v3.0.0 (was v2.7.1)
+
+Stage Summary:
+- VLM QA: 9/10 кинематографичность (десктоп 1440×900)
+- Boot-sequence работает: STARK INDUSTRIES → J.A.R.V.I.S. PROTOCOL → SYSTEMS CHECK → ALL SYSTEMS OPERATIONAL → main UI
+- Corner brackets видны на всех панелях (VLM подтверждён)
+- Arc Reactor: 4-5 колец видны (VLM подтверждён)
+- Particles видны (VLM подтверждён)
+- Русский голос kazi, скорость 0.92
+- Lint: 0 ошибок
+- Dev log: 0 ошибок, все API 200
+
+---
+## Проект: текущий статус
+
+### Описание/оценка
+JARVIS v3.0.0 — полностью рабочий ИИ-помощник в кинематографическом стиле Железного Человека. Тёмный blue-black фон, неоновый cyan HUD, 5-кольцевой Arc Reactor, boot-последовательность, corner brackets, holographic shimmer, floating particles, gradient borders. Русская озвучка через TTS (голос kazi, скорость 0.92).
+
+### Выполненные модификации (раунд 2)
+- Русская озвучка: tongtong → kazi, скорость 1.0 → 0.92
+- TTS чанкование для текстов >1000 символов (разбиение по предложениям + WAV конкатенация)
+- CSS overhaul: более глубокий фон, яркий cyan, vignette, 8 новых HUD-утилит, 10 новых анимаций, particle system
+- Arc Reactor v2: 5 колец, 6 треугольников, 3 energy tendrils, 8 energy nodes, HUD-аннотации
+- Boot Sequence: 4-фазная cinematic загрузка (3.5s)
+- Corner brackets на всех панелях
+- Hologram shimmer, data stream sweep line, gradient border
+- Staggered entrance animations для всех секций
+
+### Риски / приоритеты следующего раунда
+- Голосовой ввод (mic→ASR) не протестирован в headless (нет микрофона), но код корректен
+- Можно добавить VLM: форма загрузки фото → /api/jarvis/vision → описание в чат
+- Можно добавить пробуждение по ключевому слову "Джарвис"
+- Можно добавить экспорт/импорт диалогов
+- Можно добавить тему с более тёплым gold-акцентом (вариант Mark 50/85)

@@ -15,6 +15,7 @@ interface UseJarvisOptions {
   autoSpeak?: boolean;
   voice?: string;
   speed?: number;
+  volume?: number;
 }
 
 const uid = () =>
@@ -23,7 +24,7 @@ const uid = () =>
     : Math.random().toString(36).slice(2);
 
 export function useJarvis(opts: UseJarvisOptions = {}) {
-  const { autoSpeak = true, voice = "tongtong", speed = 1.0 } = opts;
+  const { autoSpeak = true, voice = "kazi", speed = 0.92, volume = 1.0 } = opts;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [state, setState] = useState<JarvisState>("idle");
@@ -150,7 +151,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         const res = await fetch("/api/jarvis/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, voice, speed }),
+          body: JSON.stringify({ text, voice, speed, volume }),
         });
         if (!res.ok) throw new Error("TTS failed");
         const blob = await res.blob();
@@ -174,7 +175,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         setState("idle");
       }
     },
-    [voice, speed]
+    [voice, speed, volume]
   );
 
   // ---- Chat send ----

@@ -109,20 +109,21 @@ export function SystemMonitor() {
     };
   }, []);
 
-  const cyan = "oklch(0.82 0.17 193)";
+  const cyan = "oklch(0.85 0.19 193)";
   const teal = "oklch(0.78 0.16 165)";
-  const amber = "oklch(0.82 0.14 80)";
+  const amber = "oklch(0.82 0.16 80)";
   const rose = "oklch(0.65 0.22 22)";
 
   const maxNet = Math.max(200, ...netHistory);
 
   return (
-    <div className="jarvis-box-glow relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/60 p-4 backdrop-blur-sm">
+    <div className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/60 p-4 backdrop-blur-sm">
+      <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
       <div className="pointer-events-none absolute inset-0 jarvis-grid-bg opacity-40" />
       <div className="relative">
         <div className="mb-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Server className="h-4 w-4 text-primary" />
+            <Server className="h-4 w-4 text-primary anim-data-pulse" />
             <span className="font-mono text-xs uppercase tracking-widest text-primary jarvis-glow">
               System Diagnostics
             </span>
@@ -156,11 +157,12 @@ export function SystemMonitor() {
                     key={i}
                     className="flex-1 rounded-sm"
                     style={{
-                      background: `linear-gradient(to top, ${cyan}, ${cyan}40)`,
+                      background: `linear-gradient(to top, ${cyan}, ${cyan}20)`,
                       height: `${Math.max(4, (v / maxNet) * 100)}%`,
+                      boxShadow: i === netHistory.length - 1 ? `0 0 6px ${cyan}60` : undefined,
                     }}
                     initial={false}
-                    animate={{ opacity: i === netHistory.length - 1 ? 1 : 0.55 }}
+                    animate={{ opacity: i === netHistory.length - 1 ? 1 : 0.4 }}
                   />
                 ))}
               </div>

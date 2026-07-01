@@ -43,85 +43,86 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* ===== J.A.R.V.I.S. Theme — always-on dark, cyan/teal HUD aesthetic ===== */
+/* ===== J.A.R.V.I.S. Theme — cinematic Iron Man HUD aesthetic ===== */
 :root {
   --radius: 0.5rem;
 
-  /* Deep space background with subtle cyan tint */
-  --background: oklch(0.14 0.025 220);
+  /* Blue-black void — deeper, more cinematic */
+  --background: oklch(0.08 0.03 250);
   --foreground: oklch(0.94 0.04 190);
 
-  --card: oklch(0.17 0.03 215);
+  --card: oklch(0.11 0.03 240);
   --card-foreground: oklch(0.94 0.04 190);
-  --popover: oklch(0.17 0.035 215);
+  --popover: oklch(0.11 0.035 240);
   --popover-foreground: oklch(0.94 0.04 190);
 
-  /* Primary = bright cyan (signature Jarvis glow) */
-  --primary: oklch(0.82 0.17 193);
-  --primary-foreground: oklch(0.16 0.04 220);
+  /* Primary = brighter, more vivid cyan (signature Jarvis glow) */
+  --primary: oklch(0.85 0.19 193);
+  --primary-foreground: oklch(0.10 0.03 250);
 
-  --secondary: oklch(0.24 0.04 200);
+  --secondary: oklch(0.18 0.04 200);
   --secondary-foreground: oklch(0.9 0.05 190);
 
-  --muted: oklch(0.22 0.03 210);
+  --muted: oklch(0.16 0.025 230);
   --muted-foreground: oklch(0.68 0.05 195);
 
   --accent: oklch(0.3 0.08 190);
   --accent-foreground: oklch(0.92 0.06 190);
 
-  --destructive: oklch(0.65 0.22 22);
-  --border: oklch(0.82 0.12 193 / 18%);
-  --input: oklch(0.82 0.12 193 / 22%);
-  --ring: oklch(0.82 0.17 193);
+  /* Warm accent for warnings/highlights */
+  --destructive: oklch(0.82 0.16 80);
+  --border: oklch(0.85 0.19 193 / 16%);
+  --input: oklch(0.85 0.19 193 / 20%);
+  --ring: oklch(0.85 0.19 193);
 
-  --chart-1: oklch(0.82 0.17 193);
+  --chart-1: oklch(0.85 0.19 193);
   --chart-2: oklch(0.75 0.15 165);
   --chart-3: oklch(0.78 0.14 220);
   --chart-4: oklch(0.8 0.16 140);
-  --chart-5: oklch(0.72 0.18 40);
+  --chart-5: oklch(0.82 0.16 80);
 
-  --sidebar: oklch(0.16 0.03 218);
+  --sidebar: oklch(0.09 0.025 245);
   --sidebar-foreground: oklch(0.94 0.04 190);
-  --sidebar-primary: oklch(0.82 0.17 193);
-  --sidebar-primary-foreground: oklch(0.16 0.04 220);
-  --sidebar-accent: oklch(0.26 0.05 195);
+  --sidebar-primary: oklch(0.85 0.19 193);
+  --sidebar-primary-foreground: oklch(0.10 0.03 250);
+  --sidebar-accent: oklch(0.22 0.05 195);
   --sidebar-accent-foreground: oklch(0.92 0.06 190);
-  --sidebar-border: oklch(0.82 0.12 193 / 18%);
-  --sidebar-ring: oklch(0.82 0.17 193);
+  --sidebar-border: oklch(0.85 0.19 193 / 16%);
+  --sidebar-ring: oklch(0.85 0.19 193);
 }
 
 .dark {
-  --background: oklch(0.14 0.025 220);
+  --background: oklch(0.08 0.03 250);
   --foreground: oklch(0.94 0.04 190);
-  --card: oklch(0.17 0.03 215);
+  --card: oklch(0.11 0.03 240);
   --card-foreground: oklch(0.94 0.04 190);
-  --popover: oklch(0.17 0.035 215);
+  --popover: oklch(0.11 0.035 240);
   --popover-foreground: oklch(0.94 0.04 190);
-  --primary: oklch(0.82 0.17 193);
-  --primary-foreground: oklch(0.16 0.04 220);
-  --secondary: oklch(0.24 0.04 200);
+  --primary: oklch(0.85 0.19 193);
+  --primary-foreground: oklch(0.10 0.03 250);
+  --secondary: oklch(0.18 0.04 200);
   --secondary-foreground: oklch(0.9 0.05 190);
-  --muted: oklch(0.22 0.03 210);
+  --muted: oklch(0.16 0.025 230);
   --muted-foreground: oklch(0.68 0.05 195);
   --accent: oklch(0.3 0.08 190);
   --accent-foreground: oklch(0.92 0.06 190);
-  --destructive: oklch(0.65 0.22 22);
-  --border: oklch(0.82 0.12 193 / 18%);
-  --input: oklch(0.82 0.12 193 / 22%);
-  --ring: oklch(0.82 0.17 193);
-  --chart-1: oklch(0.82 0.17 193);
+  --destructive: oklch(0.82 0.16 80);
+  --border: oklch(0.85 0.19 193 / 16%);
+  --input: oklch(0.85 0.19 193 / 20%);
+  --ring: oklch(0.85 0.19 193);
+  --chart-1: oklch(0.85 0.19 193);
   --chart-2: oklch(0.75 0.15 165);
   --chart-3: oklch(0.78 0.14 220);
   --chart-4: oklch(0.8 0.16 140);
-  --chart-5: oklch(0.72 0.18 40);
-  --sidebar: oklch(0.16 0.03 218);
+  --chart-5: oklch(0.82 0.16 80);
+  --sidebar: oklch(0.09 0.025 245);
   --sidebar-foreground: oklch(0.94 0.04 190);
-  --sidebar-primary: oklch(0.82 0.17 193);
-  --sidebar-primary-foreground: oklch(0.16 0.04 220);
-  --sidebar-accent: oklch(0.26 0.05 195);
+  --sidebar-primary: oklch(0.85 0.19 193);
+  --sidebar-primary-foreground: oklch(0.10 0.03 250);
+  --sidebar-accent: oklch(0.22 0.05 195);
   --sidebar-accent-foreground: oklch(0.92 0.06 190);
-  --sidebar-border: oklch(0.82 0.12 193 / 18%);
-  --sidebar-ring: oklch(0.82 0.17 193);
+  --sidebar-border: oklch(0.85 0.19 193 / 16%);
+  --sidebar-ring: oklch(0.85 0.19 193);
 }
 
 @layer base {
@@ -133,56 +134,70 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Holographic display in a dark room — multiple gradient layers + vignette */
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.82 0.17 193 / 12%), transparent 60%),
+      /* Vignette — darken edges */
+      radial-gradient(ellipse 120% 120% at 50% 50%, transparent 40%, oklch(0.04 0.01 250 / 70%) 100%),
+      /* Top-center primary glow */
+      radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.85 0.19 193 / 12%), transparent 60%),
+      /* Bottom-right corner teal */
       radial-gradient(ellipse 60% 50% at 100% 100%, oklch(0.75 0.15 165 / 8%), transparent 60%),
-      radial-gradient(ellipse 50% 40% at 0% 80%, oklch(0.78 0.14 220 / 7%), transparent 60%);
+      /* Bottom-center subtle warm accent */
+      radial-gradient(ellipse 70% 40% at 50% 100%, oklch(0.82 0.16 80 / 5%), transparent 60%),
+      /* Left-center blue glow */
+      radial-gradient(ellipse 50% 40% at 0% 80%, oklch(0.78 0.14 220 / 7%), transparent 60%),
+      /* Center radial — soft holographic core */
+      radial-gradient(circle 50% at 50% 50%, oklch(0.85 0.19 193 / 4%), transparent 70%);
     background-attachment: fixed;
   }
 }
 
 /* ===== Jarvis HUD utility classes ===== */
 @layer utilities {
+  /* ---- Enhanced existing ---- */
+
   .jarvis-glow {
-    text-shadow: 0 0 10px oklch(0.82 0.17 193 / 60%), 0 0 24px oklch(0.82 0.17 193 / 30%);
+    text-shadow: 0 0 10px oklch(0.85 0.19 193 / 60%), 0 0 24px oklch(0.85 0.19 193 / 30%), 0 0 50px oklch(0.85 0.19 193 / 12%);
   }
   .jarvis-glow-strong {
-    text-shadow: 0 0 8px oklch(0.85 0.18 193 / 90%), 0 0 20px oklch(0.82 0.17 193 / 60%), 0 0 40px oklch(0.82 0.17 193 / 35%);
+    text-shadow: 0 0 8px oklch(0.85 0.19 193 / 90%), 0 0 20px oklch(0.85 0.19 193 / 60%), 0 0 40px oklch(0.85 0.19 193 / 35%);
   }
   .jarvis-box-glow {
-    box-shadow: 0 0 0 1px oklch(0.82 0.17 193 / 25%), 0 0 18px oklch(0.82 0.17 193 / 18%), inset 0 0 24px oklch(0.82 0.17 193 / 6%);
+    box-shadow: 0 0 0 1px oklch(0.85 0.19 193 / 25%), 0 0 18px oklch(0.85 0.19 193 / 18%), inset 0 0 24px oklch(0.85 0.19 193 / 6%);
   }
   .jarvis-box-glow-strong {
-    box-shadow: 0 0 0 1px oklch(0.82 0.17 193 / 45%), 0 0 26px oklch(0.82 0.17 193 / 35%), inset 0 0 30px oklch(0.82 0.17 193 / 12%);
+    box-shadow: 0 0 0 1px oklch(0.85 0.19 193 / 45%), 0 0 26px oklch(0.85 0.19 193 / 35%), inset 0 0 30px oklch(0.85 0.19 193 / 12%);
   }
+  /* Grid bg — more subtle (5% down from 7%) */
   .jarvis-grid-bg {
     background-image:
-      linear-gradient(oklch(0.82 0.17 193 / 7%) 1px, transparent 1px),
-      linear-gradient(90deg, oklch(0.82 0.17 193 / 7%) 1px, transparent 1px);
+      linear-gradient(oklch(0.85 0.19 193 / 5%) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(0.85 0.19 193 / 5%) 1px, transparent 1px);
     background-size: 32px 32px;
   }
+  /* Scanline — more visible (5% up from 3%) */
   .jarvis-scanline {
     background: repeating-linear-gradient(
       0deg,
       transparent 0px,
       transparent 3px,
-      oklch(0.82 0.17 193 / 3%) 3px,
-      oklch(0.82 0.17 193 / 3%) 4px
+      oklch(0.85 0.19 193 / 5%) 3px,
+      oklch(0.85 0.19 193 / 5%) 4px
     );
   }
   .jarvis-text-cyan {
-    color: oklch(0.85 0.18 193);
+    color: oklch(0.85 0.19 193);
   }
   .jarvis-text-muted {
     color: oklch(0.62 0.06 195);
   }
   .jarvis-border-cyan {
-    border-color: oklch(0.82 0.17 193 / 30%);
+    border-color: oklch(0.85 0.19 193 / 30%);
   }
   /* Custom scrollbars */
   .jarvis-scroll {
     scrollbar-width: thin;
-    scrollbar-color: oklch(0.82 0.17 193 / 40%) transparent;
+    scrollbar-color: oklch(0.85 0.19 193 / 40%) transparent;
   }
   .jarvis-scroll::-webkit-scrollbar {
     width: 6px;
@@ -192,15 +207,200 @@
     background: transparent;
   }
   .jarvis-scroll::-webkit-scrollbar-thumb {
-    background-color: oklch(0.82 0.17 193 / 35%);
+    background-color: oklch(0.85 0.19 193 / 35%);
     border-radius: 999px;
   }
   .jarvis-scroll::-webkit-scrollbar-thumb:hover {
-    background-color: oklch(0.82 0.17 193 / 60%);
+    background-color: oklch(0.85 0.19 193 / 60%);
+  }
+
+  /* ---- NEW HUD Utility Classes ---- */
+
+  /* 1. Corner brackets — targeting reticle marks on panels */
+  .jarvis-corner-brackets {
+    position: relative;
+  }
+  .jarvis-corner-brackets::before,
+  .jarvis-corner-brackets::after {
+    content: "";
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    pointer-events: none;
+  }
+  .jarvis-corner-brackets::before {
+    top: -1px;
+    left: -1px;
+    border-top: 1.5px solid oklch(0.85 0.19 193 / 60%);
+    border-left: 1.5px solid oklch(0.85 0.19 193 / 60%);
+    box-shadow: -3px -3px 0 0 oklch(0.85 0.19 193 / 60%);
+    /* top-right corner via shadow offset */
+  }
+  .jarvis-corner-brackets::after {
+    bottom: -1px;
+    right: -1px;
+    border-bottom: 1.5px solid oklch(0.85 0.19 193 / 60%);
+    border-right: 1.5px solid oklch(0.85 0.19 193 / 60%);
+  }
+  /* Inner wrapper technique for all 4 corners — use with .jarvis-corner-brackets-inner on a child */
+  .jarvis-corner-brackets-inner::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    right: -1px;
+    width: 12px;
+    height: 12px;
+    border-top: 1.5px solid oklch(0.85 0.19 193 / 60%);
+    border-right: 1.5px solid oklch(0.85 0.19 193 / 60%);
+    pointer-events: none;
+  }
+  .jarvis-corner-brackets-inner::after {
+    content: "";
+    position: absolute;
+    bottom: -1px;
+    left: -1px;
+    width: 12px;
+    height: 12px;
+    border-bottom: 1.5px solid oklch(0.85 0.19 193 / 60%);
+    border-left: 1.5px solid oklch(0.85 0.19 193 / 60%);
+    pointer-events: none;
+  }
+
+  /* 2. Hologram shimmer — prismatic overlay (enhanced visibility) */
+  .jarvis-hologram {
+    position: relative;
+    overflow: hidden;
+  }
+  .jarvis-hologram::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      135deg,
+      oklch(0.85 0.19 193 / 10%),
+      oklch(0.8 0.15 140 / 12%),
+      oklch(0.85 0.19 193 / 8%),
+      oklch(0.82 0.16 80 / 10%),
+      oklch(0.85 0.19 193 / 10%)
+    );
+    background-size: 200% 200%;
+    animation: jarvis-holo-shimmer 4s linear infinite;
+    pointer-events: none;
+    mix-blend-mode: screen;
+  }
+
+  /* 3. Data stream — vertical scan line sweeping down */
+  .jarvis-data-stream {
+    position: relative;
+    overflow: hidden;
+  }
+  .jarvis-data-stream::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 2px;
+    height: 40px;
+    background: oklch(0.85 0.19 193);
+    box-shadow: 0 0 12px oklch(0.85 0.19 193 / 80%), 0 0 30px oklch(0.85 0.19 193 / 40%), 0 0 60px oklch(0.85 0.19 193 / 20%);
+    transform: translateY(-100%);
+    animation: jarvis-sweep-line 3s linear infinite;
+    pointer-events: none;
+  }
+
+  /* 4. Glitch effect — for transitions */
+  .jarvis-glitch {
+    animation: jarvis-glitch-clip 0.3s steps(1) both;
+  }
+
+  /* 5. Pulse ring — sonar/ripple for clicks & notifications */
+  .jarvis-pulse-ring {
+    position: relative;
+  }
+  .jarvis-pulse-ring::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border: 1.5px solid oklch(0.85 0.19 193 / 60%);
+    border-radius: inherit;
+    animation: jarvis-energy-wave 2s ease-out infinite;
+    pointer-events: none;
+  }
+
+  /* 6. Terminal text — CRT phosphor glow */
+  .jarvis-text-terminal {
+    font-family: var(--font-geist-mono), ui-monospace, "Cascadia Code", "Fira Code", monospace;
+    text-shadow: 0 0 6px oklch(0.75 0.15 165 / 50%), 0 0 14px oklch(0.75 0.15 165 / 25%);
+    letter-spacing: 0.02em;
+  }
+
+  /* 7. Dashed border with marching ants glow */
+  .jarvis-border-dashed {
+    border: 1px dashed oklch(0.85 0.19 193 / 40%);
+    background-image: linear-gradient(
+      90deg,
+      oklch(0.85 0.19 193 / 40%) 50%,
+      transparent 50%
+    );
+    background-size: 16px 2px;
+    background-position: 0 100%;
+    background-repeat: repeat-x;
+    animation: jarvis-march 1.2s linear infinite;
+    box-shadow: 0 0 8px oklch(0.85 0.19 193 / 15%);
+  }
+
+  /* 8. Gradient border — brighter at top, fading at bottom */
+  .jarvis-gradient-border {
+    position: relative;
+    border: none;
+    background: none;
+  }
+  .jarvis-gradient-border::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: linear-gradient(
+      to bottom,
+      oklch(0.85 0.19 193 / 55%),
+      oklch(0.85 0.19 193 / 20%) 40%,
+      oklch(0.85 0.19 193 / 5%) 100%
+    );
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* 9. Particle system — CSS dust-in-light effect (brighter for visibility) */
+  .jarvis-particles {
+    background-image:
+      radial-gradient(1.5px 1.5px at 10% 20%, oklch(0.85 0.19 193 / 30%), transparent),
+      radial-gradient(1px 1px at 22% 45%, oklch(0.75 0.15 165 / 25%), transparent),
+      radial-gradient(2px 2px at 35% 10%, oklch(0.85 0.19 193 / 35%), transparent),
+      radial-gradient(1px 1px at 48% 72%, oklch(0.85 0.19 193 / 20%), transparent),
+      radial-gradient(1.5px 1.5px at 55% 35%, oklch(0.78 0.14 220 / 28%), transparent),
+      radial-gradient(1px 1px at 65% 88%, oklch(0.85 0.19 193 / 22%), transparent),
+      radial-gradient(2px 2px at 72% 15%, oklch(0.85 0.19 193 / 30%), transparent),
+      radial-gradient(1px 1px at 80% 55%, oklch(0.75 0.15 165 / 20%), transparent),
+      radial-gradient(1.5px 1.5px at 88% 78%, oklch(0.85 0.19 193 / 25%), transparent),
+      radial-gradient(1px 1px at 95% 30%, oklch(0.85 0.19 193 / 18%), transparent),
+      radial-gradient(2px 2px at 15% 90%, oklch(0.78 0.14 220 / 32%), transparent),
+      radial-gradient(1px 1px at 42% 55%, oklch(0.85 0.19 193 / 20%), transparent),
+      radial-gradient(1.5px 1.5px at 58% 8%, oklch(0.85 0.19 193 / 28%), transparent),
+      radial-gradient(1px 1px at 5% 65%, oklch(0.75 0.15 165 / 22%), transparent),
+      radial-gradient(2px 2px at 82% 42%, oklch(0.85 0.19 193 / 25%), transparent),
+      radial-gradient(1px 1px at 28% 28%, oklch(0.85 0.19 193 / 18%), transparent);
+    background-size: 200% 200%;
+    animation: jarvis-float 12s ease-in-out infinite;
   }
 }
 
 /* ===== Animations ===== */
+
+/* -- Existing -- */
 @keyframes jarvis-spin-slow {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
@@ -242,6 +442,77 @@
   100% { transform: translateY(2000%); }
 }
 
+/* -- New keyframes -- */
+
+/* 1. Boot-up: opacity + scale + flash */
+@keyframes jarvis-boot-up {
+  0% { opacity: 0; transform: scale(0.95); }
+  48% { opacity: 0.9; transform: scale(0.99); }
+  50% { opacity: 1; transform: scale(1); filter: brightness(1.8); }
+  60% { filter: brightness(1); }
+  100% { opacity: 1; transform: scale(1); filter: brightness(1); }
+}
+
+/* 2. Holo shimmer: slow-moving highlight band */
+@keyframes jarvis-holo-shimmer {
+  0% { background-position: 0% 0%; }
+  100% { background-position: 200% 200%; }
+}
+
+/* 3. Sweep line: vertical bright line left→right */
+@keyframes jarvis-sweep-line-h {
+  0% { left: -2px; opacity: 0; }
+  5% { opacity: 1; }
+  95% { opacity: 1; }
+  100% { left: calc(100% + 2px); opacity: 0; }
+}
+
+/* 4. Data pulse: organic opacity breathing */
+@keyframes jarvis-data-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+/* 5. Float: gentle up/down */
+@keyframes jarvis-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+
+/* 6. Rotate slow: 30s full rotation */
+@keyframes jarvis-rotate-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* 7. Typewriter cursor: blinking block */
+@keyframes jarvis-typewriter-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* 8. Energy wave: expanding ring */
+@keyframes jarvis-energy-wave {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+
+/* 9. Glitch clip-path */
+@keyframes jarvis-glitch-clip {
+  0% { clip-path: inset(0 0 0 0); transform: translateX(0); }
+  20% { clip-path: inset(20% 0 60% 0); transform: translateX(2px); filter: hue-rotate(40deg); }
+  40% { clip-path: inset(60% 0 10% 0); transform: translateX(-2px); filter: hue-rotate(-40deg); }
+  60% { clip-path: inset(40% 0 30% 0); transform: translateX(1px); filter: hue-rotate(20deg); }
+  80% { clip-path: inset(10% 0 70% 0); transform: translateX(-1px); filter: hue-rotate(-20deg); }
+  100% { clip-path: inset(0 0 0 0); transform: translateX(0); filter: hue-rotate(0deg); }
+}
+
+/* 10. Marching ants */
+@keyframes jarvis-march {
+  to { background-position: 16px 100%; }
+}
+
+/* -- Existing animation utility classes -- */
 .anim-spin-slow { animation: jarvis-spin-slow 14s linear infinite; }
 .anim-spin-slow-rev { animation: jarvis-spin-reverse 22s linear infinite; }
 .anim-spin-med { animation: jarvis-spin-slow 8s linear infinite; }
@@ -249,3 +520,15 @@
 .anim-blink { animation: jarvis-blink 1.4s ease-in-out infinite; }
 .anim-flicker { animation: jarvis-flicker 4s linear infinite; }
 .anim-fade-up { animation: jarvis-fade-up 0.35s ease-out both; }
+
+/* -- New animation utility classes -- */
+.anim-boot-up { animation: jarvis-boot-up 1.2s ease-out both; }
+.anim-holo-shimmer { animation: jarvis-holo-shimmer 4s linear infinite; }
+.anim-sweep-line-h { animation: jarvis-sweep-line-h 2.5s linear infinite; }
+.anim-data-pulse { animation: jarvis-data-pulse 3s ease-in-out infinite; }
+.anim-float { animation: jarvis-float 6s ease-in-out infinite; }
+.anim-rotate-slow { animation: jarvis-rotate-slow 30s linear infinite; }
+.anim-typewriter-cursor { animation: jarvis-typewriter-cursor 1s step-end infinite; }
+.anim-energy-wave { animation: jarvis-energy-wave 2s ease-out infinite; }
+.anim-glitch { animation: jarvis-glitch-clip 0.3s steps(1) both; }
+.anim-march { animation: jarvis-march 1.2s linear infinite; }

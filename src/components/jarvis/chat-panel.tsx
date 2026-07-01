@@ -16,7 +16,7 @@ function MessageBubble({ msg, onSpeak }: { msg: ChatMessage; onSpeak: (t: string
   if (isUser) {
     return (
       <div className="flex justify-end gap-2 anim-fade-up">
-        <div className="max-w-[80%] rounded-2xl rounded-tr-sm border jarvis-border-cyan bg-primary/10 px-3.5 py-2.5">
+        <div className="max-w-[80%] rounded-2xl rounded-tr-sm border jarvis-border-cyan bg-primary/10 px-3.5 py-2.5 backdrop-blur-sm">
           {msg.source === "voice" && (
             <div className="mb-1 flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider text-primary/70">
               <Mic className="h-2.5 w-2.5" /> voice
@@ -35,7 +35,7 @@ function MessageBubble({ msg, onSpeak }: { msg: ChatMessage; onSpeak: (t: string
       <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border jarvis-border-cyan bg-primary/15 jarvis-box-glow">
         <Cpu className="h-3.5 w-3.5 text-primary" />
       </div>
-      <div className="max-w-[82%] rounded-2xl rounded-tl-sm border jarvis-border-cyan bg-card/70 px-3.5 py-2.5 backdrop-blur-sm">
+      <div className="max-w-[82%] rounded-2xl rounded-tl-sm border jarvis-border-cyan bg-card/70 px-3.5 py-2.5 backdrop-blur-sm jarvis-corner-brackets">
         {msg.pending ? (
           <div className="flex items-center gap-1.5 py-1">
             <span className="font-mono text-[10px] uppercase tracking-widest text-primary/70">processing</span>
@@ -64,7 +64,7 @@ function MessageBubble({ msg, onSpeak }: { msg: ChatMessage; onSpeak: (t: string
             {msg.hasAudio && (
               <button
                 onClick={() => onSpeak(msg.content)}
-                className="mt-1.5 flex items-center gap-1 rounded-md border jarvis-border-cyan px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary/80 transition hover:bg-primary/10"
+                className="mt-1.5 flex items-center gap-1 rounded-md border jarvis-border-cyan px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary/80 transition hover:bg-primary/10 hover:jarvis-box-glow"
               >
                 <Volume2 className="h-2.5 w-2.5" /> replay audio
               </button>
@@ -187,7 +187,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
             <button
               type="submit"
               disabled={!input.trim()}
-              className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-primary/15 text-primary transition hover:bg-primary/25 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary/15"
+              className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-primary/15 text-primary transition hover:bg-primary/25 hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary/15"
               title="Отправить"
             >
               <Send className="h-4 w-4" />
