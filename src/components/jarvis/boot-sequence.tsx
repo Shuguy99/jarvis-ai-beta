@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { playSound } from "@/lib/sounds";
 
 interface BootSequenceProps {
   onComplete: () => void;
@@ -88,9 +89,9 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
   // Phase 3 → 4 → complete
   useEffect(() => {
     if (phase !== 3) return;
-
+    playSound("boot-chime");
     const t3 = setTimeout(() => setPhase(4), T.PHASE3_END - T.PHASE2_END);
-    const t4 = setTimeout(() => complete(), T.PHASE4_END - T.PHASE2_END);
+    const t4 = setTimeout(() => { playSound("activate"); complete(); }, T.PHASE4_END - T.PHASE2_END);
 
     return () => {
       clearTimeout(t3);

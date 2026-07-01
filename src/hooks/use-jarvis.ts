@@ -406,6 +406,89 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     setState("idle");
   }, []);
 
+  // ---- Vision (VLM) ----
+  const analyzeImage = useCallback(
+    async (file: File, textPrompt?: string) => {
+      if (state === "thinking" || state === "speaking") return;
+      setError(null);
+      setSearchedSources(null);
+      stopSpeaking();
+      setState("thinking");
+
+      const userMsg: ChatMessage = {
+        id: uid(),
+        role: "user",
+        content: textPrompt || "Проанализируй это изображение",
+        createdAt: new Date().toISOString(),
+        source: "text",
+        imagePreview: URL.createObjectURL(file),
+      };
+      setMessages((prev) => [...prev, userMsg]);
+
+      const pendingId = uid();
+      const pendingMsg: ChatMessage = {
+        id: pendingId,
+        role: "assistant",
+        content: "",
+        createdAt: new Date().toISOString(),
+        pending: true,
+      };
+      setMessages((prev) => [...prev, pendingMsg]);
+
+      // persist
+      const convoId = await ensureConversation(userMsg.content);
+      if (convoId && messages.filter((m) => m.role === "user").length > 0) {
+        void persistMessage("user", userMsg.content);
+      }
+
+      try {
+        const reader = new FileReader();
+        const base64 = await new Promise<string>((resolve, reject) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        const res = await fetch("/api/jarvis/vision", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: base64, prompt: textPrompt }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Ошибка анализа изображения.");
+
+        const reply = data.reply as string;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingId
+              ? { ...m, content: reply, pending: false, hasAudio: true }
+              : m
+          )
+        );
+
+        if (convoId) void persistMessage("assistant", reply);
+
+        if (autoSpeakOn) {
+          await speak(reply);
+        } else {
+          setState("idle");
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Неизвестная ошибка";
+        setError(msg);
+        setState("error");
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingId
+              ? { ...m, content: `» Ошибка: ${msg}`, pending: false }
+              : m
+          )
+        );
+      }
+    },
+    [state, messages, activeConvoId, ensureConversation, persistMessage, autoSpeakOn, speak, stopSpeaking]
+  );
+
   return {
     // state
     messages,
@@ -419,6 +502,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     activeConvoId,
     // actions
     sendText,
+    analyzeImage,
     startListening,
     stopListening,
     toggleListening,

@@ -532,3 +532,9 @@
 .anim-energy-wave { animation: jarvis-energy-wave 2s ease-out infinite; }
 .anim-glitch { animation: jarvis-glitch-clip 0.3s steps(1) both; }
 .anim-march { animation: jarvis-march 1.2s linear infinite; }
+
+/* News ticker seamless scroll */
+@keyframes ticker-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}

@@ -7,8 +7,9 @@ export interface ChatMessage {
   createdAt: string;
   // optional UI metadata
   pending?: boolean;
-  source?: "voice" | "text";
+  source?: "voice" | "text" | "image";
   hasAudio?: boolean;
+  imagePreview?: string;
 }
 
 export interface Conversation {

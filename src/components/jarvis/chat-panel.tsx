@@ -3,23 +3,76 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu } from "lucide-react";
+import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye } from "lucide-react";
 import type { ChatMessage } from "@/lib/types";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
+import { playSound } from "@/lib/sounds";
 
 interface ChatPanelProps {
   jarvis: UseJarvisReturn;
 }
 
-function MessageBubble({ msg, onSpeak }: { msg: ChatMessage; onSpeak: (t: string) => void }) {
+/** Typewriter component — рендерит текст с эффектом печатной машинки */
+function TypewriterText({ text, speed = 14, onDone }: { text: string; speed?: number; onDone?: () => void }) {
+  const [displayed, setDisplayed] = useState("");
+  const [done, setDone] = useState(false);
+  const idxRef = useRef(0);
+  const ivRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    idxRef.current = 0;
+    ivRef.current = setInterval(() => {
+      idxRef.current += 2;
+      if (idxRef.current >= text.length) {
+        setDisplayed(text);
+        setDone(true);
+        onDone?.();
+        if (ivRef.current) clearInterval(ivRef.current);
+      } else {
+        setDisplayed(text.slice(0, idxRef.current));
+      }
+    }, speed);
+    return () => { if (ivRef.current) clearInterval(ivRef.current); };
+  }, [text, speed, onDone]);
+
+  return (
+    <>
+      <ReactMarkdown
+        components={{
+          a: ({ ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
+        }}
+      >
+        {displayed}
+      </ReactMarkdown>
+      {!done && (
+        <span className="inline-block h-4 w-0.5 animate-pulse bg-primary ml-0.5 align-text-bottom" />
+      )}
+    </>
+  );
+}
+
+function MessageBubble({ msg, onSpeak, isLatest }: { msg: ChatMessage; onSpeak: (t: string) => void; isLatest?: boolean }) {
   const isUser = msg.role === "user";
+  const isTypewriterTarget = !isUser && !msg.pending && !!msg.content && isLatest;
+  const handleTwDone = useCallback(() => { playSound("message-receive"); }, []);
+
   if (isUser) {
     return (
       <div className="flex justify-end gap-2 anim-fade-up">
         <div className="max-w-[80%] rounded-2xl rounded-tr-sm border jarvis-border-cyan bg-primary/10 px-3.5 py-2.5 backdrop-blur-sm">
-          {msg.source === "voice" && (
+          {(msg.source === "voice") && (
             <div className="mb-1 flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider text-primary/70">
               <Mic className="h-2.5 w-2.5" /> voice
+            </div>
+          )}
+          {(msg.source === "image") && (
+            <div className="mb-1 flex items-center gap-1 font-mono text-[9px] uppercase tracking-wider text-primary/70">
+              <Eye className="h-2.5 w-2.5" /> vision analysis
+            </div>
+          )}
+          {msg.imagePreview && (
+            <div className="mb-2 overflow-hidden rounded-lg border jarvis-border-cyan">
+              <img src={msg.imagePreview} alt="Загруженное" className="max-h-48 w-auto rounded-lg object-contain" />
             </div>
           )}
           <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">{msg.content}</p>
@@ -53,17 +106,21 @@ function MessageBubble({ msg, onSpeak }: { msg: ChatMessage; onSpeak: (t: string
         ) : (
           <>
             <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-code:text-primary prose-code:before:hidden prose-code:after:hidden prose-code:rounded prose-code:bg-primary/10 prose-code:px-1 prose-pre:bg-muted/50 prose-a:text-primary">
-              <ReactMarkdown
-                components={{
-                  a: ({ ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
-                }}
-              >
-                {msg.content}
-              </ReactMarkdown>
+              {isTypewriterTarget ? (
+                <TypewriterText text={msg.content} onDone={handleTwDone} />
+              ) : (
+                <ReactMarkdown
+                  components={{
+                    a: ({ ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
+                  }}
+                >
+                  {msg.content}
+                </ReactMarkdown>
+              )}
             </div>
-            {msg.hasAudio && (
+            {msg.hasAudio && !isTypewriterTarget && (
               <button
-                onClick={() => onSpeak(msg.content)}
+                onClick={() => { playSound("click"); onSpeak(msg.content); }}
                 className="mt-1.5 flex items-center gap-1 rounded-md border jarvis-border-cyan px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-primary/80 transition hover:bg-primary/10 hover:jarvis-box-glow"
               >
                 <Volume2 className="h-2.5 w-2.5" /> replay audio
@@ -92,12 +149,26 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
       const text = input.trim();
       if (!text || state === "thinking" || state === "speaking") return;
       setInput("");
+      playSound("message-send");
       void sendText(text, "text");
     },
     [input, state, sendText]
   );
 
   const busy = state === "thinking" || state === "speaking";
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImageUpload = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      playSound("activate");
+      void jarvis.analyzeImage(file, input.trim() || undefined);
+      setInput("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    },
+    [jarvis, input]
+  );
 
   return (
     <div className="flex h-full flex-col">
@@ -117,8 +188,8 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
           </div>
         ) : (
           <AnimatePresence initial={false}>
-            {messages.map((m) => (
-              <MessageBubble key={m.id} msg={m} onSpeak={jarvis.speak} />
+            {messages.map((m, i) => (
+              <MessageBubble key={m.id} msg={m} onSpeak={jarvis.speak} isLatest={i === messages.length - 1 && m.role === "assistant"} />
             ))}
           </AnimatePresence>
         )}
@@ -158,6 +229,22 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
         className="relative border-t jarvis-border-cyan p-3"
       >
         <div className="flex items-end gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleImageUpload}
+          />
+          <button
+            type="button"
+            onClick={() => { playSound("click"); fileInputRef.current?.click(); }}
+            disabled={busy}
+            className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-card/60 text-primary/80 transition hover:bg-primary/15 hover:text-primary hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40"
+            title="Загрузить изображение для анализа"
+          >
+            <ImagePlus className="h-4 w-4" />
+          </button>
           <div className="relative flex-1">
             <textarea
               value={input}
@@ -177,7 +264,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
           {busy ? (
             <button
               type="button"
-              onClick={stopSpeaking}
+              onClick={() => { playSound("click"); stopSpeaking(); }}
               className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-lg border border-destructive/40 bg-destructive/15 text-destructive transition hover:bg-destructive/25"
               title="Остановить"
             >

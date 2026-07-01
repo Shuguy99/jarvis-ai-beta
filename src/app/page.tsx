@@ -10,7 +10,10 @@ import { ConversationList } from "@/components/jarvis/conversation-list";
 import { VoiceControl } from "@/components/jarvis/voice-control";
 import { StatusClock } from "@/components/jarvis/status-clock";
 import { BootSequence } from "@/components/jarvis/boot-sequence";
-import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe } from "lucide-react";
+import { HoloGlobe } from "@/components/jarvis/holo-globe";
+import { NewsTicker } from "@/components/jarvis/news-ticker";
+import { FullscreenToggle } from "@/components/jarvis/fullscreen-toggle";
+import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const CAPABILITIES = [
@@ -18,8 +21,10 @@ const CAPABILITIES = [
   { icon: Volume2, label: "Voice I/O", desc: "Распознавание + синтез" },
   { icon: Globe, label: "Web Search", desc: "Актуальные данные" },
   { icon: Eye, label: "Vision", desc: "Анализ изображений" },
+  { icon: ImagePlus, label: "Image Gen", desc: "Генерация картинок" },
   { icon: Radar, label: "Diagnostics", desc: "Мониторинг систем" },
   { icon: Shield, label: "Secure", desc: "Локальная история" },
+  { icon: Globe, label: "Globe", desc: "Глобальная сеть" },
 ];
 
 export default function Home() {
@@ -42,6 +47,9 @@ export default function Home() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
           >
+            {/* ===== News Ticker ===== */}
+            <NewsTicker />
+
             {/* ===== Header ===== */}
             <header className="relative z-10 flex items-center justify-between border-b jarvis-border-cyan bg-card/40 px-4 py-3 backdrop-blur-md sm:px-6">
               <div className="pointer-events-none absolute inset-0 jarvis-scanline opacity-50" />
@@ -62,8 +70,8 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="relative flex items-center gap-4">
-                <div className="hidden items-center gap-2 rounded-full border jarvis-border-cyan bg-card/40 px-3 py-1 sm:flex">
+              <div className="relative flex items-center gap-3">
+                <div className="hidden items-center gap-2 rounded-full border jarvis-border-cyan bg-card/40 px-3 py-1 lg:flex">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 anim-pulse-glow" />
                   <span className="font-mono text-[10px] uppercase tracking-widest text-emerald-300/90">
                     Systems Online
@@ -81,6 +89,7 @@ export default function Home() {
                   {jarvis.autoSpeakOn ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
                   <span className="hidden sm:inline">{jarvis.autoSpeakOn ? "Voice On" : "Muted"}</span>
                 </button>
+                <FullscreenToggle />
                 <StatusClock />
               </div>
             </header>
@@ -93,7 +102,7 @@ export default function Home() {
 
               <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 lg:grid-cols-12 lg:gap-4 lg:p-4">
                 {/* Left sidebar */}
-                <aside className="flex flex-col gap-3 lg:col-span-3 lg:max-h-full lg:overflow-hidden">
+                <aside className="flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-hidden">
                   <motion.div
                     className="flex-shrink-0"
                     initial={{ opacity: 0, x: -20 }}
@@ -102,11 +111,21 @@ export default function Home() {
                   >
                     <SystemMonitor />
                   </motion.div>
+                  {/* Holographic Globe */}
                   <motion.div
-                    className="jarvis-box-glow jarvis-corner-brackets relative min-h-[200px] flex-1 overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-3 backdrop-blur-sm lg:min-h-0"
+                    className="jarvis-box-glow jarvis-corner-brackets relative flex items-center justify-center overflow-hidden rounded-xl border jarvis-border-cyan bg-card/20 p-2 backdrop-blur-sm"
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.4, duration: 0.6 }}
+                    transition={{ delay: 0.35, duration: 0.6 }}
+                  >
+                    <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
+                    <HoloGlobe size={220} />
+                  </motion.div>
+                  <motion.div
+                    className="jarvis-box-glow jarvis-corner-brackets relative min-h-[160px] flex-1 overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-3 backdrop-blur-sm lg:min-h-0"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.5, duration: 0.6 }}
                   >
                     <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
                     <ConversationList
@@ -120,7 +139,7 @@ export default function Home() {
                 </aside>
 
                 {/* Center column */}
-                <section className="flex flex-col gap-3 lg:col-span-6 lg:max-h-full lg:overflow-hidden">
+                <section className="flex flex-col gap-3 lg:col-span-6 lg:max-h-[calc(100vh-12rem)] lg:overflow-hidden">
                   {/* Hero: arc reactor + voice + quick commands */}
                   <motion.div
                     className="jarvis-box-glow jarvis-hologram relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm"
@@ -129,12 +148,11 @@ export default function Home() {
                     transition={{ delay: 0.1, duration: 0.8, ease: "easeOut" }}
                   >
                     <div className="pointer-events-none absolute inset-0 jarvis-grid-bg opacity-30" />
-                    {/* Data stream sweep line */}
                     <div className="pointer-events-none absolute inset-0 jarvis-data-stream opacity-30" />
                     <div className="relative flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex flex-1 flex-col items-center gap-2">
-                        <ArcReactor state={jarvis.state} audioLevel={jarvis.audioLevel} size={200} />
-                        <div className="mt-4 flex items-center gap-2">
+                        <ArcReactor state={jarvis.state} audioLevel={jarvis.audioLevel} size={180} />
+                        <div className="mt-2 flex items-center gap-2">
                           {jarvis.error ? (
                             <motion.div
                               initial={{ opacity: 0 }}
@@ -189,7 +207,7 @@ export default function Home() {
                 </section>
 
                 {/* Right sidebar */}
-                <aside className="flex flex-col gap-3 lg:col-span-3 lg:max-h-full lg:overflow-hidden">
+                <aside className="flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-hidden">
                   <motion.div
                     className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm"
                     initial={{ opacity: 0, x: 20 }}
@@ -238,26 +256,30 @@ export default function Home() {
                           Directives
                         </span>
                       </div>
-                      <div className="space-y-2.5 font-mono text-[10px] leading-relaxed text-muted-foreground">
+                      <div className="space-y-2 font-mono text-[10px] leading-relaxed text-muted-foreground">
                         <div className="flex gap-2">
                           <span className="text-primary/60">01.</span>
-                          <span>Голосовой ввод — нажмите микрофон и говорите. Повторное нажатие останавливает запись.</span>
+                          <span>Голосовой ввод — нажмите микрофон и говорите.</span>
                         </div>
                         <div className="flex gap-2">
                           <span className="text-primary/60">02.</span>
-                          <span>Авто-озвучка ответов включается/выключается в шапке. Каждое сообщение можно прослушать повторно.</span>
+                          <span>Авто-озвучка + кнопка повтора для каждого ответа.</span>
                         </div>
                         <div className="flex gap-2">
                           <span className="text-primary/60">03.</span>
-                          <span>Запросы о новостях, погоде, курсах автоматически запускают веб-поиск.</span>
+                          <span>Веб-поиск автоматически для новостей, погоды, курсов.</span>
                         </div>
                         <div className="flex gap-2">
                           <span className="text-primary/60">04.</span>
-                          <span>Все диалоги сохраняются локально и доступны в журнале сессий.</span>
+                          <span>Загрузите изображение — Джарвис проанализирует его.</span>
                         </div>
                         <div className="flex gap-2">
                           <span className="text-primary/60">05.</span>
-                          <span>Быстрые команды — мгновенный доступ к типовым задачам.</span>
+                          <span>Полноэкранный режим — нажмите F в шапке.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">06.</span>
+                          <span>Диалоги сохраняются локально в базе данных.</span>
                         </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
@@ -265,7 +287,7 @@ export default function Home() {
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v3.0.0 · Stark Industries
+                          JARVIS v4.0.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Z.ai neural core

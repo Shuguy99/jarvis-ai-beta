@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { Mic, MicOff, Square } from "lucide-react";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
+import { playSound } from "@/lib/sounds";
 
 interface VoiceControlProps {
   jarvis: UseJarvisReturn;
@@ -56,7 +57,7 @@ export function VoiceControl({ jarvis }: VoiceControlProps) {
         )}
         {speaking ? (
           <button
-            onClick={stopSpeaking}
+            onClick={() => { playSound("deactivate"); stopSpeaking(); }}
             className="relative flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/20 text-primary jarvis-box-glow-strong transition hover:bg-primary/30"
             title="Остановить речь"
           >
@@ -64,7 +65,7 @@ export function VoiceControl({ jarvis }: VoiceControlProps) {
           </button>
         ) : (
           <button
-            onClick={toggleListening}
+            onClick={() => { playSound(isRecording ? "mic-off" : "mic-on"); toggleListening(); }}
             disabled={state === "thinking"}
             className={`relative flex h-14 w-14 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-40 ${
               isRecording
