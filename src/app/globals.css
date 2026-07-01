@@ -538,3 +538,422 @@
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
+
+/* ===== Additional HUD Decorations & Micro-Animations ===== */
+
+/* 10. HUD data label — small uppercase label with decorative line */
+.jarvis-data-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: oklch(0.68 0.05 195);
+}
+.jarvis-data-label::before,
+.jarvis-data-label::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, oklch(0.85 0.19 193 / 0%), oklch(0.85 0.19 193 / 30%));
+}
+.jarvis-data-label::after {
+  background: linear-gradient(90deg, oklch(0.85 0.19 193 / 30%), oklch(0.85 0.19 193 / 0%));
+}
+
+/* 11. Hexagonal subtle pattern background */
+.jarvis-hex-bg {
+  background-image:
+    linear-gradient(30deg, oklch(0.85 0.19 193 / 3%) 12%, transparent 12.5%, transparent 87%, oklch(0.85 0.19 193 / 3%) 87.5%),
+    linear-gradient(150deg, oklch(0.85 0.19 193 / 3%) 12%, transparent 12.5%, transparent 87%, oklch(0.85 0.19 193 / 3%) 87.5%),
+    linear-gradient(30deg, oklch(0.85 0.19 193 / 3%) 12%, transparent 12.5%, transparent 87%, oklch(0.85 0.19 193 / 3%) 87.5%),
+    linear-gradient(150deg, oklch(0.85 0.19 193 / 3%) 12%, transparent 12.5%, transparent 87%, oklch(0.85 0.19 193 / 3%) 87.5%),
+    linear-gradient(60deg, oklch(0.82 0.17 193 / 4%) 25%, transparent 25.5%, transparent 75%, oklch(0.82 0.17 193 / 4%) 75%),
+    linear-gradient(60deg, oklch(0.82 0.17 193 / 4%) 25%, transparent 25.5%, transparent 75%, oklch(0.82 0.17 193 / 4%) 75%);
+  background-size: 40px 70px;
+  background-position: 0 0, 0 0, 20px 35px, 20px 35px, 0 0, 20px 35px;
+}
+
+/* 12. Animated border glow — pulsing border */
+.jarvis-border-pulse {
+  animation: jarvis-border-pulse-anim 3s ease-in-out infinite;
+}
+@keyframes jarvis-border-pulse-anim {
+  0%, 100% { border-color: oklch(0.85 0.19 193 / 20%); }
+  50% { border-color: oklch(0.85 0.19 193 / 50%); }
+}
+
+/* 13. HUD crosshair center marker */
+.jarvis-crosshair {
+  position: relative;
+}
+.jarvis-crosshair::before {
+  content: "+";
+  position: absolute;
+  top: -1px;
+  right: 6px;
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 10px;
+  color: oklch(0.85 0.19 193 / 40%);
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* 14. Status indicator dot — animated */
+.jarvis-status-dot {
+  position: relative;
+}
+.jarvis-status-dot::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  border-radius: 50%;
+  background: oklch(0.85 0.19 193);
+  box-shadow: 0 0 6px oklch(0.85 0.19 193 / 80%), 0 0 12px oklch(0.85 0.19 193 / 40%);
+  animation: jarvis-pulse-glow 2s ease-in-out infinite;
+}
+
+/* 15. Digital noise overlay — very subtle */
+.jarvis-noise {
+  position: relative;
+}
+.jarvis-noise::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.015;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+/* 16. Typing cursor blink for HUD text */
+.jarvis-cursor-blink::after {
+  content: "█";
+  animation: jarvis-typewriter-cursor 1s step-end infinite;
+  color: oklch(0.85 0.19 193 / 70%);
+  margin-left: 2px;
+}
+
+/* 17. Thin progress bar (HUD style) */
+.jarvis-progress-bar {
+  height: 2px;
+  background: oklch(0.85 0.19 193 / 10%);
+  border-radius: 1px;
+  overflow: hidden;
+}
+.jarvis-progress-bar > .jarvis-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, oklch(0.85 0.19 193 / 60%), oklch(0.85 0.19 193));
+  box-shadow: 0 0 6px oklch(0.85 0.19 193 / 60%);
+  transition: width 0.5s ease-out;
+}
+
+/* Additional animation classes */
+.anim-border-pulse { animation: jarvis-border-pulse-anim 3s ease-in-out infinite; }
+
+/* Selection color */
+::selection {
+  background: oklch(0.85 0.19 193 / 30%);
+  color: oklch(0.94 0.04 190);
+}
+
+/* Focus ring enhancement */
+*:focus-visible {
+  outline: 1px solid oklch(0.85 0.19 193 / 60%);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 3px oklch(0.85 0.19 193 / 15%);
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Better font rendering */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ===== Theme Switcher — data-theme overrides ===== */
+
+/* --- Mark 42: Gold / Amber --- */
+[data-theme="mark42"] {
+  --primary: oklch(0.85 0.18 85);
+  --ring: oklch(0.85 0.18 85);
+  --border: oklch(0.85 0.18 85 / 16%);
+  --input: oklch(0.85 0.18 85 / 20%);
+  --chart-1: oklch(0.85 0.18 85);
+  --sidebar-primary: oklch(0.85 0.18 85);
+  --sidebar-border: oklch(0.85 0.18 85 / 16%);
+  --sidebar-ring: oklch(0.85 0.18 85);
+  --jarvis-primary: oklch(0.85 0.18 85);
+  --jarvis-primary-glow: oklch(0.85 0.18 85 / 50%);
+  --jarvis-theme-name: "Mark 42";
+}
+[data-theme="mark42"] body {
+  background-image:
+    radial-gradient(ellipse 120% 120% at 50% 50%, transparent 40%, oklch(0.04 0.01 250 / 70%) 100%),
+    radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.85 0.18 85 / 12%), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, oklch(0.75 0.15 165 / 8%), transparent 60%),
+    radial-gradient(ellipse 70% 40% at 50% 100%, oklch(0.82 0.16 80 / 5%), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 0% 80%, oklch(0.78 0.14 220 / 7%), transparent 60%),
+    radial-gradient(circle 50% at 50% 50%, oklch(0.85 0.18 85 / 4%), transparent 70%);
+}
+[data-theme="mark42"] .jarvis-glow {
+  text-shadow: 0 0 10px oklch(0.85 0.18 85 / 60%), 0 0 24px oklch(0.85 0.18 85 / 30%), 0 0 50px oklch(0.85 0.18 85 / 12%);
+}
+[data-theme="mark42"] .jarvis-glow-strong {
+  text-shadow: 0 0 8px oklch(0.85 0.18 85 / 90%), 0 0 20px oklch(0.85 0.18 85 / 60%), 0 0 40px oklch(0.85 0.18 85 / 35%);
+}
+[data-theme="mark42"] .jarvis-box-glow {
+  box-shadow: 0 0 0 1px oklch(0.85 0.18 85 / 25%), 0 0 18px oklch(0.85 0.18 85 / 18%), inset 0 0 24px oklch(0.85 0.18 85 / 6%);
+}
+[data-theme="mark42"] .jarvis-box-glow-strong {
+  box-shadow: 0 0 0 1px oklch(0.85 0.18 85 / 45%), 0 0 26px oklch(0.85 0.18 85 / 35%), inset 0 0 30px oklch(0.85 0.18 85 / 12%);
+}
+[data-theme="mark42"] .jarvis-grid-bg {
+  background-image:
+    linear-gradient(oklch(0.85 0.18 85 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.85 0.18 85 / 5%) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+[data-theme="mark42"] .jarvis-scanline {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 3px,
+    oklch(0.85 0.18 85 / 5%) 3px,
+    oklch(0.85 0.18 85 / 5%) 4px
+  );
+}
+[data-theme="mark42"] .jarvis-text-cyan {
+  color: oklch(0.85 0.18 85);
+}
+[data-theme="mark42"] .jarvis-border-cyan {
+  border-color: oklch(0.85 0.18 85 / 30%);
+}
+[data-theme="mark42"] .jarvis-scroll {
+  scrollbar-color: oklch(0.85 0.18 85 / 40%) transparent;
+}
+[data-theme="mark42"] .jarvis-scroll::-webkit-scrollbar-thumb {
+  background-color: oklch(0.85 0.18 85 / 35%);
+}
+[data-theme="mark42"] .jarvis-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(0.85 0.18 85 / 60%);
+}
+[data-theme="mark42"] .jarvis-corner-brackets::before {
+  border-top: 1.5px solid oklch(0.85 0.18 85 / 60%);
+  border-left: 1.5px solid oklch(0.85 0.18 85 / 60%);
+  box-shadow: -3px -3px 0 0 oklch(0.85 0.18 85 / 60%);
+}
+[data-theme="mark42"] .jarvis-corner-brackets::after {
+  border-bottom: 1.5px solid oklch(0.85 0.18 85 / 60%);
+  border-right: 1.5px solid oklch(0.85 0.18 85 / 60%);
+}
+[data-theme="mark42"] .jarvis-corner-brackets-inner::before {
+  border-top: 1.5px solid oklch(0.85 0.18 85 / 60%);
+  border-right: 1.5px solid oklch(0.85 0.18 85 / 60%);
+}
+[data-theme="mark42"] .jarvis-corner-brackets-inner::after {
+  border-bottom: 1.5px solid oklch(0.85 0.18 85 / 60%);
+  border-left: 1.5px solid oklch(0.85 0.18 85 / 60%);
+}
+[data-theme="mark42"] .jarvis-hologram::after {
+  background: linear-gradient(
+    135deg,
+    oklch(0.85 0.18 85 / 10%),
+    oklch(0.8 0.15 80 / 12%),
+    oklch(0.85 0.18 85 / 8%),
+    oklch(0.82 0.16 80 / 10%),
+    oklch(0.85 0.18 85 / 10%)
+  );
+}
+[data-theme="mark42"] .jarvis-data-stream::after {
+  background: oklch(0.85 0.18 85);
+  box-shadow: 0 0 12px oklch(0.85 0.18 85 / 80%), 0 0 30px oklch(0.85 0.18 85 / 40%), 0 0 60px oklch(0.85 0.18 85 / 20%);
+}
+[data-theme="mark42"] .jarvis-pulse-ring::after {
+  border-color: oklch(0.85 0.18 85 / 60%);
+}
+[data-theme="mark42"] .jarvis-border-dashed {
+  border-color: oklch(0.85 0.18 85 / 40%);
+  background-image: linear-gradient(
+    90deg,
+    oklch(0.85 0.18 85 / 40%) 50%,
+    transparent 50%
+  );
+  box-shadow: 0 0 8px oklch(0.85 0.18 85 / 15%);
+}
+[data-theme="mark42"] .jarvis-gradient-border::before {
+  background: linear-gradient(
+    to bottom,
+    oklch(0.85 0.18 85 / 55%),
+    oklch(0.85 0.18 85 / 20%) 40%,
+    oklch(0.85 0.18 85 / 5%) 100%
+  );
+}
+[data-theme="mark42"] .jarvis-particles {
+  background-image:
+    radial-gradient(1.5px 1.5px at 10% 20%, oklch(0.85 0.18 85 / 30%), transparent),
+    radial-gradient(1px 1px at 22% 45%, oklch(0.75 0.15 165 / 25%), transparent),
+    radial-gradient(2px 2px at 35% 10%, oklch(0.85 0.18 85 / 35%), transparent),
+    radial-gradient(1px 1px at 48% 72%, oklch(0.85 0.18 85 / 20%), transparent),
+    radial-gradient(1.5px 1.5px at 55% 35%, oklch(0.78 0.14 220 / 28%), transparent),
+    radial-gradient(1px 1px at 65% 88%, oklch(0.85 0.18 85 / 22%), transparent),
+    radial-gradient(2px 2px at 72% 15%, oklch(0.85 0.18 85 / 30%), transparent),
+    radial-gradient(1px 1px at 80% 55%, oklch(0.75 0.15 165 / 20%), transparent),
+    radial-gradient(1.5px 1.5px at 88% 78%, oklch(0.85 0.18 85 / 25%), transparent),
+    radial-gradient(1px 1px at 95% 30%, oklch(0.85 0.18 85 / 18%), transparent),
+    radial-gradient(2px 2px at 15% 90%, oklch(0.78 0.14 220 / 32%), transparent),
+    radial-gradient(1px 1px at 42% 55%, oklch(0.85 0.18 85 / 20%), transparent),
+    radial-gradient(1.5px 1.5px at 58% 8%, oklch(0.85 0.18 85 / 28%), transparent),
+    radial-gradient(1px 1px at 5% 65%, oklch(0.75 0.15 165 / 22%), transparent),
+    radial-gradient(2px 2px at 82% 42%, oklch(0.85 0.18 85 / 25%), transparent),
+    radial-gradient(1px 1px at 28% 28%, oklch(0.85 0.18 85 / 18%), transparent);
+}
+
+/* --- Mark 50: Red-Orange --- */
+[data-theme="mark50"] {
+  --primary: oklch(0.75 0.22 25);
+  --ring: oklch(0.75 0.22 25);
+  --border: oklch(0.75 0.22 25 / 16%);
+  --input: oklch(0.75 0.22 25 / 20%);
+  --chart-1: oklch(0.75 0.22 25);
+  --sidebar-primary: oklch(0.75 0.22 25);
+  --sidebar-border: oklch(0.75 0.22 25 / 16%);
+  --sidebar-ring: oklch(0.75 0.22 25);
+  --destructive: oklch(0.82 0.16 80);
+  --jarvis-primary: oklch(0.75 0.22 25);
+  --jarvis-primary-glow: oklch(0.75 0.22 25 / 50%);
+  --jarvis-theme-name: "Mark 50";
+}
+[data-theme="mark50"] body {
+  background-image:
+    radial-gradient(ellipse 120% 120% at 50% 50%, transparent 40%, oklch(0.04 0.01 250 / 70%) 100%),
+    radial-gradient(ellipse 80% 50% at 50% -10%, oklch(0.75 0.22 25 / 12%), transparent 60%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, oklch(0.75 0.15 165 / 8%), transparent 60%),
+    radial-gradient(ellipse 70% 40% at 50% 100%, oklch(0.82 0.16 80 / 5%), transparent 60%),
+    radial-gradient(ellipse 50% 40% at 0% 80%, oklch(0.78 0.14 220 / 7%), transparent 60%),
+    radial-gradient(circle 50% at 50% 50%, oklch(0.75 0.22 25 / 4%), transparent 70%);
+}
+[data-theme="mark50"] .jarvis-glow {
+  text-shadow: 0 0 10px oklch(0.75 0.22 25 / 60%), 0 0 24px oklch(0.75 0.22 25 / 30%), 0 0 50px oklch(0.75 0.22 25 / 12%);
+}
+[data-theme="mark50"] .jarvis-glow-strong {
+  text-shadow: 0 0 8px oklch(0.75 0.22 25 / 90%), 0 0 20px oklch(0.75 0.22 25 / 60%), 0 0 40px oklch(0.75 0.22 25 / 35%);
+}
+[data-theme="mark50"] .jarvis-box-glow {
+  box-shadow: 0 0 0 1px oklch(0.75 0.22 25 / 25%), 0 0 18px oklch(0.75 0.22 25 / 18%), inset 0 0 24px oklch(0.75 0.22 25 / 6%);
+}
+[data-theme="mark50"] .jarvis-box-glow-strong {
+  box-shadow: 0 0 0 1px oklch(0.75 0.22 25 / 45%), 0 0 26px oklch(0.75 0.22 25 / 35%), inset 0 0 30px oklch(0.75 0.22 25 / 12%);
+}
+[data-theme="mark50"] .jarvis-grid-bg {
+  background-image:
+    linear-gradient(oklch(0.75 0.22 25 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, oklch(0.75 0.22 25 / 5%) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+[data-theme="mark50"] .jarvis-scanline {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 3px,
+    oklch(0.75 0.22 25 / 5%) 3px,
+    oklch(0.75 0.22 25 / 5%) 4px
+  );
+}
+[data-theme="mark50"] .jarvis-text-cyan {
+  color: oklch(0.75 0.22 25);
+}
+[data-theme="mark50"] .jarvis-border-cyan {
+  border-color: oklch(0.75 0.22 25 / 30%);
+}
+[data-theme="mark50"] .jarvis-scroll {
+  scrollbar-color: oklch(0.75 0.22 25 / 40%) transparent;
+}
+[data-theme="mark50"] .jarvis-scroll::-webkit-scrollbar-thumb {
+  background-color: oklch(0.75 0.22 25 / 35%);
+}
+[data-theme="mark50"] .jarvis-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: oklch(0.75 0.22 25 / 60%);
+}
+[data-theme="mark50"] .jarvis-corner-brackets::before {
+  border-top: 1.5px solid oklch(0.75 0.22 25 / 60%);
+  border-left: 1.5px solid oklch(0.75 0.22 25 / 60%);
+  box-shadow: -3px -3px 0 0 oklch(0.75 0.22 25 / 60%);
+}
+[data-theme="mark50"] .jarvis-corner-brackets::after {
+  border-bottom: 1.5px solid oklch(0.75 0.22 25 / 60%);
+  border-right: 1.5px solid oklch(0.75 0.22 25 / 60%);
+}
+[data-theme="mark50"] .jarvis-corner-brackets-inner::before {
+  border-top: 1.5px solid oklch(0.75 0.22 25 / 60%);
+  border-right: 1.5px solid oklch(0.75 0.22 25 / 60%);
+}
+[data-theme="mark50"] .jarvis-corner-brackets-inner::after {
+  border-bottom: 1.5px solid oklch(0.75 0.22 25 / 60%);
+  border-left: 1.5px solid oklch(0.75 0.22 25 / 60%);
+}
+[data-theme="mark50"] .jarvis-hologram::after {
+  background: linear-gradient(
+    135deg,
+    oklch(0.75 0.22 25 / 10%),
+    oklch(0.75 0.15 50 / 12%),
+    oklch(0.75 0.22 25 / 8%),
+    oklch(0.82 0.16 80 / 10%),
+    oklch(0.75 0.22 25 / 10%)
+  );
+}
+[data-theme="mark50"] .jarvis-data-stream::after {
+  background: oklch(0.75 0.22 25);
+  box-shadow: 0 0 12px oklch(0.75 0.22 25 / 80%), 0 0 30px oklch(0.75 0.22 25 / 40%), 0 0 60px oklch(0.75 0.22 25 / 20%);
+}
+[data-theme="mark50"] .jarvis-pulse-ring::after {
+  border-color: oklch(0.75 0.22 25 / 60%);
+}
+[data-theme="mark50"] .jarvis-border-dashed {
+  border-color: oklch(0.75 0.22 25 / 40%);
+  background-image: linear-gradient(
+    90deg,
+    oklch(0.75 0.22 25 / 40%) 50%,
+    transparent 50%
+  );
+  box-shadow: 0 0 8px oklch(0.75 0.22 25 / 15%);
+}
+[data-theme="mark50"] .jarvis-gradient-border::before {
+  background: linear-gradient(
+    to bottom,
+    oklch(0.75 0.22 25 / 55%),
+    oklch(0.75 0.22 25 / 20%) 40%,
+    oklch(0.75 0.22 25 / 5%) 100%
+  );
+}
+[data-theme="mark50"] .jarvis-particles {
+  background-image:
+    radial-gradient(1.5px 1.5px at 10% 20%, oklch(0.75 0.22 25 / 30%), transparent),
+    radial-gradient(1px 1px at 22% 45%, oklch(0.75 0.15 165 / 25%), transparent),
+    radial-gradient(2px 2px at 35% 10%, oklch(0.75 0.22 25 / 35%), transparent),
+    radial-gradient(1px 1px at 48% 72%, oklch(0.75 0.22 25 / 20%), transparent),
+    radial-gradient(1.5px 1.5px at 55% 35%, oklch(0.78 0.14 220 / 28%), transparent),
+    radial-gradient(1px 1px at 65% 88%, oklch(0.75 0.22 25 / 22%), transparent),
+    radial-gradient(2px 2px at 72% 15%, oklch(0.75 0.22 25 / 30%), transparent),
+    radial-gradient(1px 1px at 80% 55%, oklch(0.75 0.15 165 / 20%), transparent),
+    radial-gradient(1.5px 1.5px at 88% 78%, oklch(0.75 0.22 25 / 25%), transparent),
+    radial-gradient(1px 1px at 95% 30%, oklch(0.75 0.22 25 / 18%), transparent),
+    radial-gradient(2px 2px at 15% 90%, oklch(0.78 0.14 220 / 32%), transparent),
+    radial-gradient(1px 1px at 42% 55%, oklch(0.75 0.22 25 / 20%), transparent),
+    radial-gradient(1.5px 1.5px at 58% 8%, oklch(0.75 0.22 25 / 28%), transparent),
+    radial-gradient(1px 1px at 5% 65%, oklch(0.75 0.15 165 / 22%), transparent),
+    radial-gradient(2px 2px at 82% 42%, oklch(0.75 0.22 25 / 25%), transparent),
+    radial-gradient(1px 1px at 28% 28%, oklch(0.75 0.22 25 / 18%), transparent);
+}

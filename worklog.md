@@ -349,3 +349,124 @@ JARVIS v4.1.0 — ИИ-помощник для ПК в стиле Железно
 - Wake word «Джарвис»
 - Генерация изображений
 - Экспорт диалогов
+
+---
+Task ID: 5-a
+Agent: image-gen-api-builder
+Task: Create image generation API route
+
+Work Log:
+- Read worklog.md for project context (JARVIS v4.1.0, Next.js 16, z-ai-web-dev-sdk)
+- Studied existing chat route at `/src/app/api/jarvis/chat/route.ts` for code style/pattern
+- Read image-generation skill docs to confirm SDK API: `zai.images.generations.create({ prompt, size })`
+- Created `/src/app/api/jarvis/image-gen/route.ts`:
+  - POST endpoint with `runtime = "nodejs"`
+  - Accepts `{ prompt: string, size?: string }`, defaults size to `"1024x1024"`
+  - Validates prompt is non-empty (400)
+  - Validates size against SUPPORTED_SIZES: 1024x1024, 768x1344, 1344x768, 1440x720
+  - Uses `z-ai-web-dev-sdk` → `zai.images.generations.create()`
+  - Returns `{ image: "data:image/png;base64,...", size, timestamp }`
+  - Handles empty/missing data from SDK (502)
+  - Detects content-policy/safety errors (422)
+  - Detects size/dimension errors (400)
+  - Generic 500 with error message fallback
+  - Descriptive JSDoc comment at top
+- Ran `bun run lint` — 0 errors
+
+Stage Summary:
+- Created `POST /api/jarvis/image-gen` route at `/src/app/api/jarvis/image-gen/route.ts`
+- Accepts `{ prompt, size? }` → returns `{ image: "data:image/png;base64,...", size, timestamp }`
+- 4 supported sizes: 1024x1024, 768x1344, 1344x768, 1440x720
+- Error handling: 400 (empty prompt, bad size), 422 (content policy), 502 (no data), 500 (internal)
+- Lint passed clean
+
+---
+Task ID: 6-a
+Agent: export-feature-builder
+Task: Create conversation export component
+
+Work Log:
+- Read worklog.md for project context (JARVIS v4.1.0, cinematic Iron Man HUD, Web Audio sounds)
+- Read `src/lib/types.ts` for ChatMessage interface (id, role, content, createdAt, etc.)
+- Read `src/lib/sounds.ts` for `playSound` function and SoundName type
+- Created `/src/components/jarvis/conversation-export.tsx` — "use client" component with named export `ConversationExport`
+- Props: `{ messages: ChatMessage[]; conversationTitle?: string }`
+- Button styled with JARVIS HUD classes: `rounded-full border jarvis-border-cyan bg-card/40 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition hover:border-primary/50 hover:text-primary`
+- Icon: `Download` from lucide-react (h-3 w-3), label "EXPORT" hidden on small screens (`hidden sm:inline`)
+- On click: builds markdown string (header with date + title, then `## User` / `## J.A.R.V.I.S.` sections per message)
+- Downloads via Blob + URL.createObjectURL + programmatic anchor click trick
+- Filename: `jarvis-session-[Date.now()].md`
+- Plays "success" sound on successful export via `playSound("success")`
+- Ran `bun run lint` — 0 errors
+
+Stage Summary:
+- Created `ConversationExport` component at `/src/components/jarvis/conversation-export.tsx` with named export
+- Small HUD-styled button that generates and downloads a markdown session log
+- Client-side only (Blob trick), no server needed
+- Plays success sound on export, lint passed clean
+
+---
+Task ID: 4-a
+Agent: theme-switcher-builder
+Task: Create theme palette switcher with 3 Iron Man suit themes
+
+Work Log:
+- Read worklog.md for project context (JARVIS v4.1.0, cinematic Iron Man HUD, cyan/teal oklch colors)
+- Read globals.css (~540 lines) to catalog ALL hardcoded cyan oklch(0.85 0.19 193 ...) colors in utility classes
+- Read sounds.ts to confirm playSound("click") API
+- Created `/src/components/jarvis/theme-switcher.tsx` — "use client" named export `ThemeSwitcher`
+  - 3 themes: Mark 1 (cyan default), Mark 42 (gold/amber), Mark 50 (red-orange)
+  - Row of 3 circular buttons with theme colors, active one has glowing ring + outline + scale
+  - HUD styling: `jarvis-border-cyan`, `font-mono text-[10px] uppercase tracking-widest`, "SUIT" label
+  - Theme name labels below: "MARK 1", "MARK 42", "MARK 50"
+  - Persists selection in localStorage key "jarvis-theme", loads on mount via lazy state initializer
+  - Sets `data-theme` attribute on `document.documentElement` (mark1/mark42/mark50)
+  - Plays "click" sound on theme change via `playSound` from `@/lib/sounds`
+  - Fixed lint error: avoided setState-in-effect by using lazy initializer `getInitialTheme()` + useRef for initial DOM sync
+- Updated `/src/app/globals.css` — added ~275 lines of [data-theme] CSS overrides at end of file:
+  - `[data-theme="mark42"]` block: overrides --primary, --ring, --border, --input, --chart-1, --sidebar-primary, --sidebar-border, --sidebar-ring, --jarvis-primary, --jarvis-primary-glow, --jarvis-theme-name (all to oklch(0.85 0.18 85))
+  - `[data-theme="mark50"]` block: same variables to oklch(0.75 0.22 25), plus --destructive stays oklch(0.82 0.16 80)
+  - Each theme overrides ALL 15 jarvis-* utility classes: jarvis-glow, jarvis-glow-strong, jarvis-box-glow, jarvis-box-glow-strong, jarvis-grid-bg, jarvis-scanline, jarvis-text-cyan, jarvis-border-cyan, jarvis-scroll (+ ::-webkit-scrollbar-thumb), jarvis-corner-brackets (::before, ::after), jarvis-corner-brackets-inner (::before, ::after), jarvis-hologram (::after), jarvis-data-stream (::after), jarvis-pulse-ring (::after), jarvis-border-dashed, jarvis-gradient-border (::before), jarvis-particles
+  - Body background-image overridden per theme (primary glow radial-gradients)
+  - Particles: only cyan stops changed, teal (hue 165) and blue (hue 220) accent stops preserved
+  - Hologram shimmer: gradient stops adapted per theme (gold uses warm hues, red uses orange-red + warm)
+- Ran `bun run lint` — 0 errors
+
+Stage Summary:
+- Created `ThemeSwitcher` component with 3 Iron Man suit theme options (Mark 1 cyan, Mark 42 gold, Mark 50 red)
+- All visual elements change color via [data-theme] CSS selectors — no runtime JS color manipulation
+- ~275 lines of CSS overrides covering all 15+ jarvis-* utility classes, body background, and particles
+- localStorage persistence, click sound, HUD-styled circular buttons with glow ring on active
+- Lint passed clean
+---
+Task ID: 10
+Agent: main (Z.ai Code)
+Task: Major v5.0.0 upgrade — system monitor sparklines, image gen integration, styling polish, final QA
+
+Work Log:
+- Обновлён SystemMonitor: добавлены SVG sparkline-графики для CPU и RAM истории (30 точек)
+- Добавлен компонент Sparkline: SVG polyline + polygon с gradient fill, точка-индикатор
+- Gauge показывает мини-sparkline под CPU и RAM индикаторами
+- Добавлен комбинированный график CPU/RAM History с легендой
+- В use-jarvis.ts: добавлена функция generateImage(prompt)
+- В ChatMessage type: добавлено поле generatedImage?: string
+- В chat-panel.tsx: отображение сгенерированных изображений с анимацией
+- В quick-commands.tsx: добавлены "Создай картинку" и "Арт" (isImageGen)
+- В page.tsx: интеграция ThemeSwitcher, ConversationExport, 12 quick commands, v5.0.0
+- В globals.css: 7 новых HUD-утилит (data-label, hex-bg, border-pulse, crosshair, status-dot, noise, cursor-blink, progress-bar), selection, focus-visible, smooth scroll
+- Lint: 0 ошибок, QA: 0 runtime errors, все 3 темы работают
+
+Stage Summary:
+- JARVIS v5.0.0 — 6 новых фич, 7 новых CSS утилит, 12 quick commands
+- Генерация изображений, 3 темы костюмов, экспорт диалогов, CPU/RAM sparklines
+
+---
+## Проект: текущий статус (v5.0.0)
+
+JARVIS v5.0.0 — ИИ-помощник для ПК в стиле Железного Человека. Русская озвучка через SpeechSynthesis. 3 темы костюмов (Mark 1/42/50). 5-кольцевой Arc Reactor, boot-sequence, 3D голографический глобус, новостной тикер, typewriter, VLM, генерация изображений, экспорт диалогов, CPU/RAM sparklines, fullscreen, 12 UI-звуков.
+
+### Приоритеты следующего раунда
+- Wake word «Джарвис» для активации по голосу
+- Генерация изображений в разных размерах
+- Реактивные темы для arc-reactor (SVG цвета)
+- WebSocket real-time обновления

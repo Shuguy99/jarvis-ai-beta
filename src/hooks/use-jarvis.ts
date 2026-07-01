@@ -539,6 +539,76 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     [state, messages, activeConvoId, ensureConversation, persistMessage, autoSpeakOn, speak, stopSpeaking]
   );
 
+  // ---- Image Generation ----
+  const generateImage = useCallback(
+    async (prompt: string) => {
+      if (state === "thinking" || state === "speaking") return;
+      setError(null);
+      setSearchedSources(null);
+      stopSpeaking();
+      setState("thinking");
+
+      const userMsg: ChatMessage = {
+        id: uid(),
+        role: "user",
+        content: `Сгенерируй изображение: ${prompt}`,
+        createdAt: new Date().toISOString(),
+        source: "text",
+      };
+      setMessages((prev) => [...prev, userMsg]);
+
+      const pendingId = uid();
+      const pendingMsg: ChatMessage = {
+        id: pendingId,
+        role: "assistant",
+        content: "",
+        createdAt: new Date().toISOString(),
+        pending: true,
+      };
+      setMessages((prev) => [...prev, pendingMsg]);
+
+      const convoId = await ensureConversation(userMsg.content);
+      if (convoId && messages.filter((m) => m.role === "user").length > 0) {
+        void persistMessage("user", userMsg.content);
+      }
+
+      try {
+        const res = await fetch("/api/jarvis/image-gen", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, size: "1024x1024" }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Ошибка генерации изображения.");
+
+        const imageUrl = data.image as string;
+        const reply = `Вот изображение по запросу: «${prompt}»`;
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingId
+              ? { ...m, content: reply, pending: false, generatedImage: imageUrl, hasAudio: false }
+              : m
+          )
+        );
+
+        if (convoId) void persistMessage("assistant", reply);
+        setState("idle");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "Неизвестная ошибка";
+        setError(msg);
+        setState("error");
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingId
+              ? { ...m, content: `» Ошибка: ${msg}`, pending: false }
+              : m
+          )
+        );
+      }
+    },
+    [state, messages, activeConvoId, ensureConversation, persistMessage, stopSpeaking]
+  );
+
   return {
     // state
     messages,
@@ -553,6 +623,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     // actions
     sendText,
     analyzeImage,
+    generateImage,
     startListening,
     stopListening,
     toggleListening,

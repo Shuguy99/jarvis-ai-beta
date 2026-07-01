@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Cpu, MemoryStick, Wifi, Thermometer, Activity, Server } from "lucide-react";
+import { Cpu, MemoryStick, Wifi, Thermometer, Activity, Server, TrendingUp } from "lucide-react";
 
 interface SystemData {
   hostname: string;
@@ -34,6 +34,45 @@ function fmtUptime(s: number) {
   return `${h}ч ${m}м`;
 }
 
+/** Mini SVG sparkline chart */
+function Sparkline({ data, color, width = 120, height = 28 }: { data: number[]; color: string; width?: number; height?: number }) {
+  const max = Math.max(100, ...data);
+  const step = width / (data.length - 1);
+  const pts = data.map((v, i) => `${i * step},${height - (v / max) * (height - 2)}`).join(" ");
+  const areaPts = `0,${height} ${pts} ${width},${height}`;
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`spark-fill-${color.replace(/[^a-z0-9]/gi, "")}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <polygon points={areaPts} fill={`url(#spark-fill-${color.replace(/[^a-z0-9]/gi, "")})`} />
+      <polyline
+        points={pts}
+        fill="none"
+        stroke={color}
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ filter: `drop-shadow(0 0 3px ${color})` }}
+      />
+      {/* Current value dot */}
+      {data.length > 0 && (
+        <circle
+          cx={(data.length - 1) * step}
+          cy={height - (data[data.length - 1] / max) * (height - 2)}
+          r="2.5"
+          fill={color}
+          style={{ filter: `drop-shadow(0 0 4px ${color})` }}
+        />
+      )}
+    </svg>
+  );
+}
+
 function Gauge({
   label,
   value,
@@ -41,6 +80,7 @@ function Gauge({
   unit = "%",
   color,
   icon: Icon,
+  history,
 }: {
   label: string;
   value: number;
@@ -48,6 +88,7 @@ function Gauge({
   unit?: string;
   color: string;
   icon: React.ComponentType<{ className?: string }>;
+  history?: number[];
 }) {
   const pct = Math.min(100, (value / max) * 100);
   const circumference = 2 * Math.PI * 28;
@@ -80,13 +121,26 @@ function Gauge({
         </div>
       </div>
       <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground">{label}</span>
+      {/* Mini sparkline under gauge */}
+      {history && history.length > 2 && (
+        <div className="w-16 h-5 opacity-70">
+          <Sparkline data={history} color={color} width={64} height={20} />
+        </div>
+      )}
     </div>
   );
 }
 
+const HISTORY_LEN = 30;
+
 export function SystemMonitor() {
   const [data, setData] = useState<SystemData | null>(null);
   const [netHistory, setNetHistory] = useState<number[]>(Array(24).fill(0));
+  const cpuHistoryRef = useRef<number[]>(Array(HISTORY_LEN).fill(0));
+  const ramHistoryRef = useRef<number[]>(Array(HISTORY_LEN).fill(0));
+  const [cpuHistory, setCpuHistory] = useState<number[]>([]);
+  const [ramHistory, setRamHistory] = useState<number[]>([]);
+  const tickRef = useRef(0);
 
   useEffect(() => {
     let active = true;
@@ -97,6 +151,15 @@ export function SystemMonitor() {
         if (!active) return;
         setData(json);
         setNetHistory((prev) => [...prev.slice(1), json.netThroughput]);
+
+        // Track CPU/RAM history
+        tickRef.current++;
+        cpuHistoryRef.current = [...cpuHistoryRef.current.slice(1), json.cpuLoad];
+        ramHistoryRef.current = [...ramHistoryRef.current.slice(1), json.memPct];
+        if (tickRef.current % 2 === 0) {
+          setCpuHistory([...cpuHistoryRef.current]);
+          setRamHistory([...ramHistoryRef.current]);
+        }
       } catch {
         /* ignore */
       }
@@ -137,8 +200,8 @@ export function SystemMonitor() {
         {data ? (
           <>
             <div className="grid grid-cols-4 gap-2">
-              <Gauge label="CPU" value={data.cpuLoad} color={cyan} icon={Cpu} />
-              <Gauge label="RAM" value={data.memPct} color={teal} icon={MemoryStick} />
+              <Gauge label="CPU" value={data.cpuLoad} color={cyan} icon={Cpu} history={cpuHistory} />
+              <Gauge label="RAM" value={data.memPct} color={teal} icon={MemoryStick} history={ramHistory} />
               <Gauge label="NET" value={data.netThroughput} max={250} unit="" color={amber} icon={Wifi} />
               <Gauge label="TEMP" value={data.temp} max={90} unit="°" color={data.temp > 75 ? rose : cyan} icon={Thermometer} />
             </div>
@@ -157,9 +220,9 @@ export function SystemMonitor() {
                     key={i}
                     className="flex-1 rounded-sm"
                     style={{
-                      background: `linear-gradient(to top, ${cyan}, ${cyan}20)`,
+                      background: `linear-gradient(to top, ${amber}, ${amber}20)`,
                       height: `${Math.max(4, (v / maxNet) * 100)}%`,
-                      boxShadow: i === netHistory.length - 1 ? `0 0 6px ${cyan}60` : undefined,
+                      boxShadow: i === netHistory.length - 1 ? `0 0 6px ${amber}60` : undefined,
                     }}
                     initial={false}
                     animate={{ opacity: i === netHistory.length - 1 ? 1 : 0.4 }}
@@ -167,6 +230,37 @@ export function SystemMonitor() {
                 ))}
               </div>
             </div>
+
+            {/* CPU + RAM combined sparkline chart */}
+            {(cpuHistory.length > 2 || ramHistory.length > 2) && (
+              <div className="mt-3">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <TrendingUp className="h-3 w-3" /> CPU / RAM History
+                  </span>
+                  <span className="flex items-center gap-3 font-mono text-[9px]">
+                    <span className="flex items-center gap-1">
+                      <span className="inline-block h-1.5 w-3 rounded-sm" style={{ background: cyan }} /> CPU
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <span className="inline-block h-1.5 w-3 rounded-sm" style={{ background: teal }} /> RAM
+                    </span>
+                  </span>
+                </div>
+                <div className="relative h-12">
+                  {cpuHistory.length > 2 && (
+                    <div className="absolute inset-0">
+                      <Sparkline data={cpuHistory} color={cyan} width={400} height={48} />
+                    </div>
+                  )}
+                  {ramHistory.length > 2 && (
+                    <div className="absolute inset-0 opacity-70">
+                      <Sparkline data={ramHistory} color={teal} width={400} height={48} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Core loads */}
             <div className="mt-3">

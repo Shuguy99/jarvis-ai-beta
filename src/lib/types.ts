@@ -10,6 +10,7 @@ export interface ChatMessage {
   source?: "voice" | "text" | "image";
   hasAudio?: boolean;
   imagePreview?: string;
+  generatedImage?: string;
 }
 
 export interface Conversation {

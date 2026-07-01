@@ -118,6 +118,24 @@ function MessageBubble({ msg, onSpeak, isLatest }: { msg: ChatMessage; onSpeak: 
                 </ReactMarkdown>
               )}
             </div>
+            {/* Generated image display */}
+            {msg.generatedImage && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4 }}
+                className="mt-2 overflow-hidden rounded-lg border jarvis-border-cyan"
+              >
+                <img
+                  src={msg.generatedImage}
+                  alt="Сгенерированное изображение"
+                  className="max-h-80 w-auto rounded-lg object-contain"
+                />
+                <div className="flex items-center gap-1.5 px-2 py-1.5 font-mono text-[9px] text-muted-foreground/60">
+                  <ImagePlus className="h-2.5 w-2.5" /> AI Generated
+                </div>
+              </motion.div>
+            )}
             {msg.hasAudio && !isTypewriterTarget && (
               <button
                 onClick={() => { playSound("click"); onSpeak(msg.content); }}

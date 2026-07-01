@@ -13,7 +13,9 @@ import { BootSequence } from "@/components/jarvis/boot-sequence";
 import { HoloGlobe } from "@/components/jarvis/holo-globe";
 import { NewsTicker } from "@/components/jarvis/news-ticker";
 import { FullscreenToggle } from "@/components/jarvis/fullscreen-toggle";
-import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus } from "lucide-react";
+import { ThemeSwitcher } from "@/components/jarvis/theme-switcher";
+import { ConversationExport } from "@/components/jarvis/conversation-export";
+import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const CAPABILITIES = [
@@ -24,7 +26,7 @@ const CAPABILITIES = [
   { icon: ImagePlus, label: "Image Gen", desc: "Генерация картинок" },
   { icon: Radar, label: "Diagnostics", desc: "Мониторинг систем" },
   { icon: Shield, label: "Secure", desc: "Локальная история" },
-  { icon: Globe, label: "Globe", desc: "Глобальная сеть" },
+  { icon: Cpu, label: "Processing", desc: "Нейроядро v5" },
 ];
 
 export default function Home() {
@@ -32,6 +34,9 @@ export default function Home() {
   const jarvis = useJarvis({ autoSpeak: true, ttsRate: 1.05, ttsPitch: 0.92 });
 
   const handleBootComplete = useCallback(() => setBooted(true), []);
+
+  // Get active conversation title for export
+  const activeTitle = jarvis.conversations.find(c => c.id === jarvis.activeConvoId)?.title;
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
@@ -89,6 +94,7 @@ export default function Home() {
                   {jarvis.autoSpeakOn ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
                   <span className="hidden sm:inline">{jarvis.autoSpeakOn ? "Voice On" : "Muted"}</span>
                 </button>
+                <ThemeSwitcher />
                 <FullscreenToggle />
                 <StatusClock />
               </div>
@@ -142,7 +148,7 @@ export default function Home() {
                 <section className="flex flex-col gap-3 lg:col-span-6 lg:max-h-[calc(100vh-12rem)] lg:overflow-hidden">
                   {/* Hero: arc reactor + voice + quick commands */}
                   <motion.div
-                    className="jarvis-box-glow jarvis-hologram relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm"
+                    className="jarvis-box-glow jarvis-hologram jarvis-noise relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm"
                     initial={{ opacity: 0, y: 20, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     transition={{ delay: 0.1, duration: 0.8, ease: "easeOut" }}
@@ -178,7 +184,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="relative mt-4 border-t jarvis-border-cyan pt-3">
-                      <QuickCommands onPick={(p) => jarvis.sendText(p, "text")} />
+                      <QuickCommands onPick={(p) => jarvis.sendText(p, "text")} onImageGen={(p) => jarvis.generateImage(p)} />
                     </div>
                   </motion.div>
 
@@ -195,9 +201,14 @@ export default function Home() {
                         <span className="font-mono text-[10px] uppercase tracking-widest text-primary/80 jarvis-glow">
                           Dialogue Interface
                         </span>
-                        <span className="font-mono text-[10px] text-muted-foreground">
-                          {jarvis.messages.length} messages
-                        </span>
+                        <div className="flex items-center gap-3">
+                          {jarvis.messages.length > 0 && (
+                            <ConversationExport messages={jarvis.messages} conversationTitle={activeTitle} />
+                          )}
+                          <span className="font-mono text-[10px] text-muted-foreground">
+                            {jarvis.messages.length} messages
+                          </span>
+                        </div>
                       </div>
                       <div className="flex-1 overflow-hidden">
                         <ChatPanel jarvis={jarvis} />
@@ -275,10 +286,18 @@ export default function Home() {
                         </div>
                         <div className="flex gap-2">
                           <span className="text-primary/60">05.</span>
-                          <span>Полноэкранный режим — нажмите F в шапке.</span>
+                          <span>Генерация изображений — кнопки «Создай картинку» / «Арт».</span>
                         </div>
                         <div className="flex gap-2">
                           <span className="text-primary/60">06.</span>
+                          <span>Смените костюм — переключатель тем Mark 1/42/50.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">07.</span>
+                          <span>Экспорт диалогов — кнопка EXPORT в шапке чата.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">08.</span>
                           <span>Диалоги сохраняются локально в базе данных.</span>
                         </div>
                       </div>
@@ -287,7 +306,7 @@ export default function Home() {
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v4.0.0 · Stark Industries
+                          JARVIS v5.0.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Z.ai neural core
@@ -301,7 +320,8 @@ export default function Home() {
 
             {/* ===== Footer ===== */}
             <footer className="relative z-10 mt-auto border-t jarvis-border-cyan bg-card/40 px-4 py-2 backdrop-blur-md">
-              <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
+              <div className="pointer-events-none absolute inset-0 jarvis-scanline opacity-30" />
+              <div className="relative mx-auto flex max-w-[1600px] items-center justify-between gap-3 font-mono text-[9px] uppercase tracking-widest text-muted-foreground">
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-primary anim-pulse-glow" />
