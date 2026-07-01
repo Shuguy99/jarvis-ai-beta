@@ -29,7 +29,7 @@ const CAPABILITIES = [
 
 export default function Home() {
   const [booted, setBooted] = useState(false);
-  const jarvis = useJarvis({ autoSpeak: true, voice: "kazi", speed: 0.92 });
+  const jarvis = useJarvis({ autoSpeak: true, ttsRate: 1.05, ttsPitch: 0.92 });
 
   const handleBootComplete = useCallback(() => setBooted(true), []);
 

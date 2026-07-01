@@ -1,0 +1,730 @@
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[error] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <SegmentViewNode type="page" pagePath="page.tsx">
+      <SegmentTrieNode>
+      <ClientPageRoot Component={function Home} serverProvidedParams={{...}}>
+        <Home params={Promise} searchParams={Promise}>
+          <div className="flex min-h...">
+            <header>
+            <main className="relative f...">
+              <div>
+              <div className="relative m...">
+                <aside>
+                <section className="flex flex-...">
+                  <div className="jarvis-box...">
+                    <div>
+                    <div className="relative f...">
+                      <div className="flex flex-...">
+                        <ArcReactor state="idle" audioLevel={0} size={200}>
+                          <div className="relative f..." style={{width:200, ...}} aria-label="JARVIS cor...">
+                            <div>
+                            <svg viewBox="0 0 200 200" className="absolute i..." style={{filter:"dr..."}}>
+                              <defs>
+                              <circle>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={28.806504495004617}
+                                y1={48.27489779826237}
++                               x2={32.0425724725044}
+-                               x2="32.04257247250442"
+                                y2={50.626038807432266}
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.3}
+                                strokeWidth={0.8}
+                              >
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={55.99999999999996}
+                                y1={23.789764466969416}
+                                x2={59.999999999999964}
++                               y2={30.71796769724493}
+-                               y2="30.717967697244916"
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.7}
+                                strokeWidth={1.4}
+                              >
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={183.69297343397352}
++                               y1={72.8065044950046}
+-                               y1="72.80650449500462"
+                                x2={179.8887473687929}
++                               y2={74.04257247250439}
+-                               y2="74.0425724725044"
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.3}
+                                strokeWidth={0.8}
+                              >
+                              ...
+                            ...
+                        ...
+                      ...
+                    ...
+                  ...
+                ...
+            ...
+    ...
+
+[log] [HMR] connected
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[error] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <SegmentViewNode type="page" pagePath="page.tsx">
+      <SegmentTrieNode>
+      <ClientPageRoot Component={function Home} serverProvidedParams={{...}}>
+        <Home params={Promise} searchParams={Promise}>
+          <div className="flex min-h...">
+            <header>
+            <main className="relative f...">
+              <div>
+              <div className="relative m...">
+                <aside>
+                <section className="flex flex-...">
+                  <div className="jarvis-box...">
+                    <div>
+                    <div className="relative f...">
+                      <div className="flex flex-...">
+                        <ArcReactor state="idle" audioLevel={0} size={200}>
+                          <div className="relative f..." style={{width:200, ...}} aria-label="JARVIS cor...">
+                            <div>
+                            <svg viewBox="0 0 200 200" className="absolute i..." style={{filter:"dr..."}}>
+                              <defs>
+                              <circle>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={28.806504495004617}
+                                y1={48.27489779826237}
++                               x2={32.0425724725044}
+-                               x2="32.04257247250442"
+                                y2={50.626038807432266}
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.3}
+                                strokeWidth={0.8}
+                              >
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={55.99999999999996}
+                                y1={23.789764466969416}
+                                x2={59.999999999999964}
++                               y2={30.71796769724493}
+-                               y2="30.717967697244916"
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.7}
+                                strokeWidth={1.4}
+                              >
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={183.69297343397352}
++                               y1={72.8065044950046}
+-                               y1="72.80650449500462"
+                                x2={179.8887473687929}
++                               y2={74.04257247250439}
+-                               y2="74.0425724725044"
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.3}
+                                strokeWidth={0.8}
+                              >
+                              ...
+                            ...
+                        ...
+                      ...
+                    ...
+                  ...
+                ...
+            ...
+    ...
+
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[error] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <SegmentViewNode type="page" pagePath="page.tsx">
+      <SegmentTrieNode>
+      <ClientPageRoot Component={function Home} serverProvidedParams={{...}}>
+        <Home params={Promise} searchParams={Promise}>
+          <div className="flex min-h...">
+            <header>
+            <main className="relative f...">
+              <div>
+              <div className="relative m...">
+                <aside>
+                <section className="flex flex-...">
+                  <div className="jarvis-box...">
+                    <div>
+                    <div className="relative f...">
+                      <div className="flex flex-...">
+                        <ArcReactor state="idle" audioLevel={0} size={200}>
+                          <div className="relative f..." style={{width:200, ...}} aria-label="JARVIS cor...">
+                            <div>
+                            <svg viewBox="0 0 200 200" className="absolute i..." style={{filter:"dr..."}}>
+                              <defs>
+                              <circle>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={28.806504495004617}
+                                y1={48.27489779826237}
++                               x2={32.0425724725044}
+-                               x2="32.04257247250442"
+                                y2={50.626038807432266}
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.3}
+                                strokeWidth={0.8}
+                              >
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={55.99999999999996}
+                                y1={23.789764466969416}
+                                x2={59.999999999999964}
++                               y2={30.71796769724493}
+-                               y2="30.717967697244916"
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.7}
+                                strokeWidth={1.4}
+                              >
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={183.69297343397352}
++                               y1={72.8065044950046}
+-                               y1="72.80650449500462"
+                                x2={179.8887473687929}
++                               y2={74.04257247250439}
+-                               y2="74.0425724725044"
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.3}
+                                strokeWidth={0.8}
+                              >
+                              ...
+                            ...
+                        ...
+                      ...
+                    ...
+                  ...
+                ...
+            ...
+    ...
+
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[error] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <SegmentViewNode type="page" pagePath="page.tsx">
+      <SegmentTrieNode>
+      <ClientPageRoot Component={function Home} serverProvidedParams={{...}}>
+        <Home params={Promise} searchParams={Promise}>
+          <div className="flex min-h...">
+            <header>
+            <main className="relative f...">
+              <div>
+              <div className="relative m...">
+                <aside>
+                <section className="flex flex-...">
+                  <div className="jarvis-box...">
+                    <div>
+                    <div className="relative f...">
+                      <div className="flex flex-...">
+                        <ArcReactor state="idle" audioLevel={0} size={200}>
+                          <div className="relative f..." style={{width:200, ...}} aria-label="JARVIS cor...">
+                            <div>
+                            <svg viewBox="0 0 200 200" className="absolute i..." style={{filter:"dr..."}}>
+                              <defs>
+                              <circle>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={28.806504495004617}
+                                y1={48.27489779826237}
++                               x2={32.0425724725044}
+-                               x2="32.04257247250442"
+                                y2={50.626038807432266}
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.3}
+                                strokeWidth={0.8}
+                              >
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={55.99999999999996}
+                                y1={23.789764466969416}
+                                x2={59.999999999999964}
++                               y2={30.71796769724493}
+-                               y2="30.717967697244916"
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.7}
+                                strokeWidth={1.4}
+                              >
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line>
+                              <line
+                                x1={183.69297343397352}
++                               y1={72.8065044950046}
+-                               y1="72.80650449500462"
+                                x2={179.8887473687929}
++                               y2={74.04257247250439}
+-                               y2="74.0425724725044"
+                                stroke="oklch(0.82 0.17 193)"
+                                strokeOpacity={0.3}
+                                strokeWidth={0.8}
+                              >
+                              ...
+                            ...
+                        ...
+                      ...
+                    ...
+                  ...
+                ...
+            ...
+    ...
+
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 139ms
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 132ms
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 128ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 704ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 219ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 359ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 347ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 327ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 293ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 209ms
+[log] [Fast Refresh] rebuilding
+[error] ./src/components/jarvis/boot-sequence.tsx:6:10
+Ecmascript file had an error
+  4 | import { motion, AnimatePresence } from "framer-motion";
+  5 | import { playSound } from "@/lib/sounds";
+> 6 | import { playSound } from "@/lib/sounds";
+    |          ^^^^^^^^^
+  7 |
+  8 | interface BootSequenceProps {
+  9 |   onComplete: () => void;
+
+the name `playSound` is defined multiple times
+
+Import traces:
+  Client Component Browser:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component Browser]
+    ./src/app/page.tsx [Client Component Browser]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component SSR]
+    ./src/app/page.tsx [Client Component SSR]
+    ./src/app/page.tsx [Server Component]
+[error] ./src/components/jarvis/boot-sequence.tsx:6:10
+Ecmascript file had an error
+  4 | import { motion, AnimatePresence } from "framer-motion";
+  5 | import { playSound } from "@/lib/sounds";
+> 6 | import { playSound } from "@/lib/sounds";
+    |          ^^^^^^^^^
+  7 |
+  8 | interface BootSequenceProps {
+  9 |   onComplete: () => void;
+
+the name `playSound` is defined multiple times
+
+Import traces:
+  Client Component Browser:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component Browser]
+    ./src/app/page.tsx [Client Component Browser]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component SSR]
+    ./src/app/page.tsx [Client Component SSR]
+    ./src/app/page.tsx [Server Component]
+[log] [Fast Refresh] rebuilding
+[error] ./src/components/jarvis/boot-sequence.tsx:6:10
+Ecmascript file had an error
+  4 | import { motion, AnimatePresence } from "framer-motion";
+  5 | import { playSound } from "@/lib/sounds";
+> 6 | import { playSound } from "@/lib/sounds";
+    |          ^^^^^^^^^
+  7 |
+  8 | interface BootSequenceProps {
+  9 |   onComplete: () => void;
+
+the name `playSound` is defined multiple times
+
+Import traces:
+  Client Component Browser:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component Browser]
+    ./src/app/page.tsx [Client Component Browser]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component SSR]
+    ./src/app/page.tsx [Client Component SSR]
+    ./src/app/page.tsx [Server Component]
+[log] [Fast Refresh] rebuilding
+[error] ./src/components/jarvis/boot-sequence.tsx:6:10
+Ecmascript file had an error
+  4 | import { motion, AnimatePresence } from "framer-motion";
+  5 | import { playSound } from "@/lib/sounds";
+> 6 | import { playSound } from "@/lib/sounds";
+    |          ^^^^^^^^^
+  7 |
+  8 | interface BootSequenceProps {
+  9 |   onComplete: () => void;
+
+the name `playSound` is defined multiple times
+
+Import traces:
+  Client Component Browser:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component Browser]
+    ./src/app/page.tsx [Client Component Browser]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component SSR]
+    ./src/app/page.tsx [Client Component SSR]
+    ./src/app/page.tsx [Server Component]
+[log] [Fast Refresh] rebuilding
+[error] ./src/components/jarvis/boot-sequence.tsx:6:10
+Ecmascript file had an error
+  4 | import { motion, AnimatePresence } from "framer-motion";
+  5 | import { playSound } from "@/lib/sounds";
+> 6 | import { playSound } from "@/lib/sounds";
+    |          ^^^^^^^^^
+  7 |
+  8 | interface BootSequenceProps {
+  9 |   onComplete: () => void;
+
+the name `playSound` is defined multiple times
+
+Import traces:
+  Client Component Browser:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component Browser]
+    ./src/app/page.tsx [Client Component Browser]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component SSR]
+    ./src/app/page.tsx [Client Component SSR]
+    ./src/app/page.tsx [Server Component]
+[error] ./src/components/jarvis/boot-sequence.tsx:6:10
+Ecmascript file had an error
+  4 | import { motion, AnimatePresence } from "framer-motion";
+  5 | import { playSound } from "@/lib/sounds";
+> 6 | import { playSound } from "@/lib/sounds";
+    |          ^^^^^^^^^
+  7 |
+  8 | interface BootSequenceProps {
+  9 |   onComplete: () => void;
+
+the name `playSound` is defined multiple times
+
+Import traces:
+  Client Component Browser:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component Browser]
+    ./src/app/page.tsx [Client Component Browser]
+    ./src/app/page.tsx [Server Component]
+
+  Client Component SSR:
+    ./src/components/jarvis/boot-sequence.tsx [Client Component SSR]
+    ./src/app/page.tsx [Client Component SSR]
+    ./src/app/page.tsx [Server Component]
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 231ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 199ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 213ms
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 127ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 354ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 263ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 174ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 199ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 185ms
+[log] [Fast Refresh] rebuilding
+[log] [HMR] connected
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 282ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 891ms
+[log] [Fast Refresh] rebuilding
+[log] [Fast Refresh] done in 228ms
+[log] [HMR] connected
+[log] [HMR] connected
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[log] [HMR] connected

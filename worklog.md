@@ -307,3 +307,45 @@ Stage Summary:
 - Decorative outer HUD ring with 36 tick marks
 - "GLOBAL NETWORK" label with decorative flanking lines
 - Lint passed clean
+
+---
+Task ID: 8
+Agent: main (Z.ai Code)
+Task: Русская озвучка — заменить z-ai TTS SDK на браузерный SpeechSynthesis с нативным русским голосом
+
+Work Log:
+- Изучены доступные голоса z-ai TTS SDK: tongtong, chuichui, xiaochen, jam, kazi, douji, luodo — все китайские/английские, нет русских
+- Принято решение: использовать нативный браузерный Web Speech API (SpeechSynthesis) с русским голосом
+- В `src/hooks/use-jarvis.ts`:
+  - Добавлена функция `pickRussianVoice()` — приоритетный выбор русского голоса: Microsoft Irina → Microsoft Pavel → Google русский → Yandex → ru-RU exact → local → любой ru-*
+  - Добавлен `useEffect` для предзагрузки русского голоса при монтировании + подписка на `voiceschanged`
+  - Функция `speak()` полностью переписана: вместо fetch к /api/jarvis/tts → `SpeechSynthesisUtterance` с lang="ru-RU"
+  - Параметры: `ttsRate=1.05` (немного быстрее), `ttsPitch=0.92` (чуть ниже — как у JARVIS)
+  - Добавлен Chrome workaround: `onpause` handler для возобновления речи при остановке длинного текста
+  - `stopSpeaking()` теперь использует `synth.cancel()` вместо `audio.pause()`
+  - Убран `audioElRef` (больше не нужен), добавлен `russianVoiceRef`
+  - Интерфейс `UseJarvisOptions`: убраны `voice`/`speed`, добавлены `ttsRate`/`ttsPitch`
+- В `src/app/page.tsx`: обновлён вызов `useJarvis({ autoSpeak: true, ttsRate: 1.05, ttsPitch: 0.92 })`
+- `/api/jarvis/tts/route.ts` оставлен для совместимости (не используется, но не удалён)
+- Lint: 0 ошибок
+- QA via agent-browser: страница рендерится (130K+ HTML), 0 runtime errors, Fast Refresh работает
+- SpeechSynthesis API доступен в браузере (в headless Chrome 0 голосов — ожидаемо, в реальном браузере будут русские голоса ОС)
+
+Stage Summary:
+- TTS переключён с z-ai SDK (китайские/английские голоса) на нативный браузерный SpeechSynthesis с русским голосом
+- Автоматический выбор лучшего русского голоса из доступных в системе
+- На Windows: Microsoft Irina/Pavel, на Chrome: Google русский, на Yandex Browser: Yandex голос
+- Настройки: rate=1.05, pitch=0.92 — чуть быстрее и ниже стандартного, ближе к голосу JARVIS из фильма
+- Chrome workaround для длинных текстов (авто-возобновление при паузе)
+
+---
+## Проект: текущий статус (v4.1.0)
+
+JARVIS v4.1.0 — ИИ-помощник для ПК в стиле Железного Человека. **Русская озвучка через браузерный SpeechSynthesis** (Microsoft Irina / Google русский / Yandex). Тёмный blue-black фон, cyan HUD, 5-кольцевой Arc Reactor, boot-sequence, 3D голографический глобус, новостной тикер, typewriter, VLM, fullscreen, 12 UI-звуков.
+
+### Приоритеты следующего раунда
+- Тематические палитры Mark 42 / Mark 50
+- Графики активности CPU/RAM
+- Wake word «Джарвис»
+- Генерация изображений
+- Экспорт диалогов

@@ -13,9 +13,9 @@ interface Source {
 
 interface UseJarvisOptions {
   autoSpeak?: boolean;
-  voice?: string;
-  speed?: number;
   volume?: number;
+  ttsRate?: number;
+  ttsPitch?: number;
 }
 
 const uid = () =>
@@ -23,8 +23,36 @@ const uid = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
 
+/**
+ * Picks the best Russian voice from available browser SpeechSynthesis voices.
+ * Priority: Microsoft Irina/ Pavel > Google русский > Yandex > any ru-RU > any ru_*
+ */
+function pickRussianVoice(): SpeechSynthesisVoice | null {
+  const synth = window.speechSynthesis;
+  if (!synth) return null;
+  const voices = synth.getVoices();
+  if (!voices.length) return null;
+
+  const ruVoices = voices.filter((v) => v.lang.startsWith("ru"));
+  if (!ruVoices.length) return null;
+
+  // Prefer specific high-quality Russian voices
+  const preferred = ["Microsoft Irina", "Microsoft Pavel", "Google русский", "Yandex"];
+  for (const name of preferred) {
+    const found = ruVoices.find((v) => v.name.includes(name));
+    if (found) return found;
+  }
+
+  // Prefer ru-RU exact match, then local voices, then any ru
+  const exact = ruVoices.find((v) => v.lang === "ru-RU");
+  if (exact) return exact;
+  const local = ruVoices.find((v) => v.localService);
+  if (local) return local;
+  return ruVoices[0];
+}
+
 export function useJarvis(opts: UseJarvisOptions = {}) {
-  const { autoSpeak = true, voice = "kazi", speed = 0.92, volume = 1.0 } = opts;
+  const { autoSpeak = true, volume = 1.0, ttsRate = 1.05, ttsPitch = 0.95 } = opts;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [state, setState] = useState<JarvisState>("idle");
@@ -42,8 +70,8 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
-  const audioElRef = useRef<HTMLAudioElement | null>(null);
   const speakingAbortRef = useRef<boolean>(false);
+  const russianVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
 
   // ---- conversation persistence ----
   const persistMessage = useCallback(
@@ -132,50 +160,73 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     }
   }, [activeConvoId, newConversation]);
 
-  // ---- TTS ----
+  // ---- TTS (browser SpeechSynthesis — native Russian voice) ----
+
+  // Preload Russian voice on mount
+  useEffect(() => {
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    const load = () => {
+      russianVoiceRef.current = pickRussianVoice();
+    };
+    load();
+    synth.addEventListener("voiceschanged", load);
+    return () => synth.removeEventListener("voiceschanged", load);
+  }, []);
+
   const stopSpeaking = useCallback(() => {
     speakingAbortRef.current = true;
-    if (audioElRef.current) {
-      audioElRef.current.pause();
-      audioElRef.current.src = "";
-    }
+    const synth = window.speechSynthesis;
+    if (synth) synth.cancel();
     setState((s) => (s === "speaking" ? "idle" : s));
   }, []);
 
   const speak = useCallback(
-    async (text: string) => {
+    (text: string) => {
       if (!text.trim()) return;
+      const synth = window.speechSynthesis;
+      if (!synth) {
+        setState("idle");
+        return;
+      }
+
       speakingAbortRef.current = false;
       setState("speaking");
-      try {
-        const res = await fetch("/api/jarvis/tts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text, voice, speed, volume }),
-        });
-        if (!res.ok) throw new Error("TTS failed");
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        if (audioElRef.current) {
-          audioElRef.current.pause();
+      synth.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = "ru-RU";
+      utterance.rate = ttsRate;
+      utterance.pitch = ttsPitch;
+      utterance.volume = volume;
+
+      const voice = russianVoiceRef.current || pickRussianVoice();
+      if (voice) utterance.voice = voice;
+
+      utterance.onend = () => {
+        if (!speakingAbortRef.current) setState("idle");
+      };
+      utterance.onerror = (e) => {
+        if (e.error !== "canceled") {
+          console.error("SpeechSynthesis error", e);
         }
-        const audio = new Audio(url);
-        audioElRef.current = audio;
-        audio.onended = () => {
-          URL.revokeObjectURL(url);
-          if (!speakingAbortRef.current) setState("idle");
-        };
-        audio.onerror = () => {
-          URL.revokeObjectURL(url);
-          setState("idle");
-        };
-        await audio.play().catch(() => setState("idle"));
-      } catch (e) {
-        console.error("TTS error", e);
         setState("idle");
-      }
+      };
+
+      // Chrome workaround: long text can stop mid-speech — resume on pause
+      utterance.onpause = () => {
+        if (!speakingAbortRef.current) {
+          setTimeout(() => {
+            if (synth.speaking && !synth.pending && !speakingAbortRef.current) {
+              synth.resume();
+            }
+          }, 100);
+        }
+      };
+
+      synth.speak(utterance);
     },
-    [voice, speed, volume]
+    [ttsRate, ttsPitch, volume]
   );
 
   // ---- Chat send ----
@@ -388,9 +439,8 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   useEffect(() => {
     return () => {
       cleanupRecording();
-      if (audioElRef.current) {
-        audioElRef.current.pause();
-      }
+      const synth = window.speechSynthesis;
+      if (synth) synth.cancel();
     };
   }, [cleanupRecording]);
 
