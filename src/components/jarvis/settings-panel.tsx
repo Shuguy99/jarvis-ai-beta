@@ -202,10 +202,10 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
                 AI Provider
               </div>
               <div className="mt-1 rounded-md border jarvis-border-cyan bg-primary/10 px-3 py-2 font-mono text-[11px] text-primary">
-                J.A.R.V.I.S. AI — Ready
+                Ollama (Local AI)
               </div>
               <div className="mt-1 font-mono text-[9px] text-muted-foreground/50">
-                Chat • Vision • Image Gen • Search • TTS • ASR
+                ✅ Chat • ✅ Vision • ✅ TTS • ✅ ASR • ❌ Search • ❌ Image Gen
               </div>
             </div>
           </SettingsSection>

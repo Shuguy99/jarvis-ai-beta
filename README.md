@@ -1,140 +1,149 @@
-# J.A.R.V.I.S. — Just A Rather Very Intelligent System
+# J.A.R.V.I.S. — AI Assistant
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js" alt="Next.js 16">
-  <img src="https://img.shields.io/badge/TypeScript-5-blue?style=flat-square&logo=typescript" alt="TypeScript">
-  <img src="https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss" alt="Tailwind CSS 4">
-  <img src="https://img.shields.io/badge/Prisma-SQLite-2D3748?style=flat-square&logo=prisma" alt="Prisma">
-</p>
+Tony Stark HUD-стиль интерфейс ИИ-ассистента. Работает полностью **локально** на Windows 11 64-bit без каких-либо API ключей.
 
-AI-помощник в стиле JARVIS из Iron Man — полноэкранное desktop-приложение с HUD-интерфейсом, голосовым вводом/выводом, чатом с LLM, генерацией и анализом изображений.
+![JARVIS HUD](https://img.shields.io/badge/J.A.R.V.I.S.-AI%20Assistant-00d4ff?style=for-the-badge)
 
-## ✨ Возможности
+## Возможности
 
-- 🧠 **LLM-чат** — диалог с ИИ (OpenAI GPT-4o-mini, Ollama, Groq и др.)
-- 🎤 **Голосовой ввод** — распознавание речи через браузер (Chrome)
-- 🔊 **Озвучка ответов** — синтез речи на русском языке (браузерный TTS)
-- 👁 **Анализ изображений** — загрузите фото, JARVIS опишет его
-- 🎨 **Генерация картинок** — DALL-E 3 / совместимые модели
-- 🌐 **Веб-поиск** — автоматический для новостей, погоды, курсов (опционально)
-- 📊 **Системный монитор** — CPU, RAM, сеть в реальном времени
-- 📝 **Заметки и таймер** — голосовые команды для быстрого создания
-- ⌨ **Горячие клавиши** — Ctrl+K командная строка, Ctrl+M микрофон
-- 🎯 **3 темы** — Mark 1 (cyan), Mark 42 (gold), Mark 50 (red)
-- 💾 **История диалогов** — сохраняется в локальную SQLite базу
-- 🔊 **Звуковые эффекты** — синтезированные UI-звуки через Web Audio API
-- ⌨️ **Typewriter-эффект** — ответы печатаются посимвольно
+- 💬 **Чат с ИИ** — через Ollama (бесплатный локальный LLM)
+- 👁 **Анализ изображений** — через vision-модели Ollama (llava)
+- 🎙 **Голосовой ввод** — через микрофон браузера (Web Speech API)
+- 🔊 **Озвучка ответов** — через синтез речи браузера
+- 📝 **Заметки и TODO** — локальное хранение
+- ⏱ **Таймер / Секундомер**
+- 🖥 **HUD интерфейс** — в стиле JARVIS из Железного Человека
+- ⌨ **Командная палитра** — Ctrl+K
+- 🎨 **Тёмная/светлая тема**
+- 📂 **История диалогов** — сохраняется в SQLite
 
-## 🚀 Быстрый старт
+## Системные требования
 
-### Требования
-- [Node.js](https://nodejs.org/) 18+ или [Bun](https://bun.sh/)
-- [Git](https://git-scm.com/)
-- Chrome (для голосового ввода)
-- OpenAI API ключ (или совместимый сервис)
+- **Windows 11** 64-bit (или Windows 10, macOS, Linux)
+- **Node.js** 18+ или **Bun** 1.0+
+- **Ollama** — [скачать с ollama.com](https://ollama.com)
 
-### Установка
+## Установка
 
-```bash
-# 1. Клонировать
+### 1. Установите Ollama
+
+Скачайте и установите [Ollama](https://ollama.com/download) для Windows.
+
+После установки откройте терминал и скачайте модель:
+
+```powershell
+# Основная модель для чата (~4.7 GB)
+ollama pull llama3.1
+
+# Опционально: модель для анализа изображений (~4.7 GB)
+ollama pull llava
+```
+
+### 2. Клонируйте и настройте проект
+
+```powershell
 git clone https://github.com/Shuguy99/jarvis-ai-beta.git
 cd jarvis-ai-beta
 
-# 2. Установить зависимости
-bun install
-# или: npm install
+# Установите зависимости
+npm install
+# или: bun install
 
-# 3. Настроить переменные окружения
-cp .env.example .env
+# Настройте базу данных
+npx prisma generate
+npx prisma db push
+# или: bun run setup
 ```
 
-### Настройка `.env`
+### 3. Запустите
 
-Откройте `.env` и вставьте свой API-ключ:
+```powershell
+npm run dev
+# или: bun run dev
+```
+
+Откройте **http://localhost:3000** в браузере (рекомендуется Chrome).
+
+## Переменные окружения (опционально)
+
+Создайте файл `.env` в корне проекта:
 
 ```env
-# Обязательное — получите на https://platform.openai.com/api-keys
-OPENAI_API_KEY=sk-your-key-here
+# URL Ollama (по умолчанию: http://localhost:11434/v1)
+OLLAMA_BASE_URL=http://localhost:11434/v1
 
-# Опционально — другие провайдеры
-# OPENAI_BASE_URL=http://localhost:11434/v1  # Ollama
-# OPENAI_BASE_URL=https://api.groq.com/openai/v1  # Groq
+# Модель для чата (по умолчанию: llama3.1)
+OLLAMA_MODEL=llama3.1
+
+# Модель для анализа изображений (по умолчанию: llava)
+OLLAMA_VISION_MODEL=llava
 ```
 
-### Запуск
+## Рекомендуемые модели
 
-```bash
-# Создать базу данных
-bun run db:push
-# или: npx prisma db push
+| Модель | Размер | Назначение | Команда |
+|--------|--------|------------|---------|
+| `llama3.1` | 4.7 GB | Чат (по умолчанию) | `ollama pull llama3.1` |
+| `llama3.1:8b` | 4.7 GB | Чат, улучшенная | `ollama pull llama3.1:8b` |
+| `qwen2.5:7b` | 4.4 GB | Чат, хорошо знает русский | `ollama pull qwen2.5:7b` |
+| `llava` | 4.7 GB | Анализ изображений | `ollama pull llava` |
+| `llama3.1:70b` | 40 GB | Максимальное качество | `ollama pull llama3.1:70b` |
 
-# Запустить dev-сервер
-bun run dev
-# или: npm run dev
-```
+> 💡 Для лучшей работы с русским языком попробуйте `qwen2.5:7b` — она лучше понимает и генерирует русский текст.
 
-Откройте **http://localhost:3000** в Chrome. Нажмите **F11** для полноэкранного режима.
+## Голосовой ввод
 
-## 🎮 Горячие клавиши
+Голосовой ввод работает через **Web Speech API** браузера:
+- ✅ **Google Chrome** — полная поддержка
+- ⚠️ **Microsoft Edge** — может работать
+- ❌ **Firefox** — не поддерживается
 
-| Клавиша | Действие |
-|---------|----------|
-| `Ctrl + Enter` | Отправить сообщение |
-| `Shift + Enter` | Перенос строки |
-| `Escape` | Остановить речь / отмена |
-| `Ctrl + K` | Командная строка |
-| `Ctrl + M` | Микрофон вкл/выкл |
-| `Ctrl + N` | Новый диалог |
-| `F11` | Полноэкранный режим |
-
-## 🎨 Темы
-
-- **Mark I** — классический cyan (по умолчанию)
-- **Mark 42** — золотой (Iron Man Mk 42)
-- **Mark 50** — красный (纳米装甲)
-
-## 🔧 Совместимые AI-провайдеры
-
-JARVIS работает с любым OpenAI-совместимым API:
-
-| Провайдер | `OPENAI_BASE_URL` | Модель |
-|-----------|-------------------|--------|
-| OpenAI | *(по умолчанию)* | `gpt-4o-mini` |
-| Ollama (локально) | `http://localhost:11434/v1` | `llama3`, `mistral` |
-| Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
-| LM Studio | `http://localhost:1234/v1` | любая загруженная |
-| OpenRouter | `https://openrouter.ai/api/v1` | любая |
-
-## 📁 Структура
+## Структура проекта
 
 ```
 src/
 ├── app/
-│   ├── page.tsx              # HUD-интерфейс (3 колонки)
-│   ├── globals.css           # Тема + JARVIS CSS-утилиты
-│   └── api/jarvis/           # Backend API
-│       ├── chat/             # LLM-чат
-│       ├── vision/           # Анализ изображений
-│       ├── image-gen/        # Генерация картинок
-│       ├── search/           # Веб-поиск
-│       ├── tts/              # Озвучка
-│       ├── asr/              # Распознавание речи
-│       ├── system/           # Системные метрики
-│       └── conversations/    # CRUD диалогов
-├── components/jarvis/        # HUD-компоненты
-├── hooks/use-jarvis.ts       # Главный state-хук
+│   ├── api/jarvis/     # API-маршруты (chat, vision, tts, asr, notes, etc.)
+│   ├── globals.css     # Стили JARVIS HUD
+│   ├── layout.tsx      # Корневой layout
+│   └── page.tsx        # Главная страница (3-колоночный HUD)
+├── components/
+│   ├── jarvis/         # JARVIS-компоненты (arc-reactor, chat, voice, etc.)
+│   └── ui/             # Базовые UI-компоненты (shadcn/ui)
+├── hooks/
+│   └── use-jarvis.ts   # Основной хук JARVIS
 └── lib/
-    ├── ai-provider.ts        # Абстракция AI-провайдера
-    ├── jarvis.ts             # Системный промпт
-    └── sounds.ts             # Звуковые эффекты
+    ├── ai-provider.ts  # Провайдер ИИ (Ollama)
+    ├── db.ts           # Prisma клиент
+    ├── jarvis.ts       # Системный промпт JARVIS
+    ├── sounds.ts       # Звуковые эффекты
+    ├── types.ts        # TypeScript типы
+    └── utils.ts        # Утилиты
 ```
 
-## 📝 Лицензия
+## Ограничения локального режима
 
-MIT — свободно использовать и модифицировать.
+| Функция | Статус | Примечание |
+|---------|--------|------------|
+| Чат с ИИ | ✅ Работает | Через Ollama |
+| Анализ изображений | ✅ Работает | Нужна модель llava |
+| Голосовой ввод | ✅ Работает | Chrome |
+| Озвучка ответов | ✅ Работает | Браузерный TTS |
+| Заметки / TODO | ✅ Работает | SQLite |
+| Таймер | ✅ Работает | — |
+| Веб-поиск | ❌ Недоступен | Нужен внешний API |
+| Генерация картинок | ❌ Недоступна | Нужен DALL-E / SD API |
 
----
+## Технологии
 
-<p align="center">
-  <sub>Built with ❤️ · Powered by Z.ai neural core</sub>
-</p>
+- **Next.js 16** — React фреймворк
+- **TypeScript** — типизация
+- **Tailwind CSS 4** — стили
+- **Prisma + SQLite** — база данных
+- **Framer Motion** — анимации
+- **Ollama** — локальный LLM
+- **Web Speech API** — голос
+
+## Лицензия
+
+MIT

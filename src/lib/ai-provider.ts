@@ -1,9 +1,13 @@
 /**
- * AI Provider — ZAI SDK (z-ai-web-dev-sdk)
+ * AI Provider — Ollama (local LLM, no API key needed)
  *
- * No API keys needed. Everything works out of the box.
- * Uses the built-in z-ai-web-dev-sdk for chat, vision, image generation,
- * web search, TTS, and ASR.
+ * Requires Ollama running locally: https://ollama.com
+ * Default: http://localhost:11434/v1 (OpenAI-compatible API)
+ *
+ * Environment variables (all optional):
+ *   OLLAMA_BASE_URL  — Ollama API base URL (default: http://localhost:11434/v1)
+ *   OLLAMA_MODEL     — Chat model name (default: llama3.1)
+ *   OLLAMA_VISION_MODEL — Vision model (default: llava)
  */
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -36,47 +40,59 @@ export interface ImageGenResult {
   revisedPrompt?: string;
 }
 
-// ─── Singleton ZAI instance ─────────────────────────────────────
+// ─── Config ─────────────────────────────────────────────────────
 
-let zaiInstance: Awaited<ReturnType<typeof import("z-ai-web-dev-sdk").default.create>> | null = null;
-
-async function getZAI() {
-  if (!zaiInstance) {
-    const ZAI = (await import("z-ai-web-dev-sdk")).default;
-    zaiInstance = await ZAI.create();
-  }
-  return zaiInstance;
+function getConfig() {
+  return {
+    baseUrl: (process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1").replace(/\/+$/, ""),
+    model: process.env.OLLAMA_MODEL || "llama3.1",
+    visionModel: process.env.OLLAMA_VISION_MODEL || "llava",
+  };
 }
 
-// ─── Chat (LLM) ──────────────────────────────────────────────────
+// ─── Ollama Chat (OpenAI-compatible) ────────────────────────────
 
-async function zaiChat(messages: LLMMessage[]): Promise<LLMResponse> {
-  const zai = await getZAI();
+async function ollamaChat(messages: LLMMessage[]): Promise<LLMResponse> {
+  const cfg = getConfig();
 
-  const completion = await zai.chat.completions.create({
-    messages: messages.map((m) => ({
-      // ZAI SDK uses "assistant" role for system prompts
-      role: m.role === "system" ? "assistant" : (m.role as "user" | "assistant"),
-      content: typeof m.content === "string" ? m.content : JSON.stringify(m.content),
-    })),
-    thinking: { type: "disabled" },
+  const body = {
+    model: cfg.model,
+    messages: messages.map((m) => {
+      if (typeof m.content === "string") return { role: m.role, content: m.content };
+      return { role: m.role, content: m.content };
+    }),
+    max_tokens: 2048,
+    temperature: 0.7,
+    stream: false,
+  };
+
+  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
 
-  const content = completion.choices?.[0]?.message?.content?.trim();
-  if (!content) throw new Error("Empty response from AI");
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Ollama error (${res.status}): ${err}`);
+  }
+
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content?.trim();
+  if (!content) throw new Error("Empty response from Ollama");
   return { content };
 }
 
-// ─── Vision (VLM) ────────────────────────────────────────────────
+// ─── Ollama Vision ──────────────────────────────────────────────
 
-async function zaiVision(imageBase64: string, prompt: string): Promise<LLMResponse> {
-  const zai = await getZAI();
-
+async function ollamaVision(imageBase64: string, prompt: string): Promise<LLMResponse> {
+  const cfg = getConfig();
   const imageUrl = imageBase64.startsWith("data:")
     ? imageBase64
     : `data:image/jpeg;base64,${imageBase64}`;
 
-  const response = await zai.chat.completions.createVision({
+  const body = {
+    model: cfg.visionModel,
     messages: [
       {
         role: "user",
@@ -86,36 +102,25 @@ async function zaiVision(imageBase64: string, prompt: string): Promise<LLMRespon
         ],
       },
     ],
-    thinking: { type: "disabled" },
+    max_tokens: 2048,
+    stream: false,
+  };
+
+  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
 
-  const content = response.choices?.[0]?.message?.content?.trim();
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Ollama vision error (${res.status}): ${err}`);
+  }
+
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content?.trim();
   if (!content) throw new Error("Empty response from vision model");
   return { content };
-}
-
-// ─── Image Generation ────────────────────────────────────────────
-
-async function zaiImageGen(prompt: string, size: string): Promise<ImageGenResult> {
-  const zai = await getZAI();
-
-  const response = await zai.images.generations.create({
-    prompt: prompt.trim(),
-    size: size || "1024x1024",
-  });
-
-  const base64 = response.data?.[0]?.base64;
-  if (!base64) throw new Error("Image generation returned no data");
-  return { base64 };
-}
-
-// ─── Web Search ──────────────────────────────────────────────────
-
-async function zaiSearch(query: string, num: number): Promise<SearchResult[]> {
-  const zai = await getZAI();
-
-  const results = (await zai.functions.invoke("web_search", { query, num })) as SearchResult[];
-  return Array.isArray(results) ? results.slice(0, num) : [];
 }
 
 // ─── Unified API ─────────────────────────────────────────────────
@@ -123,25 +128,26 @@ async function zaiSearch(query: string, num: number): Promise<SearchResult[]> {
 export const ai = {
   /** Send messages to the LLM and get a response */
   async chat(messages: LLMMessage[]): Promise<LLMResponse> {
-    return zaiChat(messages);
+    return ollamaChat(messages);
   },
 
   /** Analyze an image with a vision model */
   async vision(imageBase64: string, prompt: string): Promise<LLMResponse> {
-    return zaiVision(imageBase64, prompt);
+    return ollamaVision(imageBase64, prompt);
   },
 
-  /** Generate an image from a text prompt */
-  async imageGen(prompt: string, size: string = "1024x1024"): Promise<ImageGenResult> {
-    return zaiImageGen(prompt, size);
+  /** Generate an image — not supported by Ollama */
+  async imageGen(_prompt: string, _size?: string): Promise<ImageGenResult> {
+    throw new Error(
+      "Генерация изображений недоступна с Ollama. Для генерации изображений требуется подключение к сервису с поддержкой DALL-E/Stable Diffusion."
+    );
   },
 
-  /** Perform a web search */
-  async search(query: string, num: number = 6): Promise<SearchResult[]> {
-    return zaiSearch(query, num);
+  /** Web search — not available locally without external API */
+  async search(_query: string, _num?: number): Promise<SearchResult[]> {
+    return [];
   },
 
-  /** Check if a specific feature is available (always true with ZAI) */
   isChatAvailable(): boolean {
     return true;
   },
@@ -151,14 +157,14 @@ export const ai = {
   },
 
   isImageGenAvailable(): boolean {
-    return true;
+    return false;
   },
 
   isSearchAvailable(): boolean {
-    return true;
+    return false;
   },
 
   getProviderName(): string {
-    return "J.A.R.V.I.S. AI";
+    return "Ollama (Local AI)";
   },
 };

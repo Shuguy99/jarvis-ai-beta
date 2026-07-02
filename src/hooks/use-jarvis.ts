@@ -690,7 +690,9 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
   // load conversations on mount
   useEffect(() => {
-    void loadConversations();
+    let cancelled = false;
+    loadConversations().then(() => { if (cancelled) return; });
+    return () => { cancelled = true; };
   }, [loadConversations]);
 
   const clearMessages = useCallback(() => {

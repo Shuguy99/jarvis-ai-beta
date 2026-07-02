@@ -1,38 +1,16 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
 /**
  * POST /api/jarvis/asr
- * Body: { audio: base64string }
- * Returns: { text }
  *
- * Uses ZAI SDK for server-side ASR.
+ * В локальном режиме (Ollama) распознавание речи обрабатывается
+ * в браузере через Web Speech API (SpeechRecognition).
  */
-export async function POST(req: NextRequest) {
-  try {
-    const { audio } = await req.json();
-
-    if (!audio || typeof audio !== "string") {
-      return NextResponse.json({ error: "Аудиоданные отсутствуют." }, { status: 400 });
-    }
-
-    const base64 = audio.includes(",") ? audio.split(",")[1] : audio;
-
-    const ZAI = (await import("z-ai-web-dev-sdk")).default;
-    const zai = await ZAI.create();
-    const response = await zai.audio.asr.create({
-      file_base64: base64,
-    });
-
-    return NextResponse.json({
-      text: (response.text || "").trim(),
-    });
-  } catch (error) {
-    console.error("JARVIS ASR error:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Распознавание речи недоступно." },
-      { status: 500 }
-    );
-  }
+export async function POST() {
+  return NextResponse.json({
+    useBrowserASR: true,
+    message: "Browser ASR (SpeechRecognition) is used in local mode.",
+  });
 }

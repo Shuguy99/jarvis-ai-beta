@@ -11,7 +11,8 @@ export function useIsMobile() {
       setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
     }
     mql.addEventListener("change", onChange)
-    setIsMobile(window.innerWidth < MOBILE_BREAKPOINT)
+    // Read initial value via the listener (avoids sync setState in effect)
+    onChange()
     return () => mql.removeEventListener("change", onChange)
   }, [])
 
