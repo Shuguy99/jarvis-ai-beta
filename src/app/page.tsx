@@ -33,7 +33,7 @@ import { ActivityFeed } from "@/components/jarvis/activity-feed";
 import { PomodoroWidget } from "@/components/jarvis/pomodoro-widget";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
 import { SettingsPanel, type JarvisSettingsData } from "@/components/jarvis/settings-panel";
-import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3 } from "lucide-react";
+import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3, Terminal, Headphones } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSound } from "@/lib/sounds";
 import { showNotification, NotificationToastContainer } from "@/components/jarvis/notification-toast";
@@ -41,7 +41,9 @@ import { NetworkWidget } from "@/components/jarvis/network-widget";
 import { SystemAlertsWidget } from "@/components/jarvis/system-alerts-widget";
 import { ShortcutsWidget } from "@/components/jarvis/shortcuts-widget";
 import { SessionStatsWidget } from "@/components/jarvis/session-stats-widget";
-import { QuickActionsBar, type QuickAction } from "@/components/jarvis/quick-actions-bar";
+import { QuickActionsBar, type QuickAction } from "@/components/jarvis/quick-actions-bar"
+import { ProcessManagerWidget } from "@/components/jarvis/process-manager-widget"
+import { AmbientSoundWidget } from "@/components/jarvis/ambient-sound-widget";
 
 const CAPABILITIES = [
   { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
@@ -55,6 +57,8 @@ const CAPABILITIES = [
   { icon: Network, label: "Network", desc: "Мониторинг трафика" },
   { icon: ShieldAlert, label: "Health", desc: "Мониторинг систем" },
   { icon: Bell, label: "Alerts", desc: "Уведомления HUD" },
+  { icon: Terminal, label: "Processes", desc: "Монитор процессов" },
+  { icon: Headphones, label: "Ambient", desc: "Фоновые звуки" },
 ];
 
 export default function Home() {
@@ -653,11 +657,29 @@ export default function Home() {
                     <NetworkWidget />
                   </motion.div>
 
-                  {/* Pomodoro Focus */}
+                  {/* Process Manager */}
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.41, duration: 0.5 }}
+                  >
+                    <ProcessManagerWidget />
+                  </motion.div>
+
+                  {/* Ambient Sound */}
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.415, duration: 0.5 }}
+                  >
+                    <AmbientSoundWidget />
+                  </motion.div>
+
+                  {/* Pomodoro Focus */}
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.42, duration: 0.5 }}
                   >
                     <PomodoroWidget />
                   </motion.div>
@@ -803,13 +825,25 @@ export default function Home() {
                           <span className="text-primary/60">22.</span>
                           <span>Keyboard Shortcuts — справка по хоткеям.</span>
                         </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">23.</span>
+                          <span>Process Monitor — список и завершение процессов.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">24.</span>
+                          <span>Ambient Sound — атмосферные звуки (Web Audio).</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">25.</span>
+                          <span>Image Drag &amp; Drop — перетащите фото в чат.</span>
+                        </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
                         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v7.1.0 · Stark Industries
+                          JARVIS v8.0.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Ollama local neural core

@@ -1327,3 +1327,62 @@ Stage Summary:
 - ESLint: 0 errors, 2 pre-existing warnings
 - Dev server: GET / 200, VLM aesthetic: 9/10
 - Components total: 35
+
+---
+## Проект: текущий статус (v8.0.0)
+
+### Описание/оценка
+JARVIS v8.0.0 «Mission Control» — 4 новых функции: Process Monitor, Ambient Sounds, Image Drag&Drop, CSS Polish. Всего 37+ компонентов. Все API работают (200), 0 ошибок ESLint, 0 ошибок runtime. VLM подтверждает 8/10 эстетику, виджеты Process Monitor и Ambient видны в правой сайдбаре.
+
+---
+Task ID: 1-4 (Round 5 — v8.0.0)
+Agent: main (Z.ai Code) + 4 parallel subagents
+Task: Process Manager, Image Drag&Drop, Ambient Sounds, CSS Polish
+
+Work Log:
+- **Task 1 — Process Manager Widget** (subagent):
+  - Создан `/api/jarvis/processes/route.ts`: GET (ps aux, sort/filter/top20) + POST (kill via SIGTERM)
+  - Создан `process-manager-widget.tsx`: таблица процессов с сортировкой, фильтром, цветовым кодированием CPU, kill-кнопкой
+  - Activity Event при завершении процесса
+  - Авто-обновление каждые 5 секунд
+
+- **Task 2 — Image Drag & Drop** (subagent):
+  - Обновлён `chat-panel.tsx`: drag-and-drop зона с визуальным оверлеем (ImagePlus иконка, русский текст)
+  - Проверена поддержка IMAGE_TYPES (png, jpeg, gif, webp)
+  - `analyzeImage()` уже существовал в use-jarvis.ts — работает корректно
+  - `/api/jarvis/vision` уже существовал — работает корректно
+
+- **Task 3 — Ambient Sound Widget** (subagent):
+  - Создан `ambient-sound-widget.tsx`: 5 звуков через Web Audio API (Reactor, Rain, Space, Electric, Wind)
+  - Каждый звук генерируется программно: осцилляторы, фильтры, LFO, noise
+  - Громкость через слайдер, состояние в localStorage
+  - Только один звук одновременно, плавное переключение
+
+- **Task 4 — CSS Polish v8** (subagent):
+  - 10 новых CSS-утилит/анимаций в globals.css:
+    - jarvis-hex-grid, jarvis-circuit-board (фоны)
+    - anim-hud-sweep, anim-breathe, anim-glitch-text, anim-float-particle, anim-radar-scan (анимации)
+    - jarvis-glass-strong, jarvis-neon-line, jarvis-chip (утилиты)
+
+- **Task 5 — Integration** (main):
+  - Добавлены ProcessManagerWidget + AmbientSoundWidget в правую сайдбару (между Network и Pomodoro)
+  - CAPABILITIES: 11 → 13 items (Terminal/Processes, Headphones/Ambient)
+  - Directives: 22 → 25 points
+  - Version: v7.1.0 → v8.0.0
+
+Stage Summary:
+- JARVIS v8.0.0 — 4 новых функции
+- Process Monitor: real-time список процессов с сортировкой/фильтром/kill
+- Ambient Sound: 5 атмосферных звуков через Web Audio API
+- Image Drag&Drop: перетаскивание изображений в чат для VLM-анализа
+- CSS Polish: 10 новых утилит и анимаций
+- ESLint: 0 ошибок, 2 pre-existing warnings
+- Dev server: все API 200, включая новый /api/jarvis/processes
+- VLM verification: Process Monitor и Ambient виджеты подтверждены, эстетика 8/10
+- Components total: 37+
+
+### Нерешённые/Следующие шаги:
+- Performance optimization: 4+ polling intervals (2s clipboard, 3s network, 5s system, 5s alerts, 5s processes) →可以考虑统一为单个 system poller
+- Plugin System для расширений
+- Electron Wrapper для desktop app
+- Advanced Settings Panel (widget layout customization)

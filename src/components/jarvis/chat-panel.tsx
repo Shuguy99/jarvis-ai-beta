@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Upload, Monitor } from "lucide-react";
+import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Monitor } from "lucide-react";
 import type { ChatMessage } from "@/lib/types";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
 import { playSound } from "@/lib/sounds";
 import { getMarkdownComponents } from "@/components/jarvis/code-block";
+
+const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 const mdComponents = getMarkdownComponents();
 
@@ -355,7 +357,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
   const handleImageUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (!file) return;
+      if (!file || !IMAGE_TYPES.includes(file.type)) return;
       playSound("activate");
       void jarvis.analyzeImage(file, input.trim() || undefined);
       setInput("");
@@ -368,9 +370,10 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    dragCounterRef.current += 1;
-    // Only show drop zone if dragging files
-    if (e.dataTransfer.types.includes("Files")) {
+    // Only activate for image files
+    const item = e.dataTransfer.items?.[0];
+    if (item && IMAGE_TYPES.includes(item.type)) {
+      dragCounterRef.current += 1;
       setIsDragOver(true);
     }
   }, []);
@@ -398,7 +401,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
       setIsDragOver(false);
 
       const file = e.dataTransfer.files?.[0];
-      if (file && file.type.startsWith("image/")) {
+      if (file && IMAGE_TYPES.includes(file.type)) {
         playSound("activate");
         void jarvis.analyzeImage(file, input.trim() || undefined);
         setInput("");
@@ -409,7 +412,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
 
   return (
     <div
-      className="flex h-full flex-col"
+      className="relative flex h-full flex-col"
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
       onDragOver={handleDragOver}
@@ -470,19 +473,21 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
       <AnimatePresence>
         {isDragOver && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-            className="absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/60 bg-primary/5 backdrop-blur-sm"
+            initial={{ opacity: 0, scale: 0.96 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.96 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-primary/10 backdrop-blur-sm jarvis-box-glow"
           >
-            <div className="flex flex-col items-center gap-2">
-              <Upload className="h-8 w-8 text-primary anim-pulse-glow" />
-              <span className="font-mono text-xs uppercase tracking-widest text-primary">
-                Drop image here
+            <div className="flex flex-col items-center gap-3">
+              <div className="rounded-full border border-primary/30 bg-primary/10 p-4">
+                <ImagePlus className="h-10 w-10 text-primary anim-pulse-glow" />
+              </div>
+              <span className="font-mono text-sm uppercase tracking-widest text-primary jarvis-glow">
+                Перетащите изображение для анализа
               </span>
-              <span className="font-mono text-[9px] text-muted-foreground">
-                JARVIS will analyze the image
+              <span className="font-mono text-[10px] text-muted-foreground">
+                PNG, JPEG, GIF, WebP — JARVIS проанализирует содержимое
               </span>
             </div>
           </motion.div>
@@ -498,7 +503,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/png,image/jpeg,image/gif,image/webp"
             className="hidden"
             onChange={handleImageUpload}
           />
