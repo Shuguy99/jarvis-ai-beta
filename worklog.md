@@ -1450,3 +1450,65 @@ Stage Summary:
 - Voice Commands System (NLP-распознавание голосовых команд)
 - Global Search (Ctrl+K расширение)
 - AI Agent Mode (автономное выполнение задач)
+
+---
+## Проект: текущий статус (v10.0.0)
+
+### Описание/оценка
+JARVIS v10.0.0 «Desktop Native» — Этап 4 завершён. Приложение теперь имеет полноценный Electron shell с system tray, window controls и build pipeline для Windows .exe инсталлятора. Web-режим продолжает работать как обычно.
+
+---
+Task ID: 1-4 (Round 7 — v10.0.0)
+Agent: main (Z.ai Code) + 3 parallel subagents
+Task: Electron Shell, System Tray, Window Controls, Build Pipeline
+
+Work Log:
+- **Electron Main Process** (`electron/src/main.ts`):
+  - Frameless BrowserWindow (transparent, shadow, hidden title bar)
+  - System Tray с inline SVG иконкой (cyan "J")
+  - Контекстное меню: Показать, Полный экран, Поверх всех, Прозрачность submenu, Выход
+  - Status polling каждые 15s (Online/Offline в меню)
+  - Global hotkey Ctrl+Shift+J (toggle window)
+  - Hide-to-tray вместо close
+  - Next.js server spawn в production (npx next start)
+  - 8 IPC handlers (minimize, maximize, close, always-on-top, opacity, fullscreen, version, quit)
+
+- **Electron Preload** (`electron/src/preload.ts`):
+  - contextBridge.exposeInMainWorld('jarvisElectron', api)
+  - 8 методов + onWindowEvent listener
+  - Cleanup function для event listeners
+
+- **Window Controls Component** (`src/components/jarvis/window-controls.tsx`):
+  - 3 кнопки (Min/Max/Close) с Framer Motion hover
+  - Дополнительная панель: always-on-top toggle, opacity slider, fullscreen, version
+  - -webkit-app-region: no-drag для кликабельности
+  - Auto-detection: в браузере показывает badge, в Electron — полноценные контролы
+
+- **TypeScript Types** (`src/types/electron.d.ts`):
+  - JarvisElectron interface (8 методов + onWindowEvent)
+  - Global Window augmentation
+
+- **Build Pipeline**:
+  - electron, electron-builder, concurrently, wait-on установлены
+  - Scripts: electron:dev, electron:build, electron:preview
+  - electron-builder конфиг (NSIS, icon, shortcuts, GitHub publish)
+  - .gitignore обновлён (dist-electron/, compiled JS)
+
+- **Integration**:
+  - WindowControls добавлен в header (рядом с StatusClock)
+  - Header получил WebkitAppRegion: 'drag' для перемещения окна
+  - Version: v9.0.0 → v10.0.0
+  - Directive #30: Desktop Mode
+
+Stage Summary:
+- JARVIS v10.0.0 — Этап 4 «Desktop Native» завершён
+- Electron shell с tray, window controls, IPC bridge
+- Build pipeline для Windows .exe
+- GitHub Release создан: v10.0.0
+- ESLint: 0 errors, 2 pre-existing warnings
+- Dev server: GET / 200
+
+### Нерешённые/Следующие шаги:
+- [ ] Создать icon.ico для инсталлятора (electron/resources/)
+- [ ] Собрать .exe на целевой машине (Windows, Ryzen 7 5700G)
+- [ ] Этап 5: Voice Commands NLP, AI Agent Mode, Plugin System
