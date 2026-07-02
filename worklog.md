@@ -811,3 +811,137 @@ Stage Summary:
 - Sound Effects 2.0: 18→28 звуков, все синтезированы через Web Audio API
 - Все новые звуки интегрированы в соответствующие моменты UI
 - Ключевые файлы: chat-panel.tsx (TypewriterText), sounds.ts (10 новых), use-jarvis.ts (4 интеграции), boot-sequence.tsx (2 интеграции), timer-widget.tsx (1 интеграция)
+
+---
+Task ID: 3
+Agent: main (Z.ai Code)
+Task: Enhance System Monitor with disk usage, network details, and process list
+
+Work Log:
+- Enhanced `/api/jarvis/system/route.ts`:
+  - Added `getDiskStats()` using `fs.promises.statfs()` (Node 18.15+) with graceful fallback to simulated data
+  - Added `getNetworkInterfaces()` using `os.networkInterfaces()` — returns max 3 non-internal interfaces, preferring IPv4
+  - Added `processMemory` from `process.memoryUsage()` (rss, heapUsed, heapTotal)
+  - Response now includes: `diskTotal`, `diskUsed`, `diskPct`, `networkInterfaces[]`, `processMemory{}`
+  - Typed `statfs` return to avoid `any` (no eslint warnings)
+
+- Enhanced `src/components/jarvis/system-monitor.tsx`:
+  - Added `NetworkInterfaceInfo` interface and new fields to `SystemData`
+  - Added `fmtMB()` helper and `isWireless()` heuristic for icon selection
+  - **Disk Usage Bar**: Horizontal animated progress bar below core loads, color-coded (cyan <70%, amber 70-85%, rose >85%), shows "XX.X ГБ / XX.X ГБ (XX%)" in `font-mono text-[10px]`
+  - **Network Interfaces**: Lists up to 3 active interfaces with `Wifi`/`Cable` icons, name, IP address, family — styled in `font-mono text-[10px] text-muted-foreground`
+  - **JARVIS Process Memory**: Centered badge at bottom showing "CORE: XXX MB RSS · XXX MB Heap" in `font-mono text-[9px] text-primary/60`
+  - All new sections use `jarvis-border-cyan`, `motion` animations, and match existing HUD styling
+  - All existing functionality (gauges, sparklines, core loads, specs row) preserved intact
+
+- Lint: 0 errors (3 pre-existing warnings in other files)
+- Dev server: API returns 200 successfully with new fields
+
+---
+Task ID: 2
+Agent: weather-widget-builder (Z.ai Code)
+Task: Create Weather Dashboard widget for JARVIS AI
+
+Work Log:
+- Прочитал worklog.md и существующие компоненты (system-monitor, news-ticker, page.tsx) для понимания стиля
+- Создал `src/app/api/jarvis/weather/route.ts` — GET-прокси к Open-Meteo API:
+  - Принимает `lat`/`lon` query-параметры, дефолт: Москва (55.75, 37.62)
+  - Запрашивает: current (температура, влажность, давление, ветер), hourly, daily (7 дней)
+  - In-memory кэш с TTL 10 минут (module-level переменная с timestamp + cache key)
+  - Ошибка 502 если upstream недоступен
+- Создал `src/components/jarvis/weather-widget.tsx` — HUD-виджет погоды:
+  - Named export `WeatherWidget`, "use client"
+  - navigator.geolocation.getCurrentPosition() для определения местоположения, fallback Москва
+  - 10-минутный интервал автообновления
+  - WMO Weather Code → Lucide иконки (Sun, CloudSun, Cloud, CloudFog, CloudDrizzle, CloudRain, Snowflake, CloudLightning)
+  - Текущая погода: температура, feels-like, влажность, ветер (направление компас), давление
+  - 5-дневный прогноз (день недели, иконка, макс/мин температура)
+  - HUD-стилизация: jarvis-box-glow, jarvis-corner-brackets, jarvis-grid-bg, jarvis-glow, font-mono
+  - Framer Motion entrance-анимации (контейнер + каждый день прогноза с задержкой)
+  - playSound("data-received") при получении данных
+  - Loading state: "Scanning atmosphere..." с anim-pulse-glow
+  - Error state: "UNAVAILABLE"
+- Интегрировал WeatherWidget в правую панель `src/app/page.tsx` (между Capabilities и Timer)
+- Запустил bun run lint — 0 ошибок (3 warnings — pre-existing, не связаны)
+- Dev server работает корректно (проверен dev.log)
+
+Stage Summary:
+- Weather Intelligence виджет отображается в правой панели JARVIS HUD
+- Бесплатный Open-Meteo API, никаких ключей не требуется
+- Автоопределение геолокации через браузер с fallback на Москву
+- Кэширование на 10 минут на стороне сервера
+- HUD-стиль полностью соответствует существующим виджетам проекта
+
+---
+Task ID: 1
+Agent: main (Z.ai Code)
+Task: Add Screen Capture + VLM feature to JARVIS AI
+
+Work Log:
+- `src/hooks/use-jarvis.ts` — добавлен метод `captureScreen()`:
+  - Использует `navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })` для захвата экрана
+  - Создаёт скрытый `<video>` элемент, ждёт `loadedmetadata`, отрисовывает кадр на canvas
+  - Конвертирует canvas в JPEG (quality 0.7), затем dataURL → Uint8Array → Blob → File
+  - Останавливает все треки стрима сразу после захвата кадра
+  - Вызывает существующий `analyzeImage(file, "Опиши что видишь на этом экране. Детально.")` — переиспользует весь VLM pipeline
+  - Обрабатывает `NotAllowedError` (пользователь отменил выбор экрана) — тихо игнорирует
+  - Включается в return объект только при наличии `getDisplayMedia` API (feature detection)
+- `src/components/jarvis/chat-panel.tsx` — добавлена кнопка захвата экрана:
+  - Иконка `Monitor` из lucide-react
+  - Расположена рядом с кнопкой загрузки изображения (перед textarea)
+  - `playSound("scan")` при клике
+  - Условный рендеринг через `jarvis.captureScreen && (...)`
+  - Стилизация идентична кнопке загрузки: `jarvis-border-cyan`, `jarvis-box-glow` при hover
+  - Title: "Показать экран Джарвису"
+- Без изменений бэкенда — переиспользуется существующий `/api/jarvis/vision` endpoint
+- `bun run lint` — 0 errors, 3 pre-existing warnings
+
+---
+Task ID: 6
+Agent: main (Z.ai Code)
+Task: JARVIS v6.0.0 — Phase 1 Features (Screen Capture, Weather, Enhanced Monitor, Music Player, Continuous Listen)
+
+Work Log:
+- **Screen Capture + VLM** (Task 1 — subagent):
+  - `use-jarvis.ts`: метод `captureScreen()` через getDisplayMedia → canvas → JPEG → analyzeImage()
+  - `chat-panel.tsx`: кнопка Monitor рядом с кнопкой загрузки изображения
+  - Переиспользует существующий VLM pipeline, feature detection для API
+
+- **Weather Dashboard** (Task 2 — subagent):
+  - `src/app/api/jarvis/weather/route.ts`: GET-прокси к Open-Meteo API (бесплатно, без ключа), 10-мин кэш
+  - `src/components/jarvis/weather-widget.tsx`: HUD-виджет с геолокацией, WMO коды → иконки, 5-дневный прогноз
+  - Интегрирован в правый сайдбар page.tsx
+
+- **Enhanced System Monitor** (Task 3 — subagent):
+  - `src/app/api/jarvis/system/route.ts`: disk stats (statfs), network interfaces, process memory
+  - `src/components/jarvis/system-monitor.tsx`: disk usage bar, network interfaces list, process memory badge
+
+- **Music Player Widget** (Task 4 — main):
+  - `src/components/jarvis/music-player.tsx`: полный HUD-плеер
+  - Фичи: загрузка файлов, play/pause/stop/skip, seekable progress bar, volume slider
+  - 32-полосный аудио визуализатор через Web Audio API AnalyserNode
+  - Плейлист с expand/collapse, авто-переход между треками
+  - Интегрирован в правый сайдбар page.tsx
+
+- **Continuous Listen Mode** (Task 5 — main):
+  - `src/hooks/use-jarvis.ts`: `continuousMode` state + ref, `toggleContinuousMode()`
+  - useEffect: при state==="idle" + continuousMode + messages.length > 0 → auto startListening() через 500ms
+  - `src/components/jarvis/voice-control.tsx`: кнопка Auto-Listen с Repeat иконкой, пульсирующий индикатор
+
+- **Integration** (main):
+  - `src/app/page.tsx`: импорт MusicPlayer, добавлен в правый сайдбар
+  - CAPABILITIES обновлены: 8 → 8 пунктов (Vision, Screen, Weather, Audio, Diagnostics, Secure)
+  - Directives: добавлены пункты 10 (Screen Capture) и 11 (Weather + Music + Continuous)
+  - Версия: v5.2.0 → v6.0.0
+  - "Powered by Z.ai" → "Powered by Ollama local neural core"
+
+Stage Summary:
+- JARVIS v6.0.0 — 5 новых фич за один раунд
+- Screen Capture: кнопка Monitor в чате, захват экрана → VLM анализ (переиспользует API)
+- Weather: бесплатный Open-Meteo API, HUD-виджет с геолокацией и 5-дневным прогнозом
+- Enhanced Monitor: disk usage bar, network interfaces, process memory
+- Music Player: полный плеер с визуализатором, плейлистом, прогресс-баром
+- Continuous Listen: Auto-Listen toggle, Джарвис продолжает слушать после каждого ответа
+- ESLint: 0 errors, 3 pre-existing warnings
+- Dev server компилируется без ошибок
+

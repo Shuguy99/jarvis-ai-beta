@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Upload } from "lucide-react";
+import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Upload, Monitor } from "lucide-react";
 import type { ChatMessage } from "@/lib/types";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
 import { playSound } from "@/lib/sounds";
@@ -516,6 +516,17 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
           >
             <ImagePlus className="h-4 w-4" />
           </button>
+          {jarvis.captureScreen && (
+            <button
+              type="button"
+              onClick={() => { playSound("scan"); void jarvis.captureScreen!(); }}
+              disabled={busy}
+              className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-card/60 text-primary/80 transition hover:bg-primary/15 hover:text-primary hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40"
+              title="Показать экран Джарвису"
+            >
+              <Monitor className="h-4 w-4" />
+            </button>
+          )}
           <div className="relative flex-1">
             <textarea
               value={input}

@@ -2,7 +2,14 @@
 
 import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { Cpu, MemoryStick, Wifi, Thermometer, Activity, Server, TrendingUp } from "lucide-react";
+import { Cpu, MemoryStick, Wifi, Thermometer, Activity, Server, TrendingUp, HardDrive, Cable } from "lucide-react";
+
+interface NetworkInterfaceInfo {
+  name: string;
+  family: "IPv4" | "IPv6";
+  address: string;
+  internal: boolean;
+}
 
 interface SystemData {
   hostname: string;
@@ -19,6 +26,11 @@ interface SystemData {
   temp: number;
   uptime: number;
   cores: { id: number; load: number }[];
+  diskTotal: number;
+  diskUsed: number;
+  diskPct: number;
+  networkInterfaces: NetworkInterfaceInfo[];
+  processMemory: { rss: number; heapUsed: number; heapTotal: number };
 }
 
 function fmtBytes(bytes: number) {
@@ -32,6 +44,16 @@ function fmtUptime(s: number) {
   const m = Math.floor((s % 3600) / 60);
   if (d > 0) return `${d}д ${h}ч ${m}м`;
   return `${h}ч ${m}м`;
+}
+
+function fmtMB(bytes: number) {
+  const mb = bytes / 1024 / 1024;
+  return `${Math.round(mb)} MB`;
+}
+
+function isWireless(name: string): boolean {
+  const lower = name.toLowerCase();
+  return lower.includes("wi") || lower.includes("wlan") || lower.includes("wifi") || lower.includes("wlp");
 }
 
 /** Mini SVG sparkline chart */
@@ -286,6 +308,60 @@ export function SystemMonitor() {
               </div>
             </div>
 
+            {/* Disk usage bar */}
+            <div className="mt-3 border-t jarvis-border-cyan pt-2">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <HardDrive className="h-3 w-3" /> Disk
+                </span>
+                <span className="font-mono text-[10px] text-foreground/80">
+                  {fmtBytes(data.diskUsed)} / {fmtBytes(data.diskTotal)} ({data.diskPct}%)
+                </span>
+              </div>
+              <div className="relative h-2 w-full overflow-hidden rounded-sm bg-primary/10">
+                <motion.div
+                  className="absolute inset-y-0 left-0 rounded-sm"
+                  style={{
+                    background: data.diskPct > 85
+                      ? rose
+                      : data.diskPct > 70
+                        ? amber
+                        : cyan,
+                    boxShadow: data.diskPct > 85
+                      ? `0 0 6px ${rose}80`
+                      : data.diskPct > 70
+                        ? `0 0 6px ${amber}80`
+                        : `0 0 6px ${cyan}80`,
+                  }}
+                  animate={{ width: `${Math.min(100, data.diskPct)}%` }}
+                  transition={{ duration: 0.6, ease: "easeOut" }}
+                />
+              </div>
+            </div>
+
+            {/* Network interfaces */}
+            {data.networkInterfaces.length > 0 && (
+              <div className="mt-2 border-t jarvis-border-cyan pt-2">
+                <div className="mb-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                  Net Interfaces
+                </div>
+                <div className="flex flex-col gap-0.5">
+                  {data.networkInterfaces.map((iface) => {
+                    const IconComp = isWireless(iface.name) ? Wifi : Cable;
+                    return (
+                      <div key={`${iface.name}-${iface.family}`} className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+                        <IconComp className="h-3 w-3 shrink-0 text-foreground/40" />
+                        <span className="text-foreground/70">{iface.name}</span>
+                        <span className="text-foreground/30">—</span>
+                        <span className="text-foreground/60">{iface.address}</span>
+                        <span className="text-foreground/20">{iface.family}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Specs row */}
             <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1 border-t jarvis-border-cyan pt-2 font-mono text-[10px]">
               <div className="flex justify-between">
@@ -310,6 +386,11 @@ export function SystemMonitor() {
                   {data.platform} · {data.arch}
                 </span>
               </div>
+            </div>
+
+            {/* JARVIS process memory badge */}
+            <div className="mt-2 flex justify-center font-mono text-[9px] text-primary/60">
+              CORE: {fmtMB(data.processMemory.rss)} RSS · {fmtMB(data.processMemory.heapUsed)} Heap
             </div>
           </>
         ) : (

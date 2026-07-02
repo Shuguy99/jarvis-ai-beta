@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Mic, MicOff, Square } from "lucide-react";
+import { Mic, MicOff, Square, Repeat } from "lucide-react";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
 import { playSound } from "@/lib/sounds";
 
@@ -10,7 +10,7 @@ interface VoiceControlProps {
 }
 
 export function VoiceControl({ jarvis }: VoiceControlProps) {
-  const { isRecording, toggleListening, stopSpeaking, state, audioLevel } = jarvis;
+  const { isRecording, toggleListening, stopSpeaking, state, audioLevel, continuousMode, toggleContinuousMode } = jarvis;
   const speaking = state === "speaking";
 
   return (
@@ -87,6 +87,26 @@ export function VoiceControl({ jarvis }: VoiceControlProps) {
           {isRecording ? "Говорите чётко" : "Нажмите и говорите"}
         </div>
       </div>
+
+      {/* Continuous Mode Toggle */}
+      <button
+        onClick={() => { playSound("click"); toggleContinuousMode(); }}
+        className={`flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
+          continuousMode
+            ? "border-primary/50 bg-primary/15 text-primary jarvis-box-glow"
+            : "border-muted-foreground/30 bg-muted/30 text-muted-foreground hover:border-primary/30"
+        }`}
+        title="Непрерывный режим — Джарвис слушает после каждого ответа"
+      >
+        <Repeat className="h-3 w-3" />
+        <span>{continuousMode ? "Continuous" : "Auto-Listen"}</span>
+        {continuousMode && (
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+          </span>
+        )}
+      </button>
     </div>
   );
 }

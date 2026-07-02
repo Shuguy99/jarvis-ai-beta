@@ -108,6 +108,8 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [continuousMode, setContinuousMode] = useState(false);
+  const continuousModeRef = useRef(false);
 
   // Use refs for TTS params so speak() always gets latest values
   const ttsRateRef = useRef(ttsRate);
@@ -858,6 +860,82 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     [state, messages, activeConvoId, ensureConversation, persistMessage, autoSpeakOn, speak, stopSpeaking]
   );
 
+  // ---- Continuous Listen Mode ----
+  // Keep ref in sync for stable callback access
+  useEffect(() => { continuousModeRef.current = continuousMode; }, [continuousMode]);
+
+  const toggleContinuousMode = useCallback(() => {
+    setContinuousMode((prev) => {
+      const next = !prev;
+      playSound(next ? "activate" : "deactivate");
+      return next;
+    });
+  }, []);
+
+  // Auto-listen after speaking ends when continuous mode is on
+  useEffect(() => {
+    if (!continuousModeRef.current || state !== "idle" || isRecording || messages.length === 0) return;
+    const timer = setTimeout(() => {
+      void startListening();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [state, isRecording, messages.length, startListening]);
+
+  // ---- Screen Capture + VLM ----
+  const captureScreen = useCallback(
+    async () => {
+      if (state === "thinking" || state === "speaking") return;
+
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+
+        const video = document.createElement("video");
+        video.srcObject = stream;
+        video.muted = true;
+
+        await new Promise<void>((resolve, reject) => {
+          video.onloadedmetadata = () => {
+            video.play().then(resolve).catch(reject);
+          };
+          video.onerror = reject;
+          setTimeout(() => reject(new Error("Timeout waiting for video")), 5000);
+        });
+
+        // Brief delay so the first frame is fully rendered
+        await new Promise((r) => setTimeout(r, 200));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) throw new Error("Canvas context unavailable");
+        ctx.drawImage(video, 0, 0);
+
+        // Clean up stream immediately
+        stream.getTracks().forEach((t) => t.stop());
+
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+
+        // Convert dataURL → Blob → File
+        const parts = dataUrl.split(",");
+        const b64 = atob(parts[1]);
+        const arr = new Uint8Array(b64.length);
+        for (let i = 0; i < b64.length; i++) arr[i] = b64.charCodeAt(i);
+        const blob = new Blob([arr], { type: "image/jpeg" });
+        const file = new File([blob], "screen-capture.jpg", { type: "image/jpeg" });
+
+        await analyzeImage(file, "Опиши что видишь на этом экране. Детально.");
+      } catch (e) {
+        // User cancelled screen share — silently ignore
+        if (e instanceof DOMException && e.name === "NotAllowedError") return;
+        const msg = e instanceof Error ? e.message : "Ошибка захвата экрана";
+        setError(msg);
+        setState("error");
+      }
+    },
+    [state, analyzeImage]
+  );
+
   // ---- Image Generation ----
   const generateImage = useCallback(
     async (prompt: string) => {
@@ -961,6 +1039,14 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     deleteConversation,
     loadConversations,
     setCommandHandlers: (h: CommandHandlers) => { commandHandlersRef.current = h; },
+    // Continuous listen mode
+    continuousMode,
+    setContinuousMode,
+    toggleContinuousMode,
+    // Screen capture (feature-detected)
+    ...(typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia
+      ? { captureScreen }
+      : {}),
   };
 }
 

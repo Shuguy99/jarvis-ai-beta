@@ -23,9 +23,11 @@ import { NotesPanel } from "@/components/jarvis/notes-panel";
 import { TodoWidget } from "@/components/jarvis/todo-widget";
 import { TimerWidget, type TimerHandle } from "@/components/jarvis/timer-widget";
 import { CalculatorWidget } from "@/components/jarvis/calculator-widget";
+import { WeatherWidget } from "@/components/jarvis/weather-widget";
+import { MusicPlayer } from "@/components/jarvis/music-player";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
 import { SettingsPanel, type JarvisSettingsData } from "@/components/jarvis/settings-panel";
-import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings } from "lucide-react";
+import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSound } from "@/lib/sounds";
 import { toast } from "@/hooks/use-toast";
@@ -33,12 +35,12 @@ import { toast } from "@/hooks/use-toast";
 const CAPABILITIES = [
   { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
   { icon: Volume2, label: "Voice I/O", desc: "Распознавание + синтез" },
-  { icon: Globe, label: "Web Search", desc: "Актуальные данные" },
   { icon: Eye, label: "Vision", desc: "Анализ изображений" },
-  { icon: ImagePlus, label: "Image Gen", desc: "Генерация картинок" },
+  { icon: Monitor, label: "Screen", desc: "Захват экрана" },
+  { icon: CloudSun, label: "Weather", desc: "Погода в реальном" },
+  { icon: Music, label: "Audio", desc: "Музыкальный плеер" },
   { icon: Radar, label: "Diagnostics", desc: "Мониторинг систем" },
   { icon: Shield, label: "Secure", desc: "Локальная история" },
-  { icon: Cpu, label: "Processing", desc: "Нейроядро v5" },
 ];
 
 export default function Home() {
@@ -530,6 +532,24 @@ export default function Home() {
                     </div>
                   </motion.div>
 
+                  {/* Weather Widget */}
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.35, duration: 0.5 }}
+                  >
+                    <WeatherWidget />
+                  </motion.div>
+
+                  {/* Music Player */}
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.38, duration: 0.5 }}
+                  >
+                    <MusicPlayer />
+                  </motion.div>
+
                   {/* Timer Widget */}
                   <AnimatePresence>
                     {timerVisible && (
@@ -619,16 +639,24 @@ export default function Home() {
                           <span className="text-primary/60">09.</span>
                           <span>Say &quot;Hey Jarvis&quot; — wake word activation.</span>
                         </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">10.</span>
+                          <span>Screen Capture — покажите Джарвису ваш экран.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">11.</span>
+                          <span>Weather + Music + Continuous Listen — Auto-Listen.</span>
+                        </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
                         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v5.2.0 · Stark Industries
+                          JARVIS v6.0.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
-                          Powered by Z.ai neural core
+                          Powered by Ollama local neural core
                         </div>
                       </div>
                     </div>
