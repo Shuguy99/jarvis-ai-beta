@@ -47,6 +47,7 @@ import { AmbientSoundWidget } from "@/components/jarvis/ambient-sound-widget"
 import { FileExplorerWidget } from "@/components/jarvis/file-explorer-widget"
 import { CalendarWidget } from "@/components/jarvis/calendar-widget"
 import { MarkdownWidget } from "@/components/jarvis/markdown-widget"
+import { WindowControls } from "@/components/jarvis/window-controls"
 
 const CAPABILITIES = [
   { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
@@ -310,7 +311,7 @@ export default function Home() {
             <NewsTicker />
 
             {/* ===== Header ===== */}
-            <header className="relative z-10 flex items-center justify-between border-b jarvis-border-cyan bg-card/40 px-4 py-3 backdrop-blur-md sm:px-6">
+            <header className="relative z-10 flex items-center justify-between border-b jarvis-border-cyan bg-card/40 px-4 py-3 backdrop-blur-md sm:px-6" style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}>
               <div className="pointer-events-none absolute inset-0 jarvis-scanline opacity-50" />
               <div className="relative flex items-center gap-3">
                 <div className="relative flex h-9 w-9 items-center justify-center">
@@ -402,6 +403,7 @@ export default function Home() {
                 </button>
                 <ThemeSwitcher />
                 <FullscreenToggle />
+                <WindowControls />
                 <StatusClock />
               </div>
             </header>
@@ -897,13 +899,17 @@ export default function Home() {
                           <span className="text-primary/60">29.</span>
                           <span>Unified Poller — оптимизация системных запросов.</span>
                         </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">30.</span>
+                          <span>Desktop Mode — Electron shell, tray, window controls.</span>
+                        </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
                         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v9.0.0 · Stark Industries
+                          JARVIS v10.0.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Ollama local neural core
