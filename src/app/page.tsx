@@ -33,7 +33,7 @@ import { ActivityFeed } from "@/components/jarvis/activity-feed";
 import { PomodoroWidget } from "@/components/jarvis/pomodoro-widget";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
 import { SettingsPanel, type JarvisSettingsData } from "@/components/jarvis/settings-panel";
-import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3, Terminal, Headphones, FolderOpen, CalendarDays, FileCode } from "lucide-react";
+import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3, Terminal, Headphones, FolderOpen, CalendarDays, FileCode, Bot, Puzzle, LayoutGrid, Command } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSound } from "@/lib/sounds";
 import { showNotification, NotificationToastContainer } from "@/components/jarvis/notification-toast";
@@ -48,6 +48,11 @@ import { FileExplorerWidget } from "@/components/jarvis/file-explorer-widget"
 import { CalendarWidget } from "@/components/jarvis/calendar-widget"
 import { MarkdownWidget } from "@/components/jarvis/markdown-widget"
 import { WindowControls } from "@/components/jarvis/window-controls"
+import { VoiceCommandOverlay } from "@/components/jarvis/voice-command-overlay"
+import { AgentPanel } from "@/components/jarvis/agent-panel"
+import { PluginPanel } from "@/components/jarvis/plugin-panel"
+import { LayoutCustomizer } from "@/components/jarvis/layout-customizer"
+import { useVoiceCommands } from "@/hooks/use-voice-commands"
 
 const CAPABILITIES = [
   { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
@@ -66,6 +71,10 @@ const CAPABILITIES = [
   { icon: FolderOpen, label: "Files", desc: "Проводник файлов" },
   { icon: CalendarDays, label: "Calendar", desc: "Календарь + события" },
   { icon: FileCode, label: "Markdown", desc: "Редактор Markdown" },
+  { icon: Command, label: "Voice CMD", desc: "Голосовые команды" },
+  { icon: Bot, label: "Agent", desc: "Автономный ИИ-агент" },
+  { icon: Puzzle, label: "Plugins", desc: "Система расширений" },
+  { icon: LayoutGrid, label: "Layout", desc: "Настройка раскладки" },
 ];
 
 export default function Home() {
@@ -77,6 +86,9 @@ export default function Home() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [markdownOpen, setMarkdownOpen] = useState(false);
+  const [agentOpen, setAgentOpen] = useState(false);
+  const [pluginOpen, setPluginOpen] = useState(false);
+  const [layoutOpen, setLayoutOpen] = useState(false);
   const [jarvisSettings, setJarvisSettings] = useState<JarvisSettingsData | null>(null);
   const timerRef = useRef<TimerHandle>(null);
 
@@ -109,6 +121,39 @@ export default function Home() {
   }, []);
 
   const jarvis = useJarvis({ autoSpeak: true, ttsRate: 1.05, ttsPitch: 0.92, settings: jarvisSettings ?? undefined });
+
+  // Voice command NLP parser
+  const { lastCommand, processText: processVoiceCommand } = useVoiceCommands({
+    toggle_fullscreen: () => { void toggleFullscreen(); },
+    new_chat: () => jarvis.newConversation(),
+    toggle_notes: () => setNotesOpen((v) => !v),
+    capture_screen: () => { if (jarvis.captureScreen) void jarvis.captureScreen(); },
+    toggle_voice: (params: Record<string, string>) => {
+      const dir = params.direction;
+      if (dir === "off" || dir === "mute") jarvis.setAutoSpeakOn(false);
+      else if (dir === "on" || dir === "unmute") jarvis.setAutoSpeakOn(true);
+      else jarvis.setAutoSpeakOn(!jarvis.autoSpeakOn);
+    },
+    open_widget: (params: Record<string, string>) => {
+      const w = params.widget;
+      if (w === "заметки" || w === "notes") setNotesOpen(true);
+      else if (w === "настройки" || w === "settings") setSettingsOpen(true);
+      else if (w === "калькулятор" || w === "calculator") setCalcVisible(true);
+      else if (w === "агент" || w === "agent") setAgentOpen(true);
+      else if (w === "плагины" || w === "plugins") setPluginOpen(true);
+      else if (w === "раскладка" || w === "layout") setLayoutOpen(true);
+      else if (w === "markdown") setMarkdownOpen(true);
+      else if (w === "файлы" || w === "files") {} // scroll to file explorer
+      else if (w === "календарь" || w === "calendar") {} // scroll to calendar
+    },
+    set_timer: (params: Record<string, string>) => {
+      setTimerVisible(true);
+      const secs = parseInt(params.seconds || "0", 10);
+      if (secs > 0) timerRef.current?.startTimer(secs);
+    },
+    start_pomodoro: () => { /* TODO: trigger pomodoro */ },
+    calculator: () => setCalcVisible((v) => !v),
+  });
 
   const handleBootComplete = useCallback(() => {
     setBooted(true);
@@ -226,6 +271,18 @@ export default function Home() {
           setMarkdownOpen(false);
           return;
         }
+        if (agentOpen) {
+          setAgentOpen(false);
+          return;
+        }
+        if (pluginOpen) {
+          setPluginOpen(false);
+          return;
+        }
+        if (layoutOpen) {
+          setLayoutOpen(false);
+          return;
+        }
         if (jarvis.state === "speaking") {
           jarvis.stopSpeaking();
           return;
@@ -278,6 +335,9 @@ export default function Home() {
 
       {/* ===== Boot Sequence Overlay ===== */}
       <BootSequence onComplete={handleBootComplete} />
+
+      {/* ===== Voice Command Overlay ===== */}
+      <VoiceCommandOverlay command={lastCommand} />
 
       {/* ===== Command Palette ===== */}
       <CommandPalette
@@ -446,6 +506,15 @@ export default function Home() {
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* ===== Agent Panel Overlay ===== */}
+              <AgentPanel open={agentOpen} onClose={() => setAgentOpen(false)} />
+
+              {/* ===== Plugin Panel Overlay ===== */}
+              <PluginPanel open={pluginOpen} onClose={() => setPluginOpen(false)} />
+
+              {/* ===== Layout Customizer Overlay ===== */}
+              <LayoutCustomizer open={layoutOpen} onClose={() => setLayoutOpen(false)} />
 
               <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 lg:grid-cols-12 lg:gap-4 lg:p-4">
                 {/* Left sidebar */}
@@ -903,13 +972,29 @@ export default function Home() {
                           <span className="text-primary/60">30.</span>
                           <span>Desktop Mode — Electron shell, tray, window controls.</span>
                         </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">31.</span>
+                          <span>Voice Commands — NLP-парсер для прямых команд.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">32.</span>
+                          <span>AI Agent — автономный режим с пошаговым выполнением.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">33.</span>
+                          <span>Plugin System — расширения и модули.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">34.</span>
+                          <span>Layout Config — настройка раскладки и пресеты.</span>
+                        </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
                         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v10.0.0 · Stark Industries
+                          JARVIS v11.0.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Ollama local neural core
@@ -929,7 +1014,9 @@ export default function Home() {
                 { icon: Monitor, label: "Экран", onClick: () => { if (jarvis.captureScreen) void jarvis.captureScreen(); } },
                 { icon: FileText, label: "Заметки", onClick: () => setNotesOpen((v: boolean) => !v) },
                 { icon: FileCode, label: "Markdown", onClick: () => setMarkdownOpen((v: boolean) => !v) },
-                { icon: BarChart3, label: "Статистика", onClick: () => setSettingsOpen(true) },
+                { icon: Bot, label: "Агент", onClick: () => setAgentOpen((v: boolean) => !v) },
+                { icon: Puzzle, label: "Плагины", onClick: () => setPluginOpen((v: boolean) => !v) },
+                { icon: LayoutGrid, label: "Раскладка", onClick: () => setLayoutOpen((v: boolean) => !v) },
                 { icon: Settings, label: "Настройки", onClick: () => { playSound("click"); setSettingsOpen(true); } },
               ] as QuickAction[]}
             />

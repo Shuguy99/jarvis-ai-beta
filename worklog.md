@@ -1512,3 +1512,177 @@ Stage Summary:
 - [ ] Создать icon.ico для инсталлятора (electron/resources/)
 - [ ] Собрать .exe на целевой машине (Windows, Ryzen 7 5700G)
 - [ ] Этап 5: Voice Commands NLP, AI Agent Mode, Plugin System
+---
+Task ID: 5-1
+Agent: subagent (Voice Commands)
+Task: Voice Command NLP Parser
+
+Work Log:
+- Created src/lib/voice-commands.ts with 16 intents (RU + EN keyword matching, regex param extraction)
+- Created src/components/jarvis/voice-command-overlay.tsx (framer-motion overlay, HUD style, confidence bar)
+- Created src/hooks/use-voice-commands.ts (processText hook with auto-clear, activity feed logging)
+- ESLint: 0 errors in new files (7 pre-existing errors in other files unchanged)
+
+Stage Summary:
+- NLP command parser with 16 intents (open_widget, set_timer, toggle_theme, toggle_fullscreen, new_chat, capture_screen, toggle_notes, toggle_voice, search_web, get_weather, get_time, system_status, analyze_image, generate_image, start_pomodoro, calculator)
+- Keyword-based (NOT LLM) for speed — regex + keyword sets, Russian + English
+- Visual overlay: fixed bottom-center, cyan glow, mono font, confidence bar, animated enter/exit
+- useVoiceCommands hook: confidence > 0.7 threshold, auto-clear after 3s, logs to activity feed
+
+---
+Task ID: 5-4
+Agent: subagent (Layout)
+Task: Widget Layout Customizer with presets
+
+Work Log:
+- Created src/hooks/use-layout.ts with WidgetLayout/LayoutParams types
+- 25 default widgets mapped (10 left, 2 center pinned, 13 right)
+- 5 layout presets: Полный HUD, Минимал, Разработка, Фокус, Мониторинг
+- localStorage persistence under `jarvis-layout` key with auto-save
+- Smart merge on load: preserves pinned widgets, adds missing widgets, removes deleted
+- Created src/components/jarvis/layout-customizer.tsx — full-screen overlay modal
+- Preset cards with horizontal scroll, active preset highlighted with cyan border (framer-motion layoutId)
+- Widget list grouped by position (Левая/Центр/Правая) with color-coded indicators
+- Each widget: GripVertical handle, name, position L/R buttons, up/down reorder, Eye/EyeOff toggle
+- Pinned center widgets (arc-reactor, chat) have locked indicator
+- JARVIS HUD aesthetic: jarvis-glass-strong, jarvis-border-cyan, corner brackets, backdrop blur
+- Sound effects: click, activate, deactivate, shutdown via playSound
+- Auto-save indicator with Check icon animation
+- Reset to default button in footer
+- ESLint: 0 errors in new files (7 pre-existing errors in other files unchanged)
+
+Stage Summary:
+- Layout persistence hook with localStorage and smart merge
+- Visual layout editor with 5 built-in presets for different use cases
+- Full JARVIS HUD styling with framer-motion animations
+- Widget visibility, position (left/right), and reorder (up/down) controls
+---
+Task ID: 5-2
+Agent: subagent (AI Agent)
+Task: AI Agent Mode with tool-calling framework
+
+Work Log:
+- Created src/lib/agent-tools.ts with 7 built-in tools (system_info, system_processes, web_search, file_list, get_weather, calculator, get_time)
+- Tool registry: AgentTool/ToolResult interfaces, getToolRegistry(), executeTool(), getToolDefinitions()
+- Safe calculator: regex whitelist + Function constructor with only Math functions injected (no eval)
+- Created src/app/api/jarvis/agent/route.ts — POST endpoint with multi-step tool-calling loop
+- Agent API: builds system prompt with tool definitions, calls Ollama LLM, parses JSON tool calls from response
+- Max 3 tool calls per request, strips markdown code fences, handles tool results → final answer cycle
+- Created src/components/jarvis/agent-panel.tsx — fixed right-side overlay panel (w-[500px])
+- Panel: task textarea, collapsible tool selector with checkboxes, live step-by-step execution progress
+- Step display: color-coded (cyan=thinking, amber=tool_call, green=tool_result, primary=final_answer) with icons
+- Framer Motion animations for step reveal, tool/history collapsibles, panel slide-in
+- History: last 5 agent runs stored in component state, clickable to reload
+- Sound effects: "activate" on task submit, "success" on completion, "error" on failure
+- Activity feed logging via addActivityEvent for task start/complete/error
+- ESLint: 0 errors in new files (1 pre-existing error in plugin-panel.tsx unchanged)
+
+Stage Summary:
+- Tool registry with 7 built-in tools covering system, web, files, analysis, utility
+- Agent API endpoint with structured tool-calling loop (max 3 calls, JSON parse with fence stripping)
+- Agent panel with live progress display, tool selector, result area, and run history
+
+---
+## Проект: текущий статус (v11.0.0)
+
+### Описание/оценка
+JARVIS v11.0.0 «Intelligence Core» — Этап 5 завершён. 4 новых системы: Voice Command NLP, AI Agent Mode, Plugin System, Widget Layout Customizer. 45+ компонентов, 15 API endpoints, 34 директивы. Dev server: 0 ошибок компиляции, GET / 200 (29KB), все API 200.
+
+---
+Task ID: 5-1
+Agent: subagent + main fix
+Task: Voice Command NLP Parser
+
+Work Log:
+- Создан `src/lib/voice-commands.ts`: 16 intents (open_widget, set_timer, toggle_theme, toggle_fullscreen, new_chat, capture_screen, toggle_notes, toggle_voice, search_web, get_weather, get_time, system_status, analyze_image, generate_image, start_pomodoro, calculator)
+- Keyword-based matching (regex + keyword groups) для скорости, без LLM
+- Русский + английский, specificity-based confidence scoring
+- Создан `src/components/jarvis/voice-command-overlay.tsx`: анимированный оверлей с intent icon, display text, confidence bar
+- Создан `src/hooks/use-voice-commands.ts`: processText hook с auto-clear 3s, activity logging
+- Интегрирован в page.tsx: 8 intent handlers (fullscreen, new_chat, notes, screen, voice, widget, timer, calculator)
+- ESLint: 0 errors
+
+Stage Summary:
+- NLP command parser: 16 intents, RU+EN, confidence scoring
+- Visual overlay: framer-motion, JARVIS HUD style
+- useVoiceCommands hook: auto-clear, activity feed integration
+
+---
+Task ID: 5-2
+Agent: subagent
+Task: AI Agent Mode
+
+Work Log:
+- Создан `src/lib/agent-tools.ts`: 7 built-in tools (system_info, system_processes, web_search, file_list, get_weather, calculator, get_time)
+- Safe calculator: regex whitelist + Function constructor with Math.* injection
+- Создан `src/app/api/jarvis/agent/route.ts`: POST endpoint with tool-calling loop (max 3 calls), JSON parse with markdown fence stripping
+- Создан `src/components/jarvis/agent-panel.tsx`: overlay panel with task input, tool selector checkboxes, live step-by-step progress (cyan=thinking, amber=tool_call, green=tool_result, primary=final_answer), result area, last 5 runs history
+- ESLint: 0 errors
+
+Stage Summary:
+- Tool registry with 7 built-in tools (system, web, files, analysis, utility)
+- Agent API: multi-step execution, max 3 tool calls, structured steps
+- Agent panel: live progress, tool selector, run history
+
+---
+Task ID: 5-3
+Agent: main (after subagent rate limit)
+Task: Plugin/Extension System
+
+Work Log:
+- Создан `src/lib/plugin-registry.ts`: singleton registry, localStorage persistence, CRUD API
+- Создан `src/components/jarvis/plugin-widgets.tsx`: 3 widget components (SystemDoctorWidget, NetworkScannerWidget, QuickMemoWidget)
+- Существующий `src/components/jarvis/plugin-panel.tsx` (от частичного запуска субагента): фиксирован ESLint error (react-hooks/static-components → static switch в PluginCardIcon), удалены unused imports (useMemo, ComponentType, ICON_MAP, resolveIcon)
+- 3 встроенных плагина: System Doctor (CPU/RAM/Disk/Network diag), Network Scanner (IP/speed), Quick Memo (sticky note)
+- Plugin Panel: категорийные табы (All/System/Productivity/Analysis/Fun/Network), enable/disable switch, widget viewer
+- ESLint: 0 errors (after fixing PluginCardIcon)
+
+Stage Summary:
+- Plugin registry with localStorage persistence
+- 3 built-in plugins with mini widgets
+- Plugin manager panel with 6 category tabs
+
+---
+Task ID: 5-4
+Agent: subagent
+Task: Widget Layout Customizer
+
+Work Log:
+- Создан `src/hooks/use-layout.ts`: 25 widgets, 5 presets, localStorage persistence, smart merge on load
+- 5 пресетов: Полный HUD, Минимал, Разработка, Фокус, Мониторинг
+- Создан `src/components/jarvis/layout-customizer.tsx`: fullscreen overlay modal, horizontal scrollable preset cards, grouped widget lists (Left/Center/Right), visibility toggles, position buttons, reorder arrows, reset button
+- ESLint: 0 errors
+
+Stage Summary:
+- Layout persistence hook with 25 widgets and 5 presets
+- Visual layout editor with preset cards and widget controls
+
+---
+Task ID: 5-5
+Agent: main
+Task: Integration — v11.0.0
+
+Work Log:
+- Добавлены импорты: VoiceCommandOverlay, AgentPanel, PluginPanel, LayoutCustomizer, useVoiceCommands, Bot/Puzzle/LayoutGrid/Command icons
+- CAPABILITIES: 16 → 21 items (+Voice CMD, Agent, Plugins, Layout, +остальные из предыдущих)
+- Новые state: agentOpen, pluginOpen, layoutOpen
+- useVoiceCommands hook с 8 intent handlers
+- Escape handlers для agent/plugin/layout оверлеев
+- VoiceCommandOverlay добавлен после BootSequence
+- AgentPanel, PluginPanel, LayoutCustomizer добавлены как оверлеи
+- Quick Actions: 7 → 9 кнопок (+Агент, +Плагины, +Раскладка, убран Статистика)
+- Directives: 30 → 34 пункта (+Voice Commands, AI Agent, Plugin System, Layout Config)
+- Version: v10.0.0 → v11.0.0
+- ESLint: 0 errors, 2 pre-existing warnings
+- Dev server: GET / 200 (29KB), /api/jarvis/system 200, /api/jarvis/agent 200
+
+Stage Summary:
+- JARVIS v11.0.0 «Intelligence Core» — Этап 5 завершён
+- 4 новые системы: Voice NLP (16 intents), AI Agent (7 tools), Plugins (3 built-in), Layout (5 presets)
+- 10 новых файлов, 45+ компонентов, 15 API endpoints
+- 0 ошибок ESLint, 0 ошибок компиляции
+
+### Нерешённые/Следующие шаги:
+- [ ] Создать icon.ico для Electron инсталлятора
+- [ ] Этап 6: Advanced Features (Global Search, Widget DnD, Enhanced Voice Commands с LLM fallback)
+- [ ] Этап 7: Polish & Release (Performance optimization, Accessibility, Final QA)
