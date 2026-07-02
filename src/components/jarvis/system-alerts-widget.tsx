@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   ShieldAlert,
@@ -16,16 +16,9 @@ import {
   useActivityListener,
   addActivityEvent,
 } from "@/components/jarvis/activity-feed";
+import { useSystemData, refreshSystemData } from "@/hooks/use-system-poller";
 
 // ── Types ─────────────────────────────────────────────────────
-interface SystemData {
-  cpuLoad: number;
-  memPct: number;
-  diskPct: number;
-  temp: number;
-  processes: number;
-}
-
 interface AlertEvent {
   id: string;
   message: string;
@@ -182,34 +175,10 @@ function timeAgo(ts: number): string {
 
 // ── Main component ────────────────────────────────────────────
 export function SystemAlertsWidget() {
-  const [data, setData] = useState<SystemData | null>(null);
+  const { system } = useSystemData();
   const [alerts, setAlerts] = useState<AlertEvent[]>([]);
   const [diagnosticsRunning, setDiagnosticsRunning] = useState(false);
   const alertsRef = useRef<AlertEvent[]>([]);
-
-  // ── Poll system data every 5 seconds ──────────────────────
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch("/api/jarvis/system", { cache: "no-store" });
-      if (!res.ok) return;
-      const json = await res.json();
-      setData({
-        cpuLoad: json.cpuLoad,
-        memPct: json.memPct,
-        diskPct: json.diskPct,
-        temp: json.temp,
-        processes: json.processes,
-      });
-    } catch {
-      /* ignore */
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchData();
-    const id = setInterval(() => void fetchData(), 5000);
-    return () => clearInterval(id);
-  }, [fetchData]);
 
   // ── Listen for warning/error events ───────────────────────
   useActivityListener(
@@ -237,12 +206,12 @@ export function SystemAlertsWidget() {
 
   // ── Compute overall status ────────────────────────────────
   const overallStatus = (): "nominal" | "warning" | "critical" => {
-    if (!data) return "nominal";
+    if (!system) return "nominal";
     const levels: Level[] = [
-      getCpuLevel(data.cpuLoad),
-      getMemLevel(data.memPct),
-      getDiskLevel(data.diskPct),
-      getTempLevel(data.temp),
+      getCpuLevel(system.cpuLoad),
+      getMemLevel(system.memPct),
+      getDiskLevel(system.diskPct),
+      getTempLevel(system.temp),
     ];
     if (levels.some((l) => l === "critical")) return "critical";
     if (levels.some((l) => l === "warning")) return "warning";
@@ -254,7 +223,7 @@ export function SystemAlertsWidget() {
     setDiagnosticsRunning(true);
     playSound("scan", 0.2);
     try {
-      await fetchData();
+      await refreshSystemData();
       addActivityEvent({
         message: "Диагностика завершена — все системы в норме",
         severity: "success",
@@ -274,7 +243,7 @@ export function SystemAlertsWidget() {
     setAlerts([]);
   };
 
-  const status = data ? overallStatus() : "nominal";
+  const status = system ? overallStatus() : "nominal";
 
   return (
     <motion.div
@@ -299,35 +268,35 @@ export function SystemAlertsWidget() {
         <StatusBanner status={status} />
 
         {/* Metrics */}
-        {data ? (
+        {system ? (
           <div className="flex flex-col gap-2">
             <MetricBar
               icon={Cpu}
               label="CPU"
-              value={data.cpuLoad}
+              value={system.cpuLoad}
               unit="%"
-              level={getCpuLevel(data.cpuLoad)}
+              level={getCpuLevel(system.cpuLoad)}
             />
             <MetricBar
               icon={MemoryStick}
               label="RAM"
-              value={data.memPct}
+              value={system.memPct}
               unit="%"
-              level={getMemLevel(data.memPct)}
+              level={getMemLevel(system.memPct)}
             />
             <MetricBar
               icon={HardDrive}
               label="Диск"
-              value={data.diskPct}
+              value={system.diskPct}
               unit="%"
-              level={getDiskLevel(data.diskPct)}
+              level={getDiskLevel(system.diskPct)}
             />
             <MetricBar
               icon={Thermometer}
               label="Темп"
-              value={data.temp}
+              value={system.temp}
               unit="°C"
-              level={getTempLevel(data.temp)}
+              level={getTempLevel(system.temp)}
             />
           </div>
         ) : (

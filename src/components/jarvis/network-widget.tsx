@@ -1,23 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
 import { Network, ArrowDown, ArrowUp, Wifi, Cable } from "lucide-react";
 import { playSound } from "@/lib/sounds";
+import { useSystemData } from "@/hooks/use-system-poller";
 
 // ── Types ─────────────────────────────────────────────────────
-interface NetworkData {
-  netSpeedIn: number;  // Mbps
-  netSpeedOut: number; // Mbps
-  networkInterfaces: Array<{
-    name: string;
-    family: string;
-    address: string;
-    internal: boolean;
-  }>;
-  timestamp: string;
-}
-
 interface DataPoint {
   download: number;
   upload: number;
@@ -61,8 +50,7 @@ function toPoints(values: number[], width: number, height: number, padY = 2): st
 
 // ── Main Component ────────────────────────────────────────────
 export function NetworkWidget() {
-  const [data, setData] = useState<NetworkData | null>(null);
-  const [error, setError] = useState(false);
+  const { system } = useSystemData();
   const [history, setHistory] = useState<DataPoint[]>([]);
   const [sessionStart] = useState(() => Date.now());
   const [sessionRx, setSessionRx] = useState(0);
@@ -70,52 +58,32 @@ export function NetworkWidget() {
   const prevRxRef = useRef<number | null>(null);
   const prevTxRef = useRef<number | null>(null);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const res = await fetch("/api/jarvis/system");
-      if (!res.ok) throw new Error();
-      const json = await res.json();
-
-      const netData: NetworkData = {
-        netSpeedIn: json.netSpeedIn ?? 0,
-        netSpeedOut: json.netSpeedOut ?? 0,
-        networkInterfaces: json.networkInterfaces ?? [],
-        timestamp: json.timestamp ?? new Date().toISOString(),
-      };
-
-      setData(netData);
-      setError(false);
-
-      // Accumulate session bytes (approximate from speed × interval)
-      // Use speed in Mbps × 3 seconds × 1_000_000 / 8 = bytes
-      if (prevRxRef.current !== null) {
-        // We use the speed values directly as the "delta per interval"
-        const rxBytes = (netData.netSpeedIn * 3 * 1_000_000) / 8;
-        const txBytes = (netData.netSpeedOut * 3 * 1_000_000) / 8;
-        setSessionRx((prev) => prev + rxBytes);
-        setSessionTx((prev) => prev + txBytes);
-      }
-      prevRxRef.current = netData.netSpeedIn;
-      prevTxRef.current = netData.netSpeedOut;
-
-      // Sparkline history
-      setHistory((prev) => {
-        const next = [...prev, { download: netData.netSpeedIn, upload: netData.netSpeedOut }];
-        return next.length > MAX_POINTS ? next.slice(-MAX_POINTS) : next;
-      });
-
-      playSound("data-received", 0.2);
-    } catch {
-      setError(true);
-    }
-  }, []);
-
-  // Fetch immediately, then every 3 seconds
+  // Update sparkline, session bytes, and sound when system data changes
   useEffect(() => {
-    void fetchData();
-    const id = setInterval(() => void fetchData(), 3000);
-    return () => clearInterval(id);
-  }, [fetchData]);
+    if (!system) return;
+
+    const netSpeedIn = system.netSpeedIn;
+    const netSpeedOut = system.netSpeedOut;
+
+    // Accumulate session bytes (approximate from speed × interval)
+    // Use speed in Mbps × 5 seconds × 1_000_000 / 8 = bytes
+    if (prevRxRef.current !== null) {
+      const rxBytes = (netSpeedIn * 5 * 1_000_000) / 8;
+      const txBytes = (netSpeedOut * 5 * 1_000_000) / 8;
+      setSessionRx((prev) => prev + rxBytes);
+      setSessionTx((prev) => prev + txBytes);
+    }
+    prevRxRef.current = netSpeedIn;
+    prevTxRef.current = netSpeedOut;
+
+    // Sparkline history
+    setHistory((prev) => {
+      const next = [...prev, { download: netSpeedIn, upload: netSpeedOut }];
+      return next.length > MAX_POINTS ? next.slice(-MAX_POINTS) : next;
+    });
+
+    playSound("data-received", 0.2);
+  }, [system]);
 
   // Session timer
   const [elapsed, setElapsed] = useState(0);
@@ -127,7 +95,7 @@ export function NetworkWidget() {
   }, [sessionStart]);
 
   // ── Loading state ──────────────────────────────────────────
-  if (!data && !error) {
+  if (!system) {
     return (
       <div className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/60 p-4 backdrop-blur-sm">
         <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
@@ -147,40 +115,19 @@ export function NetworkWidget() {
     );
   }
 
-  // ── Error state ────────────────────────────────────────────
-  if (error || !data) {
-    return (
-      <div className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/60 p-4 backdrop-blur-sm">
-        <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
-        <div className="pointer-events-none absolute inset-0 jarvis-grid-bg opacity-30" />
-        <div className="relative flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Network className="h-4 w-4 text-primary anim-data-pulse" />
-            <span className="font-mono text-xs uppercase tracking-widest text-primary jarvis-glow">
-              Network Traffic
-            </span>
-          </div>
-          <div className="flex h-20 items-center justify-center font-mono text-xs text-muted-foreground">
-            НЕДОСТУПНО
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   // ── Active interface ──────────────────────────────────────
-  const activeIface = data.networkInterfaces.find((i) => !i.internal && i.family === "IPv4");
+  const activeIface = system.networkInterfaces.find((i) => !i.internal && i.family === "IPv4");
   const ifaceName = activeIface?.name ?? "—";
   const ifaceAddr = activeIface?.address ?? "—";
   const isWifi = /wlan|wi-fi|wifi|wlp/i.test(ifaceName);
   const IfaceIcon = isWifi ? Wifi : Cable;
 
   // High traffic threshold
-  const highTraffic = data.netSpeedIn > 100 || data.netSpeedOut > 100;
+  const highTraffic = system.netSpeedIn > 100 || system.netSpeedOut > 100;
   const speedColorIn = highTraffic ? "text-amber-400" : "text-primary";
-  const speedColorOut = data.netSpeedOut > 50 ? "text-amber-400" : "text-emerald-400";
+  const speedColorOut = system.netSpeedOut > 50 ? "text-amber-400" : "text-emerald-400";
   const sparkColorIn = highTraffic ? "#fbbf24" : "currentColor";
-  const sparkColorOut = data.netSpeedOut > 50 ? "#fbbf24" : "#34d399";
+  const sparkColorOut = system.netSpeedOut > 50 ? "#fbbf24" : "#34d399";
 
   // Sparkline data
   const dlValues = history.map((p) => p.download);
@@ -223,7 +170,7 @@ export function NetworkWidget() {
               </span>
             </div>
             <span className={`font-mono text-base font-bold tabular-nums ${speedColorIn}`}>
-              {formatSpeed(data.netSpeedIn)}
+              {formatSpeed(system.netSpeedIn)}
             </span>
           </div>
           {/* Upload */}
@@ -235,7 +182,7 @@ export function NetworkWidget() {
               </span>
             </div>
             <span className={`font-mono text-base font-bold tabular-nums ${speedColorOut}`}>
-              {formatSpeed(data.netSpeedOut)}
+              {formatSpeed(system.netSpeedOut)}
             </span>
           </div>
         </div>

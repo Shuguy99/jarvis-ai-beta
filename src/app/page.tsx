@@ -33,7 +33,7 @@ import { ActivityFeed } from "@/components/jarvis/activity-feed";
 import { PomodoroWidget } from "@/components/jarvis/pomodoro-widget";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
 import { SettingsPanel, type JarvisSettingsData } from "@/components/jarvis/settings-panel";
-import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3, Terminal, Headphones } from "lucide-react";
+import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3, Terminal, Headphones, FolderOpen, CalendarDays, FileCode } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSound } from "@/lib/sounds";
 import { showNotification, NotificationToastContainer } from "@/components/jarvis/notification-toast";
@@ -43,7 +43,10 @@ import { ShortcutsWidget } from "@/components/jarvis/shortcuts-widget";
 import { SessionStatsWidget } from "@/components/jarvis/session-stats-widget";
 import { QuickActionsBar, type QuickAction } from "@/components/jarvis/quick-actions-bar"
 import { ProcessManagerWidget } from "@/components/jarvis/process-manager-widget"
-import { AmbientSoundWidget } from "@/components/jarvis/ambient-sound-widget";
+import { AmbientSoundWidget } from "@/components/jarvis/ambient-sound-widget"
+import { FileExplorerWidget } from "@/components/jarvis/file-explorer-widget"
+import { CalendarWidget } from "@/components/jarvis/calendar-widget"
+import { MarkdownWidget } from "@/components/jarvis/markdown-widget"
 
 const CAPABILITIES = [
   { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
@@ -59,6 +62,9 @@ const CAPABILITIES = [
   { icon: Bell, label: "Alerts", desc: "Уведомления HUD" },
   { icon: Terminal, label: "Processes", desc: "Монитор процессов" },
   { icon: Headphones, label: "Ambient", desc: "Фоновые звуки" },
+  { icon: FolderOpen, label: "Files", desc: "Проводник файлов" },
+  { icon: CalendarDays, label: "Calendar", desc: "Календарь + события" },
+  { icon: FileCode, label: "Markdown", desc: "Редактор Markdown" },
 ];
 
 export default function Home() {
@@ -69,6 +75,7 @@ export default function Home() {
   const [calcVisible, setCalcVisible] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [markdownOpen, setMarkdownOpen] = useState(false);
   const [jarvisSettings, setJarvisSettings] = useState<JarvisSettingsData | null>(null);
   const timerRef = useRef<TimerHandle>(null);
 
@@ -212,6 +219,10 @@ export default function Home() {
         }
         if (notesOpen) {
           setNotesOpen(false);
+          return;
+        }
+        if (markdownOpen) {
+          setMarkdownOpen(false);
           return;
         }
         if (jarvis.state === "speaking") {
@@ -419,6 +430,21 @@ export default function Home() {
                 )}
               </AnimatePresence>
 
+              {/* ===== Markdown Editor Overlay ===== */}
+              <AnimatePresence>
+                {markdownOpen && (
+                  <motion.div
+                    className="absolute right-4 top-3 z-30 w-[400px] sm:w-[520px]"
+                    initial={{ opacity: 0, x: 40, scale: 0.95 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: 40, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <MarkdownWidget onClose={() => setMarkdownOpen(false)} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 lg:grid-cols-12 lg:gap-4 lg:p-4">
                 {/* Left sidebar */}
                 <aside className="jarvis-scroll flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
@@ -485,6 +511,24 @@ export default function Home() {
                     transition={{ delay: 0.37, duration: 0.5 }}
                   >
                     <ShortcutsWidget />
+                  </motion.div>
+
+                  {/* File Explorer */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.38, duration: 0.5 }}
+                  >
+                    <FileExplorerWidget />
+                  </motion.div>
+
+                  {/* Calendar */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.39, duration: 0.5 }}
+                  >
+                    <CalendarWidget />
                   </motion.div>
                   <motion.div
                     className="jarvis-box-glow jarvis-corner-brackets relative min-h-[160px] flex-1 overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-3 backdrop-blur-sm lg:min-h-0"
@@ -837,13 +881,29 @@ export default function Home() {
                           <span className="text-primary/60">25.</span>
                           <span>Image Drag &amp; Drop — перетащите фото в чат.</span>
                         </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">26.</span>
+                          <span>File Explorer — навигация по файловой системе.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">27.</span>
+                          <span>Calendar — мини-календарь с событиями.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">28.</span>
+                          <span>Markdown Editor — редактор с предпросмотром.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">29.</span>
+                          <span>Unified Poller — оптимизация системных запросов.</span>
+                        </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
                         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v8.0.0 · Stark Industries
+                          JARVIS v9.0.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Ollama local neural core
@@ -862,6 +922,7 @@ export default function Home() {
                 { icon: Search, label: "Поиск", onClick: () => jarvis.sendText("Найди информацию о", "text") },
                 { icon: Monitor, label: "Экран", onClick: () => { if (jarvis.captureScreen) void jarvis.captureScreen(); } },
                 { icon: FileText, label: "Заметки", onClick: () => setNotesOpen((v: boolean) => !v) },
+                { icon: FileCode, label: "Markdown", onClick: () => setMarkdownOpen((v: boolean) => !v) },
                 { icon: BarChart3, label: "Статистика", onClick: () => setSettingsOpen(true) },
                 { icon: Settings, label: "Настройки", onClick: () => { playSound("click"); setSettingsOpen(true); } },
               ] as QuickAction[]}

@@ -1386,3 +1386,67 @@ Stage Summary:
 - Plugin System для расширений
 - Electron Wrapper для desktop app
 - Advanced Settings Panel (widget layout customization)
+
+---
+## Проект: текущий статус (v9.0.0)
+
+### Описание/оценка
+JARVIS v9.0.0 «Efficiency Core» — 4 новых функции + архитектурная оптимизация. 40+ компонентов, 14 API endpoints. Unified Poller сократил количество системных запросов. VLM подтверждает File Explorer, Calendar, Process Monitor видны и работают. Эстетика 8/10.
+
+---
+Task ID: 1-4 (Round 6 — v9.0.0)
+Agent: main (Z.ai Code) + 4 parallel subagents
+Task: Unified System Poller, File Explorer, Calendar, Markdown Editor
+
+Work Log:
+- **Task 1 — Unified System Poller** (subagent):
+  - Создан `src/hooks/use-system-poller.ts`: модульный pub/sub паттерн, единый setInterval 5s
+  - `useSystemData()` — реактивный хук для shared state
+  - `refreshSystemData()` — принудительное обновление (для диагностики)
+  - Рефакторинг NetworkWidget: убран свой 3s-интервал, используется shared hook
+  - Рефакторинг SystemAlertsWidget: убран свой 5s-интервал, используется shared hook
+  - Concurrency guard (fetchInProgress) предотвращает параллельные запросы
+
+- **Task 2 — File Explorer Widget** (subagent):
+  - Создан `/api/jarvis/files/route.ts`: список файлов/папок, ограничение к /home/z/, path traversal защита
+  - Создан `file-explorer-widget.tsx`: хлебные крошки, иконки по типу файла, размеры, относительное время
+  - Навигация по директориям, кнопка "Домой", loading skeleton
+
+- **Task 3 — Calendar Widget** (subagent):
+  - Создан `calendar-widget.tsx`: мини-календарь с 7-дневной неделей (Пн-Вс)
+  - Навигация по месяцам, выделение сегодня/выбранный день
+  - Система событий в localStorage (jarvis-calendar-events)
+  - Добавление/удаление событий на конкретный день
+
+- **Task 4 — Markdown Editor Widget** (subagent):
+  - Создан `markdown-widget.tsx`: Edit/Preview режимы
+  - Тулбар (Bold, Italic, Code, Link) с вставкой синтаксиса
+  - react-markdown + getMarkdownComponents для подсветки кода
+  - Автосохранение в localStorage, счётчик символов/слов
+  - Добавлен onClose prop + кнопка X для оверлейного режима
+
+- **Task 5 — Integration** (main):
+  - File Explorer + Calendar в левую сайдбару (после Shortcuts)
+  - Markdown Widget как оверлей (как Notes Panel) с кнопкой в Quick Actions
+  - CAPABILITIES: 13 → 16 items (Files, Calendar, Markdown)
+  - Directives: 25 → 29 points
+  - Quick Actions Bar: 6 → 7 кнопок (добавлен Markdown)
+  - Escape закрывает Markdown оверлей
+  - Version: v8.0.0 → v9.0.0
+
+Stage Summary:
+- JARVIS v9.0.0 — 4 функции + архитектурная оптимизация
+- Unified System Poller: единый интервал вместо 3+ раздельных
+- File Explorer: реальная навигация по файловой системе
+- Calendar: мини-календарь с событиями
+- Markdown Editor: полноценный редактор с preview
+- ESLint: 0 ошибок, 2 pre-existing warnings
+- Dev server: все API 200 (system, processes, files)
+- VLM verification: File Explorer ✅, Calendar ✅, Process Monitor ✅, эстетика 8/10
+- Components total: 40+
+
+### Нерешённые/Следующие шаги:
+- Widget Layout Customizer (перетаскивание виджетов)
+- Voice Commands System (NLP-распознавание голосовых команд)
+- Global Search (Ctrl+K расширение)
+- AI Agent Mode (автономное выполнение задач)
