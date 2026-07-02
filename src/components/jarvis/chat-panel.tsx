@@ -12,28 +12,80 @@ interface ChatPanelProps {
   jarvis: UseJarvisReturn;
 }
 
-/** Typewriter component — рендерит текст с эффектом печатной машинки */
-function TypewriterText({ text, speed = 14, onDone }: { text: string; speed?: number; onDone?: () => void }) {
+/** Typewriter component — renders text with word-by-word typewriter effect */
+function TypewriterText({ text, speed = 40, onDone, onScroll }: { text: string; speed?: number; onDone?: () => void; onScroll?: () => void }) {
   const [displayed, setDisplayed] = useState("");
   const [done, setDone] = useState(false);
-  const idxRef = useRef(0);
-  const ivRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onDoneRef = useRef(onDone);
+  const onScrollRef = useRef(onScroll);
+
+  useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
+  useEffect(() => { onScrollRef.current = onScroll; }, [onScroll]);
 
   useEffect(() => {
-    idxRef.current = 0;
-    ivRef.current = setInterval(() => {
-      idxRef.current += 2;
-      if (idxRef.current >= text.length) {
+    // Skip typewriter for short messages — render immediately
+    if (text.length < 30) {
+      setDisplayed(text);
+      setDone(true);
+      onDoneRef.current?.();
+      return;
+    }
+
+    const words = text.split(" ");
+    let idx = 0;
+    setDisplayed("");
+    setDone(false);
+
+    function tick() {
+      if (idx >= words.length) {
         setDisplayed(text);
         setDone(true);
-        onDone?.();
-        if (ivRef.current) clearInterval(ivRef.current);
-      } else {
-        setDisplayed(text.slice(0, idxRef.current));
+        onDoneRef.current?.();
+        return;
       }
-    }, speed);
-    return () => { if (ivRef.current) clearInterval(ivRef.current); };
-  }, [text, speed, onDone]);
+
+      const currentWord = words[idx];
+      const prevText = idx === 0 ? "" : words.slice(0, idx).join(" ") + " ";
+      setDisplayed(prevText + currentWord);
+
+      // Play typewriter tick sound every 3rd word
+      if ((idx + 1) % 3 === 0) {
+        playSound("typewriter-tick");
+      }
+
+      // Scroll sync callback
+      onScrollRef.current?.();
+
+      // Calculate adaptive delay
+      let delay = speed;
+
+      // Short words (1-2 chars) type faster
+      if (currentWord.length <= 2) {
+        delay = 20;
+      }
+
+      // Punctuation marks add a pause
+      if (/[.,!?;:]$/.test(currentWord)) {
+        delay += 100;
+      }
+
+      // Long paragraphs: gradually speed up after the first 10 words
+      if (idx >= 10) {
+        const speedupFactor = Math.max(0.5, 1 - (idx - 10) * 0.03);
+        delay = Math.round(delay * speedupFactor);
+      }
+
+      idx += 1;
+      timerRef.current = setTimeout(tick, delay);
+    }
+
+    tick();
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [text, speed]);
 
   return (
     <>
@@ -45,15 +97,16 @@ function TypewriterText({ text, speed = 14, onDone }: { text: string; speed?: nu
         {displayed}
       </ReactMarkdown>
       {!done && (
-        <span className="inline-block h-4 w-0.5 animate-pulse bg-primary ml-0.5 align-text-bottom" />
+        <span className="inline-block h-[1em] w-[2px] animate-pulse bg-primary/90 ml-0.5 align-text-bottom rounded-sm" />
       )}
     </>
   );
 }
 
-function MessageBubble({ msg, onSpeak, isLatest }: { msg: ChatMessage; onSpeak: (t: string) => void; isLatest?: boolean }) {
+function MessageBubble({ msg, onSpeak, isLatest, onScroll }: { msg: ChatMessage; onSpeak: (t: string) => void; isLatest?: boolean; onScroll?: () => void }) {
   const isUser = msg.role === "user";
-  const isTypewriterTarget = !isUser && !msg.pending && !!msg.content && isLatest;
+  const isTypewriterTarget = !isUser && !msg.pending && !msg.streaming && !!msg.content && isLatest;
+  const isStreaming = !isUser && msg.streaming && !!msg.content;
   const handleTwDone = useCallback(() => { playSound("message-receive"); }, []);
 
   if (isUser) {
@@ -103,11 +156,24 @@ function MessageBubble({ msg, onSpeak, isLatest }: { msg: ChatMessage; onSpeak: 
               ))}
             </span>
           </div>
+        ) : isStreaming ? (
+          <>
+            <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-code:text-primary prose-code:before:hidden prose-code:after:hidden prose-code:rounded prose-code:bg-primary/10 prose-code:px-1 prose-pre:bg-muted/50 prose-a:text-primary">
+              <ReactMarkdown
+                components={{
+                  a: ({ ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
+                }}
+              >
+                {msg.content}
+              </ReactMarkdown>
+            </div>
+            <span className="inline-block h-[1em] w-[2px] animate-pulse bg-primary/90 ml-0.5 align-text-bottom rounded-sm" />
+          </>
         ) : (
           <>
             <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-code:text-primary prose-code:before:hidden prose-code:after:hidden prose-code:rounded prose-code:bg-primary/10 prose-code:px-1 prose-pre:bg-muted/50 prose-a:text-primary">
               {isTypewriterTarget ? (
-                <TypewriterText text={msg.content} onDone={handleTwDone} />
+                <TypewriterText text={msg.content} speed={40} onDone={handleTwDone} onScroll={onScroll} />
               ) : (
                 <ReactMarkdown
                   components={{
@@ -158,10 +224,14 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
 
-  useEffect(() => {
+  const handleAutoScroll = useCallback(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [messages]);
+  }, []);
+
+  useEffect(() => {
+    handleAutoScroll();
+  }, [messages, handleAutoScroll]);
 
   const handleSubmit = useCallback(
     (e: React.FormEvent) => {
@@ -258,7 +328,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
         ) : (
           <AnimatePresence initial={false}>
             {messages.map((m, i) => (
-              <MessageBubble key={m.id} msg={m} onSpeak={jarvis.speak} isLatest={i === messages.length - 1 && m.role === "assistant"} />
+              <MessageBubble key={m.id} msg={m} onSpeak={jarvis.speak} isLatest={i === messages.length - 1 && m.role === "assistant"} onScroll={handleAutoScroll} />
             ))}
           </AnimatePresence>
         )}

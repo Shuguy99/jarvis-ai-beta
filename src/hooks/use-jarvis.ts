@@ -438,7 +438,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         role: "assistant",
         content: "",
         createdAt: new Date().toISOString(),
-        pending: true,
+        streaming: true,
       };
       setMessages((prev) => [...prev, pendingMsg]);
       setState("thinking");
@@ -465,31 +465,73 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
           customPrompt: behaviorRef.current.customPrompt,
         } : undefined;
 
-        const res = await fetch("/api/jarvis/chat", {
+        // ─── SSE Streaming ───
+        const res = await fetch("/api/jarvis/chat/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ messages: history, query: clean, behavior }),
         });
 
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Ошибка связи с J.A.R.V.I.S.");
+        if (!res.ok) {
+          let errMsg = "Ошибка связи с J.A.R.V.I.S.";
+          try { errMsg = (await res.json()).error || errMsg; } catch { /* use default */ }
+          throw new Error(errMsg);
+        }
 
-        const reply = data.reply as string;
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("Нет тела ответа");
 
+        const decoder = new TextDecoder();
+        let fullContent = "";
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          for (const line of lines) {
+            if (!line.startsWith("data: ")) continue;
+            const payload = line.slice(6).trim();
+            if (payload === "[DONE]") continue;
+
+            try {
+              const parsed = JSON.parse(payload);
+              if (parsed.error) throw new Error(parsed.error);
+              if (parsed.chunk) {
+                fullContent += parsed.chunk;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === pendingId
+                      ? { ...m, content: fullContent, streaming: true }
+                      : m
+                  )
+                );
+              }
+            } catch (e) {
+              if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
+                throw e;
+              }
+            }
+          }
+        }
+
+        // Finalize message
         setMessages((prev) =>
           prev.map((m) =>
             m.id === pendingId
-              ? { ...m, content: reply, pending: false, hasAudio: true }
+              ? { ...m, content: fullContent, streaming: false, hasAudio: true }
               : m
           )
         );
 
-        if (data.sources) setSearchedSources(data.sources as Source[]);
-
-        if (convoId) void persistMessage("assistant", reply);
+        if (convoId) void persistMessage("assistant", fullContent);
 
         if (autoSpeakOn) {
-          await speak(reply);
+          await speak(fullContent);
         } else {
           setState("idle");
         }

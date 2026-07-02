@@ -136,6 +136,58 @@ export const ai = {
     return ollamaChat(messages, opts);
   },
 
+  /** Stream chat response — returns an async generator of content chunks */
+  async *chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
+    const cfg = getConfig();
+    const body = {
+      model: cfg.model,
+      messages: messages.map((m) => {
+        if (typeof m.content === "string") return { role: m.role, content: m.content };
+        return { role: m.role, content: m.content };
+      }),
+      max_tokens: opts?.maxTokens ?? 2048,
+      temperature: opts?.temperature ?? 0.7,
+      stream: true,
+    };
+
+    const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Ollama stream error (${res.status}): ${err}`);
+    }
+
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("No response body");
+
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const parsed = JSON.parse(line);
+          const chunk = parsed.choices?.[0]?.delta?.content;
+          if (chunk) yield chunk;
+        } catch {
+          // Skip malformed lines
+        }
+      }
+    }
+  },
+
   /** Analyze an image with a vision model */
   async vision(imageBase64: string, prompt: string): Promise<LLMResponse> {
     return ollamaVision(imageBase64, prompt);
