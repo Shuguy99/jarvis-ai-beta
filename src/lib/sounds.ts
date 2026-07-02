@@ -21,7 +21,17 @@ type SoundName =
   | "typewriter-tick"
   | "shutdown"
   | "save"
-  | "warning";
+  | "warning"
+  | "boot-sequence"
+  | "processing-start"
+  | "stream-token"
+  | "voice-activate"
+  | "command-ack"
+  | "timer-tick"
+  | "timer-alarm"
+  | "power-up"
+  | "data-received"
+  | "alert";
 
 let audioCtx: AudioContext | null = null;
 
@@ -355,6 +365,262 @@ const SOUND_MAP: Record<SoundName, (vol?: number) => void> = {
       osc.start(start);
       osc.stop(start + 0.085);
     }
+  },
+
+  /** Кинематографическая загрузочная последовательность — 5-нотный арпеджио с обертонами */
+  "boot-sequence"(vol) {
+    const v = vol ?? 1;
+    const notes = [262, 330, 392, 523, 659]; // C4, E4, G4, C5, E5
+    notes.forEach((f, i) => {
+      const delay = i * 100;
+      setTimeout(() => {
+        const ctx = getCtx();
+        const now = ctx.currentTime;
+        const isLast = i === notes.length - 1;
+        const dur = isLast ? 0.9 : 0.25;
+        const sustain = isLast ? 0.6 : 0.12;
+        // Основной тон
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(f, now);
+        envelope(ctx, gain.gain, 0.015, 0.2, 0.07 * v, sustain, dur);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + dur + 0.01);
+        // Обертон на октаву выше, половина громкости
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = "sine";
+        osc2.frequency.setValueAtTime(f * 2, now);
+        envelope(ctx, gain2.gain, 0.015, 0.2, 0.035 * v, sustain, dur);
+        osc2.connect(gain2).connect(ctx.destination);
+        osc2.start(now);
+        osc2.stop(now + dur + 0.01);
+      }, delay);
+    });
+  },
+
+  /** Старт обработки — восходящий свип с переходом в стабильный дуэт */
+  "processing-start"(vol) {
+    const v = vol ?? 1;
+    // Фаза 1: восходящий свип 200→800 Гц (0.15s)
+    playSweep(200, 800, 0.15, "sine", 0.03 * v);
+    // Фаза 2: стабильный дуэт 600+800 Гц (0.15s)
+    setTimeout(() => {
+      const ctx = getCtx();
+      const now = ctx.currentTime;
+      // Sine-компонент
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(600, now);
+      envelope(ctx, gain1.gain, 0.005, 0.2, 0.03 * v, 0.05, 0.15);
+      osc1.connect(gain1).connect(ctx.destination);
+      osc1.start(now);
+      osc1.stop(now + 0.16);
+      // Triangle-компонент
+      const osc2 = ctx.createOscillator();
+      const gain2 = ctx.createGain();
+      osc2.type = "triangle";
+      osc2.frequency.setValueAtTime(800, now);
+      envelope(ctx, gain2.gain, 0.005, 0.2, 0.02 * v, 0.05, 0.15);
+      osc2.connect(gain2).connect(ctx.destination);
+      osc2.start(now);
+      osc2.stop(now + 0.16);
+    }, 150);
+  },
+
+  /** Токен стриминга — сверхкороткий тихий блик (вызывается очень часто) */
+  "stream-token"(vol) {
+    const v = vol ?? 1;
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    const freq = 1200 + Math.random() * 600; // 1200–1800 Гц
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(freq, now);
+    envelope(ctx, gain.gain, 0.001, 0.1, 0.008 * v, 0.002, 0.015);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.016);
+  },
+
+  /** Активация голосового ввода — быстрая 3-тональная восходящая последовательность */
+  "voice-activate"(vol) {
+    const v = vol ?? 1;
+    const freqs = [400, 800, 1200];
+    freqs.forEach((f, i) => {
+      setTimeout(() => {
+        const ctx = getCtx();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(f, now);
+        envelope(ctx, gain.gain, 0.005, 0.15, 0.06 * v, 0.03, 0.08);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.085);
+      }, i * 120); // 80ms tone + 40ms gap = 120ms
+    });
+  },
+
+  /** Команда принята — короткий нисходящий двухтоновый аккорд */
+  "command-ack"(vol) {
+    const v = vol ?? 1;
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    // Первый тон 1000 Гц
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = "triangle";
+    osc1.frequency.setValueAtTime(1000, now);
+    envelope(ctx, gain1.gain, 0.003, 0.1, 0.06 * v, 0.05, 0.12);
+    osc1.connect(gain1).connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.125);
+    // Второй тон 600 Гц через 120ms
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = "triangle";
+    osc2.frequency.setValueAtTime(600, now + 0.12);
+    envelope(ctx, gain2.gain, 0.003, 0.1, 0.06 * v, 0.05, 0.13);
+    osc2.connect(gain2).connect(ctx.destination);
+    osc2.start(now + 0.12);
+    osc2.stop(now + 0.25);
+  },
+
+  /** Тик таймера — минимальный клик */
+  "timer-tick"(vol) {
+    const v = vol ?? 1;
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "square";
+    osc.frequency.setValueAtTime(1000, now);
+    envelope(ctx, gain.gain, 0.001, 0.05, 0.03 * v, 0.002, 0.05);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.055);
+  },
+
+  /** Сигнал таймера — 3 повторяющиеся восходящие пары */
+  "timer-alarm"(vol) {
+    const v = vol ?? 1;
+    for (let i = 0; i < 3; i++) {
+      const pairDelay = i * 300; // 0.15s pair + 0.15s gap
+      setTimeout(() => {
+        const ctx = getCtx();
+        const now = ctx.currentTime;
+        // Нижний тон 800 Гц
+        const osc1 = ctx.createOscillator();
+        const gain1 = ctx.createGain();
+        osc1.type = "sine";
+        osc1.frequency.setValueAtTime(800, now);
+        envelope(ctx, gain1.gain, 0.005, 0.1, 0.06 * v, 0.05, 0.15);
+        osc1.connect(gain1).connect(ctx.destination);
+        osc1.start(now);
+        osc1.stop(now + 0.155);
+        // Верхний тон 1000 Гц
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.type = "sine";
+        osc2.frequency.setValueAtTime(1000, now);
+        envelope(ctx, gain2.gain, 0.005, 0.1, 0.06 * v, 0.05, 0.15);
+        osc2.connect(gain2).connect(ctx.destination);
+        osc2.start(now);
+        osc2.stop(now + 0.155);
+      }, pairDelay);
+    }
+  },
+
+  /** Включение питания — низкий гул + яркий звон */
+  "power-up"(vol) {
+    const v = vol ?? 1;
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    // Фаза 1: низкий гул 80→200 Гц (0.5s)
+    const osc1 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    osc1.type = "sine";
+    osc1.frequency.setValueAtTime(80, now);
+    osc1.frequency.exponentialRampToValueAtTime(200, now + 0.5);
+    envelope(ctx, gain1.gain, 0.02, 0.2, 0.06 * v, 0.1, 0.55);
+    osc1.connect(gain1).connect(ctx.destination);
+    osc1.start(now);
+    osc1.stop(now + 0.56);
+    // Фаза 2: яркий звон 880 Гц (0.25s)
+    const chimeStart = 0.55;
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(880, now + chimeStart);
+    envelope(ctx, gain2.gain, 0.01, 0.15, 0.04 * v, 0.1, 0.25);
+    osc2.connect(gain2).connect(ctx.destination);
+    osc2.start(now + chimeStart);
+    osc2.stop(now + chimeStart + 0.26);
+    // Triangle-компонент для яркости
+    const osc3 = ctx.createOscillator();
+    const gain3 = ctx.createGain();
+    osc3.type = "triangle";
+    osc3.frequency.setValueAtTime(880, now + chimeStart);
+    envelope(ctx, gain3.gain, 0.01, 0.15, 0.02 * v, 0.08, 0.25);
+    osc3.connect(gain3).connect(ctx.destination);
+    osc3.start(now + chimeStart);
+    osc3.stop(now + chimeStart + 0.26);
+  },
+
+  /** Данные получены — нисходящий арпеджио «информация загружена» */
+  "data-received"(vol) {
+    const v = vol ?? 1;
+    const notes = [1200, 900, 700];
+    notes.forEach((f, i) => {
+      setTimeout(() => {
+        const ctx = getCtx();
+        const now = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(f, now);
+        envelope(ctx, gain.gain, 0.003, 0.15, 0.05 * v, 0.03, 0.08);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.085);
+      }, i * 40);
+    });
+  },
+
+  /** Тревога — 2 высоких бипа + нисходящий свип, более драматично чем warning */
+  alert(vol) {
+    const v = vol ?? 1;
+    const ctx = getCtx();
+    const now = ctx.currentTime;
+    // 2 высоких бипа на 1500 Гц (square, 0.08s, gap 0.1s)
+    for (let i = 0; i < 2; i++) {
+      const start = now + i * 0.18;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(1500, start);
+      envelope(ctx, gain.gain, 0.002, 0.1, 0.06 * v, 0.03, 0.08);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + 0.085);
+    }
+    // Нисходящий свип 1000→500 Гц (sine, 0.3s)
+    const sweepStart = now + 0.36;
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.type = "sine";
+    osc2.frequency.setValueAtTime(1000, sweepStart);
+    osc2.frequency.exponentialRampToValueAtTime(500, sweepStart + 0.3);
+    envelope(ctx, gain2.gain, 0.005, 0.2, 0.06 * v, 0.08, 0.3);
+    osc2.connect(gain2).connect(ctx.destination);
+    osc2.start(sweepStart);
+    osc2.stop(sweepStart + 0.31);
   },
 };
 

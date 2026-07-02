@@ -12,94 +12,203 @@ interface ChatPanelProps {
   jarvis: UseJarvisReturn;
 }
 
-/** Typewriter component — renders text with word-by-word typewriter effect */
-function TypewriterText({ text, speed = 40, onDone, onScroll }: { text: string; speed?: number; onDone?: () => void; onScroll?: () => void }) {
+/** TypewriterText v2 — cinematic character-by-character rendering with adaptive speed */
+function TypewriterText({ text, speed = 25, onDone, onScroll }: { text: string; speed?: number; onDone?: () => void; onScroll?: () => void }) {
   const [displayed, setDisplayed] = useState("");
   const [done, setDone] = useState(false);
+  const [glowing, setGlowing] = useState(false);
+  const [cursorHiding, setCursorHiding] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const glowTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const charCountRef = useRef(0);
   const onDoneRef = useRef(onDone);
   const onScrollRef = useRef(onScroll);
 
   useEffect(() => { onDoneRef.current = onDone; }, [onDone]);
   useEffect(() => { onScrollRef.current = onScroll; }, [onScroll]);
 
+  // Cleanup all timers on unmount
   useEffect(() => {
-    // Skip typewriter for short messages — render immediately
-    if (text.length < 30) {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (glowTimerRef.current) clearTimeout(glowTimerRef.current);
+    };
+  }, []);
+
+  // Brief glow on the last rendered character
+  const triggerGlow = useCallback(() => {
+    setGlowing(true);
+    if (glowTimerRef.current) clearTimeout(glowTimerRef.current);
+    glowTimerRef.current = setTimeout(() => setGlowing(false), 300);
+  }, []);
+
+  useEffect(() => {
+    // Cleanup previous animation timers
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (glowTimerRef.current) clearTimeout(glowTimerRef.current);
+
+    charCountRef.current = 0;
+
+    // ─── Very short text (< 40 chars): instant render with fade-in ───
+    if (text.length < 40) {
       setDisplayed(text);
       setDone(true);
+      setCursorHiding(true);
       onDoneRef.current?.();
       return;
     }
 
-    const words = text.split(" ");
-    let idx = 0;
+    // ─── Reset state for animation ───
     setDisplayed("");
     setDone(false);
+    setCursorHiding(false);
+    setGlowing(false);
 
-    function tick() {
-      if (idx >= words.length) {
-        setDisplayed(text);
-        setDone(true);
-        onDoneRef.current?.();
-        return;
-      }
+    const PUNCT = new Set([".", ",", "!", "?", ";", ":", "—", "…"]);
 
-      const currentWord = words[idx];
-      const prevText = idx === 0 ? "" : words.slice(0, idx).join(" ") + " ";
-      setDisplayed(prevText + currentWord);
-
-      // Play typewriter tick sound every 3rd word
-      if ((idx + 1) % 3 === 0) {
-        playSound("typewriter-tick");
-      }
-
-      // Scroll sync callback
-      onScrollRef.current?.();
-
-      // Calculate adaptive delay
-      let delay = speed;
-
-      // Short words (1-2 chars) type faster
-      if (currentWord.length <= 2) {
-        delay = 20;
-      }
-
-      // Punctuation marks add a pause
-      if (/[.,!?;:]$/.test(currentWord)) {
-        delay += 100;
-      }
-
-      // Long paragraphs: gradually speed up after the first 10 words
-      if (idx >= 10) {
-        const speedupFactor = Math.max(0.5, 1 - (idx - 10) * 0.03);
-        delay = Math.round(delay * speedupFactor);
-      }
-
-      idx += 1;
-      timerRef.current = setTimeout(tick, delay);
+    function punctDelay(ch: string): number {
+      if (ch === "." || ch === "!" || ch === "?") return 150;
+      if (ch === "," || ch === ";") return 100;
+      if (ch === ":" || ch === "—" || ch === "…") return 120;
+      return 0;
     }
 
-    tick();
+    function adaptiveDelay(charIndex: number, base: number): number {
+      if (charIndex < 100) return base;
+      return Math.round(base * Math.max(0.4, 0.97 ** (charIndex - 100)));
+    }
+
+    /** Render a single character, fire side-effects, return delay before next step */
+    function emitChar(pos: number, baseMs: number): number {
+      charCountRef.current += 1;
+      const cnt = charCountRef.current;
+
+      setDisplayed(text.slice(0, pos + 1));
+      triggerGlow();
+
+      // Sound every 5th character
+      if (cnt % 5 === 0) playSound("typewriter-tick");
+      // Scroll every 3 characters
+      if (cnt % 3 === 0) onScrollRef.current?.();
+
+      const ch = text[pos];
+      if (ch === "\n") return 200;
+      if (ch === " ") return 15;
+
+      let d = adaptiveDelay(cnt, baseMs);
+      if (PUNCT.has(ch)) d += punctDelay(ch);
+      return d;
+    }
+
+    function finish() {
+      setDisplayed(text);
+      setCursorHiding(true); // triggers CSS transition → fade out cursor over 500ms
+      onDoneRef.current?.();
+      // Switch to markdown render after cursor has faded
+      timerRef.current = setTimeout(() => setDone(true), 500);
+    }
+
+    // ─── Character-by-character mode (< 200 chars) ───
+    if (text.length < 200) {
+      let i = 0;
+      (function tick() {
+        if (i >= text.length) { finish(); return; }
+        const delay = emitChar(i, speed);
+        i += 1;
+        timerRef.current = setTimeout(tick, delay);
+      })();
+    }
+    // ─── Word-by-word with inner char-by-char mode (200+ chars) ───
+    else {
+      let pos = 0;
+
+      (function tickSegment() {
+        if (pos >= text.length) { finish(); return; }
+
+        // Whitespace run: render all at once
+        if (/\s/.test(text[pos])) {
+          const start = pos;
+          while (pos < text.length && /\s/.test(text[pos])) pos++;
+          charCountRef.current += pos - start;
+          setDisplayed(text.slice(0, pos));
+          if (charCountRef.current % 3 === 0) onScrollRef.current?.();
+
+          const hasNewline = text.slice(start, pos).includes("\n");
+          timerRef.current = setTimeout(tickSegment, hasNewline ? 200 : 15);
+          return;
+        }
+
+        // Word: render character by character
+        (function tickChar() {
+          if (pos >= text.length || /\s/.test(text[pos])) {
+            // Word complete — pause before next segment
+            const lastCh = text[pos - 1];
+            let pause = 40;
+            if (lastCh && PUNCT.has(lastCh)) pause += punctDelay(lastCh);
+            timerRef.current = setTimeout(tickSegment, pause);
+            return;
+          }
+          const delay = emitChar(pos, 30);
+          pos += 1;
+          timerRef.current = setTimeout(tickChar, delay);
+        })();
+      })();
+    }
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (glowTimerRef.current) clearTimeout(glowTimerRef.current);
     };
-  }, [text, speed]);
+  }, [text, speed, triggerGlow]);
+
+  // ─── RENDER ───
+
+  // Completed: full markdown
+  if (done) {
+    const md = (
+      <ReactMarkdown
+        components={{ a: ({ ...props }) => <a target="_blank" rel="noreferrer" {...props} /> }}
+      >
+        {text}
+      </ReactMarkdown>
+    );
+    // Short text gets a fade-in wrapper
+    if (text.length < 40) {
+      return (
+        <motion.span
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+        >
+          {md}
+        </motion.span>
+      );
+    }
+    return md;
+  }
+
+  // In progress: plain text (whitespace-pre-wrap) + glowing last char + blinking cursor
+  const mainPart = displayed.length > 1 ? displayed.slice(0, -1) : "";
+  const lastChar = displayed.length > 0 ? displayed.slice(-1) : "";
 
   return (
-    <>
-      <ReactMarkdown
-        components={{
-          a: ({ ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
-        }}
-      >
-        {displayed}
-      </ReactMarkdown>
-      {!done && (
-        <span className="inline-block h-[1em] w-[2px] animate-pulse bg-primary/90 ml-0.5 align-text-bottom rounded-sm" />
+    <span className="whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
+      {mainPart}
+      {lastChar && (
+        <span
+          className={`transition-colors duration-300 ${
+            glowing ? "text-primary/90" : "text-foreground/90"
+          }`}
+        >
+          {lastChar}
+        </span>
       )}
-    </>
+      <span
+        className={`inline-block h-[1em] w-[2px] animate-pulse bg-primary ml-0.5 align-text-bottom rounded-sm transition-opacity duration-500 ${
+          cursorHiding ? "opacity-0" : "opacity-100"
+        }`}
+      />
+    </span>
   );
 }
 
@@ -173,7 +282,7 @@ function MessageBubble({ msg, onSpeak, isLatest, onScroll }: { msg: ChatMessage;
           <>
             <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-code:text-primary prose-code:before:hidden prose-code:after:hidden prose-code:rounded prose-code:bg-primary/10 prose-code:px-1 prose-pre:bg-muted/50 prose-a:text-primary">
               {isTypewriterTarget ? (
-                <TypewriterText text={msg.content} speed={40} onDone={handleTwDone} onScroll={onScroll} />
+                <TypewriterText text={msg.content} speed={25} onDone={handleTwDone} onScroll={onScroll} />
               ) : (
                 <ReactMarkdown
                   components={{

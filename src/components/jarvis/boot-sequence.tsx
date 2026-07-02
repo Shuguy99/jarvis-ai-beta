@@ -39,6 +39,8 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
   }, [onComplete]);
 
   useEffect(() => {
+    // --- Phase 1: power-up sound ---
+    playSound("power-up");
     // --- Phase 1 → 2 transition ---
     const t1 = setTimeout(() => setPhase(2), T.PHASE1_END);
 
@@ -89,7 +91,7 @@ export function BootSequence({ onComplete }: BootSequenceProps) {
   // Phase 3 → 4 → complete
   useEffect(() => {
     if (phase !== 3) return;
-    playSound("boot-chime");
+    playSound("boot-sequence");
     const t3 = setTimeout(() => setPhase(4), T.PHASE3_END - T.PHASE2_END);
     const t4 = setTimeout(() => { playSound("activate"); complete(); }, T.PHASE4_END - T.PHASE2_END);
 

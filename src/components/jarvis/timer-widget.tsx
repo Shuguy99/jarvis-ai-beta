@@ -56,7 +56,7 @@ export const TimerWidget = forwardRef<TimerHandle>((_props, ref) => {
         setRemainingMs(0);
         setTimerState("finished");
         clearTick();
-        playSound("notification");
+        playSound("timer-alarm");
         onFinishedRef.current?.();
         return;
       }

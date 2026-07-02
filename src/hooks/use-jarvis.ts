@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage, Conversation } from "@/lib/types";
+import { playSound } from "@/lib/sounds";
 
 export type JarvisState = "idle" | "listening" | "thinking" | "speaking" | "error";
 
@@ -415,6 +416,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       // Try local command processing first
       const cmdResult = await processCommand(clean);
       if (cmdResult?.handled) {
+        playSound("command-ack");
         const reply = cmdResult.response || "Готово, сэр.";
         const assistantMsg: ChatMessage = {
           id: uid(),
@@ -442,6 +444,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       };
       setMessages((prev) => [...prev, pendingMsg]);
       setState("thinking");
+      playSound("processing-start");
 
       const convoId = await ensureConversation(clean);
       const isFirst =
@@ -539,6 +542,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         const msg = e instanceof Error ? e.message : "Неизвестная ошибка";
         setError(msg);
         setState("error");
+        playSound("alert");
         setMessages((prev) =>
           prev.map((m) =>
             m.id === pendingId
@@ -643,6 +647,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         recognition.start();
         setIsRecording(true);
         setState("listening");
+        playSound("voice-activate");
         return; // Done — browser handles everything
       } catch (e) {
         console.error("SpeechRecognition failed, falling back to MediaRecorder:", e);

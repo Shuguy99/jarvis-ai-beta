@@ -739,3 +739,75 @@ Stage Summary:
 - Параметры ИИ: температура (0-2), макс. токенов (256-8192), окно контекста (4-50)
 - Кастомный промт полностью переопределяет системный промт
 - ESLint: 0 ошибок
+
+---
+Task ID: 2
+Agent: main (Z.ai Code)
+Task: Expand JARVIS Sound System to v2 — add 10 new cinematic sounds
+
+Work Log:
+- Добавлены 10 новых имён звуков в тип `SoundName`: `boot-sequence`, `processing-start`, `stream-token`, `voice-activate`, `command-ack`, `timer-tick`, `timer-alarm`, `power-up`, `data-received`, `alert`
+- Реализованы все 10 звуков в `SOUND_MAP` с соблюдением спецификаций (частоты, длительности, типы волн, громкость)
+- Все существующие 18 звуков оставлены без изменений
+- Сохранён стиль кода и русскоязычные комментарии
+- ESLint пройден без ошибок (0 errors)
+
+---
+Task ID: 1
+Agent: main (Z.ai Code)
+Task: Enhance JARVIS Typewriter Effect to v2 — character-by-character cinematic rendering
+
+Work Log:
+- Полностью переписан компонент `TypewriterText` в `src/components/jarvis/chat-panel.tsx` (v1 word-by-word → v2 character-by-character)
+- Режимы рендеринга по длине текста:
+  - < 40 символов: мгновенный рендер с fade-in анимацией (motion.span)
+  - 40–199 символов: посимвольный рендер (base 25ms/char)
+  - 200+ символов: пословный с внутренним посимвольным эффектом (30ms/char + 40ms пауза между словами)
+- Адаптивная скорость: пунктуация (80–150ms пауза), переносы строк (200ms), пробелы (15ms), ускорение после 100+ символов (×0.97/char, min 0.4x)
+- Визуальные эффекты: мигающий курсор (inline cyan, animate-pulse), свечение последнего символа (text-primary/90 → fade 300ms), плавное исчезновение курсора (transition-opacity 500ms)
+- Звук: `typewriter-tick` каждые 5 символов (было каждые 3 слова)
+- Markdown safety: во время анимации — plain text (whitespace-pre-wrap), после завершения — ReactMarkdown
+- Scroll sync: onScroll callback каждые 3 символа
+- Cleanup: все таймеры корректно очищаются при unmount и смене текста
+- Обновлён call site: speed={40} → speed={25}
+- ESLint: 0 errors, dev server компилируется без ошибок
+
+---
+Task ID: 10
+Agent: main (Z.ai Code)
+Task: Typewriter v2 + Streaming verification + Sound Effects 2.0
+
+Work Log:
+- Анализ текущего состояния: обнаружено что Streaming УЖЕ полностью реализован (SSE backend + frontend клиент)
+- TypewriterText v2 переписан в chat-panel.tsx:
+  - Посимвольный рендер для текста < 200 символов (25ms/char)
+  - Пословный с внутренним посимвольным для текста 200+ символов (30ms/char + 40ms пауза между словами)
+  - Адаптивная скорость: пунктуация (+100-150ms), переносы строк (+200ms), ускорение после 100 символов (0.97^n, мин 0.4x)
+  - Визуальные эффекты: мигающий курсор (inline cyan), свечение последнего символа (text-primary/90 на 300ms), плавное затухание курсора (500ms)
+  - Markdown safety: во время анимации — plain text (whitespace-pre-wrap), после завершения — ReactMarkdown
+  - Короткий текст (< 40 char) — мгновенный рендер с fade-in анимацией
+  - Звук typewriter-tick каждые 5 символов, scroll sync каждые 3 символа
+- Sound Effects 2.0 — 10 новых звуков в sounds.ts:
+  - boot-sequence: 5-нотная арпеджио C4→E5 с обертонами (~1.5s)
+  - processing-start: восходящий свип 200→800Hz + стабилизация 600+800Hz (0.3s)
+  - stream-token: сверхлёгкий блик 1200-1800Hz (0.015s, vol 0.008)
+  - voice-activate: 3-тона 400→800→1200Hz (0.4s)
+  - command-ack: нисходящие 2 ноты 1000→600Hz, triangle (0.25s)
+  - timer-tick: короткий клик 1000Hz, square (0.05s)
+  - timer-alarm: 3 повторяющиеся пары 800+1000Hz (~1.5s)
+  - power-up: низкий гул 80→200Hz + чим 880Hz (0.8s)
+  - data-received: нисходящая арпеджио 1200→900→700Hz (0.2s)
+  - alert: 2 высоких бипа + нисходящий свип (0.6s)
+- Интеграция новых звуков в UI:
+  - boot-sequence.tsx: power-up в Phase 1, boot-sequence в Phase 3 (заменил boot-chime)
+  - use-jarvis.ts: processing-start при setState("thinking"), command-ack при локальной команде, voice-activate при старте записи, alert при ошибке чата
+  - timer-widget.tsx: timer-alarm заменил notification при завершении таймера
+- Линт: 0 errors, 3 pre-existing warnings
+- QA: dev server стартует, boot sequence проходит, chat отправляется, /api/jarvis/chat/stream 200
+
+Stage Summary:
+- Typewriter v2: посимвольный кинематографичный рендер с адаптивной скоростью
+- Streaming: подтверждён работающий (SSE backend + SSE frontend клиент)
+- Sound Effects 2.0: 18→28 звуков, все синтезированы через Web Audio API
+- Все новые звуки интегрированы в соответствующие моменты UI
+- Ключевые файлы: chat-panel.tsx (TypewriterText), sounds.ts (10 новых), use-jarvis.ts (4 интеграции), boot-sequence.tsx (2 интеграции), timer-widget.tsx (1 интеграция)
