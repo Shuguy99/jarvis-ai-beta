@@ -609,3 +609,52 @@ Work Log:
 - `src/components/jarvis/arc-reactor.tsx` (полная переработка: 2 новых кольца, hex grid, emission particles, energy pulse)
 - `src/components/jarvis/chat-panel.tsx` (drag & drop для изображений)
 - `src/app/page.tsx` (wake word, particles, visual effects, error flash)
+---
+Task ID: 10-local-features
+Agent: main (Z.ai Code) + 3 subagents
+Task: Make project runnable on local PC + implement 11 new features
+
+Work Log:
+- Created `src/lib/ai-provider.ts` — abstraction layer supporting OpenAI-compatible APIs (OpenAI, Ollama, Groq, LM Studio, OpenRouter) and ZAI cloud SDK
+- Updated all API routes (chat, vision, image-gen, search, tts, asr) to use ai-provider
+- Updated `use-jarvis.ts` — browser Web Speech API as primary ASR (no API key needed), MediaRecorder fallback for ZAI cloud
+- Created `.env.example` with full documentation
+- Updated `.gitignore` to exclude sandbox-specific files
+- Updated `next.config.ts` for local use
+- Created comprehensive `README.md` with setup instructions
+- Updated `prisma/schema.prisma` — added Note and Setting models
+
+Subagent 1 (Streaming + Settings):
+- Implemented SSE streaming in chat route (OpenAI stream:true + forward chunks)
+- Updated `use-jarvis.ts` to read SSE via ReadableStream.getReader()
+- Chat panel shows streaming content with pulsing cursor
+- Created `settings-panel.tsx` — Dialog with Voice/Model/Behavior sections
+- Created `/api/jarvis/settings/` — GET/PUT for persistent settings
+
+Subagent 2 (Notes + Timer + Shortcuts):
+- Created `/api/jarvis/notes/` — full CRUD
+- Created `notes-panel.tsx` — HUD-styled overlay with checkbox list
+- Created `todo-widget.tsx` — compact active/total counter
+- Created `timer-widget.tsx` — Timer (countdown) + Stopwatch (countup)
+- Created `command-palette.tsx` — Spotlight/Alfred-style via Ctrl+K
+- Added global keyboard shortcuts (Ctrl+K, Ctrl+M, Ctrl+N, F11, Escape)
+- Added voice command parser (запиши X, таймер на X, какие заметки, etc.)
+
+Subagent 3 (Visuals + Wake Word):
+- Created `use-wake-word.ts` — continuous SpeechRecognition for "привет джарвис", "hey jarvis"
+- Created `particles.tsx` — 40 floating cyan particles
+- Added CSS: holo-glitch, data-stream-v2, CRT noise, border-pulse
+- Enhanced arc-reactor.tsx: 2 extra rings, hex grid, energy pulse, particle emission
+- Created `error-flash.tsx` — full-screen red flash on errors
+- Added drag & drop image upload to chat panel
+
+Integration & Fixes:
+- Wired SettingsPanel into page.tsx with gear icon button
+- Fixed lint errors (react-hooks/set-state-in-effect, preserve-manual-memoization)
+- Pushed to GitHub: Shuguy99/jarvis-ai-beta (commit 233fbc1)
+
+Stage Summary:
+- Project is now fully runnable on local PC with just OPENAI_API_KEY
+- 11 new features implemented and pushed
+- All lint checks pass
+- Page loads without errors, all features visible in UI
