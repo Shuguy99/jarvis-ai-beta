@@ -1686,3 +1686,129 @@ Stage Summary:
 - [ ] Создать icon.ico для Electron инсталлятора
 - [ ] Этап 6: Advanced Features (Global Search, Widget DnD, Enhanced Voice Commands с LLM fallback)
 - [ ] Этап 7: Polish & Release (Performance optimization, Accessibility, Final QA)
+
+---
+Task ID: 6-3
+Agent: subagent (Notifications)
+Task: Notification Center with history and rules
+
+Work Log:
+- Created src/lib/notification-center.ts — module-level notification manager singleton with in-memory store (max 100 FIFO) and localStorage-backed rules
+- Created src/components/jarvis/notification-center.tsx — overlay panel (right side, max-w-md) with JARVIS HUD aesthetic
+- Modified src/components/jarvis/notification-toast.tsx — added 2-line integration to push toasts into Notification Center history
+- ESLint: 0 errors, 2 pre-existing warnings (unrelated)
+
+Stage Summary:
+- Module-level notification manager with pub/sub pattern
+- 3 default alert rules (CPU > 90%, RAM > 85%, Disk > 95%) stored in localStorage with cooldown
+- Notification Center panel with: collapsible rules editor (add/toggle/remove), time-grouped notification list (Сегодня/Вчера/Ранее), unread badges, mark all read, clear all
+- Color-coded type borders (cyan=info, green=success, amber=warning, red=error, red-pulse=critical)
+- Source badges, relative time, expandable messages, Framer Motion stagger/exit animations
+- Seamless integration: every showNotification() call now also records to center history
+
+---
+Task ID: 6-4
+Agent: subagent (Voice LLM + CSS)
+Task: Voice LLM Fallback + CSS animations
+
+Work Log:
+- Created src/app/api/jarvis/voice-parse/route.ts — POST endpoint with LLM-based voice command parsing
+- Enhanced src/hooks/use-voice-commands.ts with async LLM fallback and isProcessing state
+- Added 9 new CSS utilities to globals.css (holo-shimmer, matrix-bg, glitch, pulse-ring, neon-text, scan-beam, rotating-border, energy-bar, bracket-tl/br)
+- ESLint: 0 errors, 2 warnings (pre-existing)
+
+Stage Summary:
+- Voice LLM fallback API for unknown/low-confidence commands (short text < 100 chars triggers LLM parse)
+- Enhanced useVoiceCommands with isProcessing state and async processText
+- 9 new CSS HUD animation utilities appended to globals.css
+
+---
+Task ID: 6-2
+Agent: main (Z.ai Code)
+Task: Create Widget Drag-and-Drop System for JARVIS HUD
+
+Work Log:
+- Created `src/hooks/use-widget-dnd.ts` — lightweight DnD state management hook
+  - Uses HTML5 Drag and Drop API (no new packages)
+  - Tracks dragItem, dragOverIndex, dragOverPosition via useState
+  - handleDragStart: stores source index + column ID in dataTransfer, sets effectAllowed='move'
+  - handleDragOver: calculates before/after based on cursor Y position relative to element midpoint
+  - handleDrop: computes insertion index, calls onReorder callback, resets state
+  - Column-scoped: uses dataTransfer types to scope DnD to same column
+- Created `src/components/jarvis/draggable-widget.tsx` — visual wrapper for draggable widgets
+  - Framer Motion `layout` + `layoutId` for smooth reorder animations
+  - isDragging: opacity 0.4, scale 0.98
+  - Drop indicators: cyan glow line (h-0.5 bg-primary) at top or bottom based on dragOverPosition
+  - GripVertical handle: opacity-0 by default, opacity-100 on parent hover, only the handle is `draggable`
+  - AnimatePresence-compatible enter/exit on indicators
+- Created `src/components/jarvis/dnd-widget-list.tsx` — container component for ordered widget lists
+  - Takes widgetIds[], onReorder callback, columnId ('left'|'right'), render-prop children
+  - Internally uses useWidgetDnd hook, wraps each widget in DraggableWidget
+  - AnimatePresence mode="popLayout" for smooth position transitions
+  - Passes DndWidgetRenderProps (isDragging, isDragOver, dragHandleProps, showGrip) to render function
+  - Validates column match on drop to prevent cross-column reordering
+- Lint: 0 new errors (3 pre-existing issues unchanged)
+
+Stage Summary:
+- Pure DnD system: no side effects, no API calls, just state management + visual feedback
+- Ready for integration: wrap sidebar widget lists with DndWidgetList to enable drag reordering
+- 3 new files, 0 existing files modified
+
+---
+Task ID: 6-1
+Agent: main (Z.ai Code)
+Task: Create Global Search UI Component for JARVIS HUD
+
+Work Log:
+- Created `src/components/jarvis/global-search.tsx` — full-featured global search overlay using cmdk + useGlobalSearch hook
+- Component features:
+  - cmdk Command component with `shouldFilter={false}` for custom fuzzy search via search-index
+  - Framer Motion scale-in/scale-out animation (0.92 → 1 → 0.92) with AnimatePresence
+  - Category filter tabs from SEARCH_CATEGORIES (Все, Команды, Сообщения, Файлы, Настройки)
+  - Recent searches: up to 8 shown as clickable chips, clear all button with X icon
+  - Results grouped by type with type-specific icons & color coding (cyan=command/action, purple=message, blue=conversation, green=file, amber=setting)
+  - HighlightedText sub-component for matching query text in results
+  - Relative time display for timestamps (только что, 5м назад, 2ч назад, 3д назад)
+  - Empty state: "Ничего не найдено, сэр" with Radar icon
+  - Loading state: cyan Loader2 spinner with "Сканирование…" text
+  - Default actions indexed on mount (9 items: new chat, voice, fullscreen, screenshot, settings, theme, system monitor, web search, hotkeys)
+  - Accepts optional messages/conversations props, indexed via addMessages/addConversations on open
+  - JARVIS HUD styling: jarvis-glass-strong, jarvis-border-cyan, jarvis-corner-brackets, backdrop-blur, monospace font
+  - Keyboard navigation via cmdk (arrow keys, Enter, Escape)
+  - Sound effects: click on tabs/recent, activate on result select, deactivate on close
+  - Footer with keyboard hints (↑↓ навигация, ↵ выбрать, Esc закрыть)
+- Lint: 0 new errors (1 pre-existing error + 2 pre-existing warnings unchanged)
+
+Stage Summary:
+- Self-contained Global Search overlay component with default export
+- Uses cmdk's Command component for built-in keyboard navigation (arrow keys, Enter, Escape)
+- Custom fuzzy search from search-index.ts via useGlobalSearch hook (150ms debounce)
+- Type-based icon/color system with 5 distinct visual categories
+- Indexed flag prevents re-indexing default actions on every open
+
+---
+Task ID: 6-4
+Agent: main (Z.ai Code)
+Task: Create System Metrics History Chart Widget for JARVIS HUD
+
+Work Log:
+- Created `src/components/jarvis/metrics-history-chart.tsx` — a pure SVG metrics history chart widget
+- Polls `/api/jarvis/system` every 5 seconds, stores 60 data points (5 min) in a circular buffer using `useRef`
+- Circular buffer read index tracked via ref; data snapshot stored in `useState` for reactive rendering
+- Pure SVG chart (600×160 viewBox) with:
+  - Horizontal grid lines at 0%, 50%, 100% with labels
+  - Vertical grid lines every 12 points (1-minute intervals) with dashed style
+  - 3 smooth sparkline area charts (CPU cyan, RAM green #34d399, Network amber #fbbf24)
+  - Catmull-Rom to cubic bezier curve conversion for smooth paths
+  - Gradient area fills (color/30% → color/5%)
+  - 2px color-coded stroke lines with drop-shadow glow
+  - Animated current-value dots at rightmost point with spring animation
+  - Current value labels at the end of each line
+  - Auto-scaling network axis (rounds up to nearest 50 Mbps)
+- Hover interaction: vertical crosshair line + floating tooltip showing all 3 metric values + timestamp
+- Toggle buttons to show/hide each metric with animated transitions (Framer Motion AnimatePresence)
+- Stats section below chart: current value with trend arrows (up/down/flat), min/max/avg for each metric
+- JARVIS HUD styling: jarvis-box-glow, jarvis-corner-brackets, jarvis-border-cyan, font-mono, backdrop-blur
+- Framer Motion mount/unmount animations (fade-in, slide-up)
+- Components (TrendArrow, MetricChart, ToggleBtn) declared outside render to satisfy react-hooks/static-components lint rule
+- ESLint: 0 new errors, 0 new warnings

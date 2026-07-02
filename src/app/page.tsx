@@ -33,7 +33,7 @@ import { ActivityFeed } from "@/components/jarvis/activity-feed";
 import { PomodoroWidget } from "@/components/jarvis/pomodoro-widget";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
 import { SettingsPanel, type JarvisSettingsData } from "@/components/jarvis/settings-panel";
-import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3, Terminal, Headphones, FolderOpen, CalendarDays, FileCode, Bot, Puzzle, LayoutGrid, Command } from "lucide-react";
+import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3, Terminal, Headphones, FolderOpen, CalendarDays, FileCode, Bot, Puzzle, LayoutGrid, Command, Sparkles, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSound } from "@/lib/sounds";
 import { showNotification, NotificationToastContainer } from "@/components/jarvis/notification-toast";
@@ -53,6 +53,10 @@ import { AgentPanel } from "@/components/jarvis/agent-panel"
 import { PluginPanel } from "@/components/jarvis/plugin-panel"
 import { LayoutCustomizer } from "@/components/jarvis/layout-customizer"
 import { useVoiceCommands } from "@/hooks/use-voice-commands"
+import { SystemInsightsWidget } from "@/components/jarvis/system-insights-widget"
+import { NotificationCenter } from "@/components/jarvis/notification-center"
+import MetricsHistoryChart from "@/components/jarvis/metrics-history-chart"
+
 
 const CAPABILITIES = [
   { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
@@ -75,6 +79,11 @@ const CAPABILITIES = [
   { icon: Bot, label: "Agent", desc: "Автономный ИИ-агент" },
   { icon: Puzzle, label: "Plugins", desc: "Система расширений" },
   { icon: LayoutGrid, label: "Layout", desc: "Настройка раскладки" },
+  { icon: Search, label: "Search++", desc: "Глобальный поиск" },
+  { icon: Bell, label: "Notif Center", desc: "Центр уведомлений" },
+  { icon: Sparkles, label: "Insights", desc: "AI-анализ системы" },
+  { icon: TrendingUp, label: "Metrics", desc: "История метрик" },
+  { icon: Command, label: "DnD", desc: "Перетаскивание" },
 ];
 
 export default function Home() {
@@ -89,6 +98,8 @@ export default function Home() {
   const [agentOpen, setAgentOpen] = useState(false);
   const [pluginOpen, setPluginOpen] = useState(false);
   const [layoutOpen, setLayoutOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [jarvisSettings, setJarvisSettings] = useState<JarvisSettingsData | null>(null);
   const timerRef = useRef<TimerHandle>(null);
 
@@ -283,6 +294,10 @@ export default function Home() {
           setLayoutOpen(false);
           return;
         }
+        if (notifOpen) {
+          setNotifOpen(false);
+          return;
+        }
         if (jarvis.state === "speaking") {
           jarvis.stopSpeaking();
           return;
@@ -298,7 +313,7 @@ export default function Home() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [jarvis, paletteOpen, settingsOpen, notesOpen, toggleFullscreen]);
+  }, [jarvis, paletteOpen, settingsOpen, notesOpen, markdownOpen, agentOpen, pluginOpen, layoutOpen, notifOpen, searchOpen, toggleFullscreen]);
 
   // Build commands for palette
   const commands = buildDefaultCommands({
@@ -344,6 +359,8 @@ export default function Home() {
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
         commands={commands}
+        messages={jarvis.messages.map(m => ({ id: m.id, content: m.content, role: m.role, createdAt: m.createdAt }))}
+        conversations={jarvis.conversations.map(c => ({ id: c.id, title: c.title || "Без названия", updatedAt: c.updatedAt }))}
       />
 
       {/* ===== Settings Panel ===== */}
@@ -454,6 +471,19 @@ export default function Home() {
                   {jarvis.autoSpeakOn ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
                   <span className="hidden sm:inline">{jarvis.autoSpeakOn ? "Voice On" : "Muted"}</span>
                 </button>
+                {/* Notification Bell */}
+                <button
+                  onClick={() => { playSound("click"); setNotifOpen((v) => !v); }}
+                  className={`relative flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
+                    notifOpen
+                      ? "border-primary/50 bg-primary/15 text-primary"
+                      : "jarvis-border-cyan bg-card/40 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                  }`}
+                  title="Центр уведомлений"
+                >
+                  <Bell className="h-3 w-3" />
+                  <span className="hidden sm:inline">Alerts</span>
+                </button>
                 <button
                   onClick={() => { playSound("click"); setSettingsOpen(true); }}
                   className="flex items-center gap-1.5 rounded-full border jarvis-border-cyan bg-card/40 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition hover:border-primary/50 hover:text-primary hover:jarvis-box-glow"
@@ -516,6 +546,9 @@ export default function Home() {
               {/* ===== Layout Customizer Overlay ===== */}
               <LayoutCustomizer open={layoutOpen} onClose={() => setLayoutOpen(false)} />
 
+              {/* ===== Notification Center Overlay ===== */}
+              <NotificationCenter open={notifOpen} onClose={() => setNotifOpen(false)} />
+
               <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 lg:grid-cols-12 lg:gap-4 lg:p-4">
                 {/* Left sidebar */}
                 <aside className="jarvis-scroll flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
@@ -535,6 +568,15 @@ export default function Home() {
                     transition={{ delay: 0.2, duration: 0.6 }}
                   >
                     <SystemMonitor />
+                  </motion.div>
+
+                  {/* Metrics History Chart */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.22, duration: 0.6 }}
+                  >
+                    <MetricsHistoryChart />
                   </motion.div>
 
                   {/* Activity Feed */}
@@ -988,13 +1030,25 @@ export default function Home() {
                           <span className="text-primary/60">34.</span>
                           <span>Layout Config — настройка раскладки и пресеты.</span>
                         </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">35.</span>
+                          <span>Notification Center — история и правила алертов.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">36.</span>
+                          <span>Metrics History — график CPU/RAM/Network за 5 мин.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">37.</span>
+                          <span>Widget DnD — перетаскивание виджетов (инфраструктура).</span>
+                        </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
                         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v11.0.0 · Stark Industries
+                          JARVIS v12.0.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Ollama local neural core

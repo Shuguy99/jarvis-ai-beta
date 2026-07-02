@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Info, CheckCircle, AlertTriangle, XCircle, X } from "lucide-react";
 import { playSound } from "@/lib/sounds";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";
+import { addNotification as addToCenter } from "@/lib/notification-center";
 
 // ── Types ─────────────────────────────────────────────────────
 type ToastType = "info" | "success" | "warning" | "error";
@@ -36,6 +37,13 @@ export function showNotification(
     message: opts.title + (opts.message ? `: ${opts.message}` : ""),
     severity: opts.type,
     category: "system",
+  });
+  // Push to Notification Center history
+  addToCenter({
+    title: opts.title,
+    message: opts.message ?? "",
+    type: opts.type === "error" ? "error" : opts.type,
+    source: "system",
   });
 }
 
