@@ -41,13 +41,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!ai.isImageGenAvailable()) {
-      return NextResponse.json(
-        { error: "Image generation requires OPENAI_API_KEY in .env" },
-        { status: 503 }
-      );
-    }
-
     const size: SupportedSize =
       requestedSize && (SUPPORTED_SIZES as readonly string[]).includes(requestedSize)
         ? (requestedSize as SupportedSize)
@@ -66,13 +59,6 @@ export async function POST(req: NextRequest) {
 
     const message =
       error instanceof Error ? error.message : "Internal J.A.R.V.I.S. error.";
-
-    if (message.includes("size") || message.includes("dimension")) {
-      return NextResponse.json(
-        { error: `Unsupported size. Use one of: ${SUPPORTED_SIZES.join(", ")}` },
-        { status: 400 }
-      );
-    }
 
     if (
       message.includes("content") ||

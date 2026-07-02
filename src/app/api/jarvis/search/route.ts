@@ -16,15 +16,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Пустой поисковый запрос." }, { status: 400 });
     }
 
-    if (!ai.isSearchAvailable()) {
-      return NextResponse.json({
-        results: [],
-        available: false,
-        message: "Web search is not configured. Set SEARCH_PROVIDER and SEARCH_API_KEY in .env to enable.",
-        timestamp: new Date().toISOString(),
-      });
-    }
-
     const results = await ai.search(query, Math.min(Math.max(num, 1), 20));
 
     return NextResponse.json({

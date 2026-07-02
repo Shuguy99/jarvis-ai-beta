@@ -6,40 +6,19 @@ export const runtime = "nodejs";
  * POST /api/jarvis/tts
  * Body: { text, voice?, speed?, volume? }
  *
- * NOTE: For local PC use, TTS is handled entirely in the browser via
- * the Web Speech API (SpeechSynthesis). This endpoint is kept for
- * cloud/ZAI mode where server-side TTS is available.
- *
- * Returns: audio/wav binary or a JSON response indicating browser TTS should be used.
+ * Uses ZAI SDK for server-side TTS.
+ * Returns: audio/wav binary data.
  */
 export async function POST(req: NextRequest) {
   try {
-    const { text } = await req.json();
+    const { text, voice = "kazi", speed = 0.92, volume = 1.0 } = await req.json();
 
     if (!text || typeof text !== "string" || !text.trim()) {
       return NextResponse.json({ error: "Текст пуст." }, { status: 400 });
     }
 
-    // Check if ZAI cloud mode is active
-    const provider = process.env.AI_PROVIDER?.toLowerCase();
-    if (provider !== "zai") {
-      // Local mode — tell the client to use browser SpeechSynthesis
-      return NextResponse.json({
-        useBrowserTTS: true,
-        text: text.trim(),
-        message: "Browser TTS is used in local mode.",
-      });
-    }
-
-    // ZAI cloud mode — use server-side TTS
     const ZAI = (await import("z-ai-web-dev-sdk")).default;
     const zai = await ZAI.create();
-
-    const {
-      voice = "kazi",
-      speed = 0.92,
-      volume = 1.0,
-    } = await req.json();
 
     const clean = text.replace(/\s+/g, " ").trim();
     const MAX_CHUNK_LENGTH = 1000;
@@ -53,8 +32,8 @@ export async function POST(req: NextRequest) {
       const response = await zai.audio.tts.create({
         input: chunk,
         voice,
-        speed,
-        volume,
+        speed: Math.max(0.5, Math.min(2.0, speed)),
+        volume: Math.max(0.01, Math.min(10, volume)),
         response_format: "wav",
         stream: false,
       });

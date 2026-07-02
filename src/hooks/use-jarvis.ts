@@ -17,8 +17,6 @@ export interface JarvisSettings {
   volume: number;
   autoSpeak: boolean;
   language: string;
-  openaiModel: string;
-  openaiVisionModel: string;
 }
 
 export interface CommandHandlers {
@@ -47,8 +45,6 @@ const DEFAULT_SETTINGS: JarvisSettings = {
   volume: 1.0,
   autoSpeak: true,
   language: "ru",
-  openaiModel: "gpt-4o-mini",
-  openaiVisionModel: "gpt-4o",
 };
 
 const uid = () =>
@@ -116,7 +112,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     }
   }, [externalSettings, ttsRate, ttsPitch, volume]);
 
-  // MediaRecorder refs (legacy/fallback for ZAI cloud mode)
+  // MediaRecorder refs (for server-side ASR fallback)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -286,87 +282,6 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     []
   );
 
-  // ---- SSE streaming reader ----
-  const readSSEStream = useCallback(
-    async (
-      response: Response,
-      pendingId: string,
-      convoId: string | null,
-      isFirst: boolean,
-    ): Promise<string> => {
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body for streaming");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let fullContent = "";
-
-      // Switch pending → streaming
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === pendingId
-            ? { ...m, pending: false, streaming: true }
-            : m
-        )
-      );
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed || !trimmed.startsWith("data: ")) continue;
-
-          const payload = trimmed.slice(6);
-          if (payload === "[DONE]") continue;
-
-          try {
-            const parsed = JSON.parse(payload);
-            if (parsed.error) {
-              throw new Error(parsed.error);
-            }
-            if (parsed.content) {
-              fullContent += parsed.content;
-              const currentContent = fullContent;
-              setMessages((prev) =>
-                prev.map((m) =>
-                  m.id === pendingId
-                    ? { ...m, content: currentContent }
-                    : m
-                )
-              );
-            }
-            if (parsed.sources) {
-              setSearchedSources(parsed.sources as Source[]);
-            }
-          } catch (e) {
-            if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
-              // Only throw real errors, skip malformed JSON
-              if (!e.message.startsWith("[")) throw e;
-            }
-          }
-        }
-      }
-
-      // Mark streaming complete
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === pendingId
-            ? { ...m, streaming: false, hasAudio: true }
-            : m
-        )
-      );
-
-      return fullContent;
-    },
-    []
-  );
-
   // ---- Command parser (local commands) ----
   const processCommand = useCallback(
     async (text: string): Promise<{ handled: boolean; response?: string } | null> => {
@@ -433,7 +348,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         }
       }
 
-      // Timer: "таймер на X минут", "поставь таймер X", "таймер X минут", "таймер на X секунд"
+      // Timer: "таймер на X минут", "поставь таймер X", "таймер X минут"
       const timerMatch = cmd.match(
         /(?:таймер|таймер на|поставь таймер|установи таймер|заведи таймер)\s+(\d+(?:[.,]\d+)?)\s*(?:минут|мин|minutes?|m|секунд|сек|seconds?|s)?/i
       );
@@ -463,7 +378,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     []
   );
 
-  // ---- Chat send (with SSE streaming) ----
+  // ---- Chat send (standard JSON request/response) ----
   const sendText = useCallback(
     async (text: string, source: "voice" | "text" = "text") => {
       const clean = text.trim();
@@ -523,39 +438,26 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       try {
         const history = messages;
 
-        // ─── Try streaming first ───
-        const streamRes = await fetch("/api/jarvis/chat", {
+        const res = await fetch("/api/jarvis/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: history, query: clean, stream: true }),
+          body: JSON.stringify({ messages: history, query: clean }),
         });
 
-        if (!streamRes.ok) {
-          // Fall back to non-streaming
-          const fallbackData = await streamRes.json();
-          throw new Error(fallbackData.error || "Ошибка связи с J.A.R.V.I.S.");
-        }
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Ошибка связи с J.A.R.V.I.S.");
 
-        // Check if we got SSE stream
-        const contentType = streamRes.headers.get("content-type") || "";
-        let reply: string;
+        const reply = data.reply as string;
 
-        if (contentType.includes("text/event-stream")) {
-          // SSE streaming mode
-          reply = await readSSEStream(streamRes, pendingId, convoId, isFirst);
-        } else {
-          // Non-streaming fallback (e.g. ZAI)
-          const data = await streamRes.json();
-          reply = data.reply as string;
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === pendingId
-                ? { ...m, content: reply, pending: false, hasAudio: true }
-                : m
-            )
-          );
-          if (data.sources) setSearchedSources(data.sources as Source[]);
-        }
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === pendingId
+              ? { ...m, content: reply, pending: false, hasAudio: true }
+              : m
+          )
+        );
+
+        if (data.sources) setSearchedSources(data.sources as Source[]);
 
         if (convoId) void persistMessage("assistant", reply);
 
@@ -571,18 +473,18 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === pendingId
-              ? { ...m, content: `» Ошибка: ${msg}`, pending: false, streaming: false }
+              ? { ...m, content: `» Ошибка: ${msg}`, pending: false }
               : m
           )
         );
       }
     },
-    [state, messages, activeConvoId, ensureConversation, persistMessage, autoSpeakOn, speak, stopSpeaking, readSSEStream, processCommand]
+    [state, messages, activeConvoId, ensureConversation, persistMessage, autoSpeakOn, speak, stopSpeaking, processCommand]
   );
 
   // ---- Voice recording (ASR) ----
-  // Uses browser Web Speech API (SpeechRecognition) as primary method.
-  // Falls back to MediaRecorder + server ASR for ZAI cloud mode.
+  // Primary: browser Web Speech API (SpeechRecognition)
+  // Fallback: MediaRecorder + server-side ZAI ASR
 
   const cleanupRecording = useCallback(() => {
     // Stop SpeechRecognition
@@ -615,7 +517,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     setError(null);
     stopSpeaking();
 
-    // ─── Method 1: Browser Web Speech API (recommended for local use) ───
+    // ─── Method 1: Browser Web Speech API (primary) ───
     const SpeechRecognition = getSpeechRecognition();
     if (SpeechRecognition) {
       try {
@@ -679,7 +581,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       }
     }
 
-    // ─── Method 2: MediaRecorder + Server ASR (ZAI cloud mode fallback) ───
+    // ─── Method 2: MediaRecorder + Server-side ZAI ASR (fallback) ───
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -728,12 +630,6 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
                 body: JSON.stringify({ audio: base64 }),
               });
               const data = await res.json();
-              // If server says to use browser ASR, we already tried, so report error
-              if (data.useBrowserASR) {
-                setError("Серверное распознавание недоступно. Используйте Chrome для голосового ввода.");
-                setState("error");
-                return;
-              }
               if (!res.ok) throw new Error(data.error || "ASR failed");
               const text = (data.text || "").trim();
               if (text) {

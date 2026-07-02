@@ -9,8 +9,6 @@ const VALID_KEYS = [
   "volume",
   "autoSpeak",
   "language",
-  "openaiModel",
-  "openaiVisionModel",
 ];
 
 const DEFAULTS: Record<string, string> = {
@@ -19,8 +17,6 @@ const DEFAULTS: Record<string, string> = {
   volume: "1.0",
   autoSpeak: "true",
   language: "ru",
-  openaiModel: "gpt-4o-mini",
-  openaiVisionModel: "gpt-4o",
 };
 
 /**

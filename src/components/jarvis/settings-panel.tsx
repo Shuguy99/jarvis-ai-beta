@@ -22,8 +22,6 @@ export interface JarvisSettingsData {
   volume: number;
   autoSpeak: boolean;
   language: string;
-  openaiModel: string;
-  openaiVisionModel: string;
 }
 
 interface SettingsPanelProps {
@@ -38,8 +36,6 @@ const DEFAULTS: JarvisSettingsData = {
   volume: 1.0,
   autoSpeak: true,
   language: "ru",
-  openaiModel: "gpt-4o-mini",
-  openaiVisionModel: "gpt-4o",
 };
 
 export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps) {
@@ -67,8 +63,6 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
             volume: parseFloat(s.volume) ?? DEFAULTS.volume,
             autoSpeak: s.autoSpeak !== "false",
             language: s.language || DEFAULTS.language,
-            openaiModel: s.openaiModel || DEFAULTS.openaiModel,
-            openaiVisionModel: s.openaiVisionModel || DEFAULTS.openaiVisionModel,
           });
         }
         setLoaded(true);
@@ -108,8 +102,6 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
             volume: String(settings.volume),
             autoSpeak: String(settings.autoSpeak),
             language: settings.language,
-            openaiModel: settings.openaiModel,
-            openaiVisionModel: settings.openaiVisionModel,
           },
         }),
       });
@@ -199,24 +191,23 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
             />
           </SettingsSection>
 
-          {/* Section 2: Модель / Model */}
+          {/* Section 2: Система / System */}
           <SettingsSection
             icon={<Cpu className="h-3.5 w-3.5" />}
-            title="Модель"
+            title="Система"
             subtitle="Neural Core"
           >
-            <InputRow
-              label="OPENAI_MODEL"
-              value={settings.openaiModel}
-              placeholder="gpt-4o-mini"
-              onChange={(v) => update("openaiModel", v)}
-            />
-            <InputRow
-              label="OPENAI_VISION_MODEL"
-              value={settings.openaiVisionModel}
-              placeholder="gpt-4o"
-              onChange={(v) => update("openaiVisionModel", v)}
-            />
+            <div className="py-2">
+              <div className="font-mono text-[10px] uppercase tracking-widest text-foreground/80">
+                AI Provider
+              </div>
+              <div className="mt-1 rounded-md border jarvis-border-cyan bg-primary/10 px-3 py-2 font-mono text-[11px] text-primary">
+                J.A.R.V.I.S. AI — Ready
+              </div>
+              <div className="mt-1 font-mono text-[9px] text-muted-foreground/50">
+                Chat • Vision • Image Gen • Search • TTS • ASR
+              </div>
+            </div>
           </SettingsSection>
 
           {/* Section 3: Поведение / Behavior */}

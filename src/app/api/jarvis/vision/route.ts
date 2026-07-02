@@ -19,13 +19,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!ai.isVisionAvailable()) {
-      return NextResponse.json(
-        { error: "Анализ изображений недоступен. Задайте OPENAI_API_KEY в .env." },
-        { status: 503 }
-      );
-    }
-
     const question =
       prompt || "Опиши это изображение подробно на русском языке, как это сделал бы J.A.R.V.I.S. из Железного Человека.";
 
