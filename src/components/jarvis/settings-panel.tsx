@@ -13,15 +13,112 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { playSound } from "@/lib/sounds";
-import { Volume2, Cpu, Sliders, Save, Check } from "lucide-react";
+import {
+  Volume2,
+  Cpu,
+  Sliders,
+  Save,
+  Check,
+  Brain,
+  User,
+  MessageSquare,
+  Sparkles,
+  Thermometer,
+  BookOpen,
+  FileText,
+  RotateCcw,
+} from "lucide-react";
+
+// ─── Persona presets ──────────────────────────────────────────────
+
+export const PERSONA_PRESETS = [
+  {
+    id: "classic" as const,
+    name: "Classic JARVIS",
+    icon: "🤖",
+    desc: "Спокойный, британский юмор, учтивость",
+    formality: 0.7,
+    humor: 0.4,
+    responseStyle: "standard" as const,
+  },
+  {
+    id: "military" as const,
+    name: "Military Mode",
+    icon: "🎖️",
+    desc: "Строгий, лаконичный, тактический",
+    formality: 1.0,
+    humor: 0.0,
+    responseStyle: "concise" as const,
+  },
+  {
+    id: "casual" as const,
+    name: "Casual Buddy",
+    icon: "😎",
+    desc: "Расслабленный, дружелюбный, неформальный",
+    formality: 0.2,
+    humor: 0.8,
+    responseStyle: "standard" as const,
+  },
+  {
+    id: "scientist" as const,
+    name: "Dr. JARVIS",
+    icon: "🔬",
+    desc: "Научный, точный, детальный",
+    formality: 0.8,
+    humor: 0.2,
+    responseStyle: "detailed" as const,
+  },
+  {
+    id: "creative" as const,
+    name: "Creative Muse",
+    icon: "✨",
+    desc: "Творческий, вдохновляющий, образный",
+    formality: 0.3,
+    humor: 0.6,
+    responseStyle: "detailed" as const,
+  },
+  {
+    id: "custom" as const,
+    name: "Custom",
+    icon: "⚙️",
+    desc: "Свои настройки + кастомный промт",
+    formality: 0.5,
+    humor: 0.3,
+    responseStyle: "standard" as const,
+  },
+];
+
+export type PersonaId = (typeof PERSONA_PRESETS)[number]["id"];
+export type ResponseStyle = "concise" | "standard" | "detailed" | "technical";
+
+const RESPONSE_STYLES: { id: ResponseStyle; label: string; desc: string }[] = [
+  { id: "concise", label: "Кратко", desc: "1-2 предложения" },
+  { id: "standard", label: "Стандарт", desc: "Обычный ответ" },
+  { id: "detailed", label: "Подробно", desc: "Развёрнутый" },
+  { id: "technical", label: "Технично", desc: "С деталями и кодом" },
+];
+
+// ─── Settings type ───────────────────────────────────────────────
 
 export interface JarvisSettingsData {
+  // Voice
   ttsRate: number;
   ttsPitch: number;
   volume: number;
   autoSpeak: boolean;
   language: string;
+  // Behavior
+  persona: PersonaId;
+  userName: string;
+  formality: number;
+  humor: number;
+  responseStyle: ResponseStyle;
+  temperature: number;
+  maxTokens: number;
+  contextWindow: number;
+  customPrompt: string;
 }
 
 interface SettingsPanelProps {
@@ -30,7 +127,7 @@ interface SettingsPanelProps {
   onSave?: (settings: JarvisSettingsData) => void;
 }
 
-const DEFAULTS: JarvisSettingsData = {
+const VOICE_DEFAULTS: Omit<JarvisSettingsData, keyof typeof BEHAVIOR_DEFAULTS> = {
   ttsRate: 1.05,
   ttsPitch: 0.95,
   volume: 1.0,
@@ -38,11 +135,37 @@ const DEFAULTS: JarvisSettingsData = {
   language: "ru",
 };
 
+const BEHAVIOR_DEFAULTS = {
+  persona: "classic" as PersonaId,
+  userName: "",
+  formality: 0.7,
+  humor: 0.4,
+  responseStyle: "standard" as ResponseStyle,
+  temperature: 0.7,
+  maxTokens: 2048,
+  contextWindow: 20,
+  customPrompt: "",
+};
+
+const DEFAULTS: JarvisSettingsData = { ...VOICE_DEFAULTS, ...BEHAVIOR_DEFAULTS };
+
+function parseSetting(key: string, val: string): unknown {
+  if (["ttsRate", "ttsPitch", "volume", "formality", "humor", "temperature"].includes(key))
+    return parseFloat(val) || DEFAULTS[key as keyof JarvisSettingsData];
+  if (["maxTokens", "contextWindow"].includes(key))
+    return parseInt(val, 10) || DEFAULTS[key as keyof JarvisSettingsData];
+  if (key === "autoSpeak") return val !== "false";
+  return val || DEFAULTS[key as keyof JarvisSettingsData];
+}
+
+// ─── Component ───────────────────────────────────────────────────
+
 export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps) {
   const [settings, setSettings] = useState<JarvisSettingsData>(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [activeTab, setActiveTab] = useState<"voice" | "behavior">("behavior");
 
   // Load settings on mount or open
   useEffect(() => {
@@ -58,11 +181,21 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
         const s = data.settings as Record<string, string> | undefined;
         if (s) {
           setSettings({
-            ttsRate: parseFloat(s.ttsRate) || DEFAULTS.ttsRate,
-            ttsPitch: parseFloat(s.ttsPitch) || DEFAULTS.ttsPitch,
-            volume: parseFloat(s.volume) ?? DEFAULTS.volume,
-            autoSpeak: s.autoSpeak !== "false",
-            language: s.language || DEFAULTS.language,
+            ...DEFAULTS,
+            ttsRate: parseSetting("ttsRate", s.ttsRate) as number,
+            ttsPitch: parseSetting("ttsPitch", s.ttsPitch) as number,
+            volume: parseSetting("volume", s.volume) as number,
+            autoSpeak: parseSetting("autoSpeak", s.autoSpeak) as boolean,
+            language: (s.language || DEFAULTS.language) as string,
+            persona: (s.persona || DEFAULTS.persona) as PersonaId,
+            userName: s.userName || "",
+            formality: parseSetting("formality", s.formality) as number,
+            humor: parseSetting("humor", s.humor) as number,
+            responseStyle: (s.responseStyle || DEFAULTS.responseStyle) as ResponseStyle,
+            temperature: parseSetting("temperature", s.temperature) as number,
+            maxTokens: parseSetting("maxTokens", s.maxTokens) as number,
+            contextWindow: parseSetting("contextWindow", s.contextWindow) as number,
+            customPrompt: s.customPrompt || "",
           });
         }
         setLoaded(true);
@@ -89,21 +222,40 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
     setSettings((prev) => ({ ...prev, [key]: value }));
   }, []);
 
+  const applyPreset = useCallback((preset: (typeof PERSONA_PRESETS)[number]) => {
+    setSettings((prev) => ({
+      ...prev,
+      persona: preset.id,
+      formality: preset.formality,
+      humor: preset.humor,
+      responseStyle: preset.responseStyle,
+    }));
+  }, []);
+
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
+      const s: Record<string, string> = {
+        ttsRate: String(settings.ttsRate),
+        ttsPitch: String(settings.ttsPitch),
+        volume: String(settings.volume),
+        autoSpeak: String(settings.autoSpeak),
+        language: settings.language,
+        persona: settings.persona,
+        userName: settings.userName,
+        formality: String(settings.formality),
+        humor: String(settings.humor),
+        responseStyle: settings.responseStyle,
+        temperature: String(settings.temperature),
+        maxTokens: String(settings.maxTokens),
+        contextWindow: String(settings.contextWindow),
+        customPrompt: settings.customPrompt,
+      };
+
       const res = await fetch("/api/jarvis/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          settings: {
-            ttsRate: String(settings.ttsRate),
-            ttsPitch: String(settings.ttsPitch),
-            volume: String(settings.volume),
-            autoSpeak: String(settings.autoSpeak),
-            language: settings.language,
-          },
-        }),
+        body: JSON.stringify({ settings: s }),
       });
       if (!res.ok) throw new Error("Save failed");
 
@@ -124,10 +276,10 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent
-        className="jarvis-box-glow jarvis-corner-brackets max-h-[85vh] overflow-hidden rounded-xl border jarvis-border-cyan bg-card/95 p-0 backdrop-blur-xl sm:max-w-[480px]"
+        className="jarvis-box-glow jarvis-corner-brackets max-h-[90vh] overflow-hidden rounded-xl border jarvis-border-cyan bg-card/95 p-0 backdrop-blur-xl sm:max-w-[560px]"
         showCloseButton={false}
       >
-        {/* JARVIS header bar */}
+        {/* ─── Header ─── */}
         <div className="relative border-b jarvis-border-cyan bg-primary/5 px-5 py-3">
           <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-t-xl" />
           <div className="pointer-events-none absolute inset-0 jarvis-scanline opacity-30" />
@@ -154,106 +306,310 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
           </DialogHeader>
         </div>
 
-        {/* Scrollable content */}
-        <div className="jarvis-scroll max-h-[65vh] space-y-0 overflow-y-auto p-5">
-          {/* Section 1: Голос / Voice */}
-          <SettingsSection
-            icon={<Volume2 className="h-3.5 w-3.5" />}
-            title="Голос"
-            subtitle="Voice Synthesis"
+        {/* ─── Tab bar ─── */}
+        <div className="flex border-b jarvis-border-cyan/50 bg-primary/3">
+          <button
+            onClick={() => { setActiveTab("behavior"); playSound("click"); }}
+            className={`flex-1 px-4 py-2.5 font-mono text-[10px] uppercase tracking-widest transition ${
+              activeTab === "behavior"
+                ? "border-b-2 border-primary text-primary jarvis-glow bg-primary/5"
+                : "text-muted-foreground/60 hover:text-foreground/80"
+            }`}
           >
-            <SliderRow
-              label="TTS Rate"
-              value={settings.ttsRate}
-              min={0.5}
-              max={2.0}
-              step={0.05}
-              displayValue={settings.ttsRate.toFixed(2)}
-              onChange={(v) => update("ttsRate", v)}
-            />
-            <SliderRow
-              label="Pitch"
-              value={settings.ttsPitch}
-              min={0.5}
-              max={2.0}
-              step={0.05}
-              displayValue={settings.ttsPitch.toFixed(2)}
-              onChange={(v) => update("ttsPitch", v)}
-            />
-            <SliderRow
-              label="Volume"
-              value={settings.volume}
-              min={0}
-              max={1.0}
-              step={0.05}
-              displayValue={Math.round(settings.volume * 100) + "%"}
-              onChange={(v) => update("volume", v)}
-            />
-          </SettingsSection>
-
-          {/* Section 2: Система / System */}
-          <SettingsSection
-            icon={<Cpu className="h-3.5 w-3.5" />}
-            title="Система"
-            subtitle="Neural Core"
+            <Brain className="mr-1.5 inline h-3 w-3" />
+            Модель поведения
+          </button>
+          <button
+            onClick={() => { setActiveTab("voice"); playSound("click"); }}
+            className={`flex-1 px-4 py-2.5 font-mono text-[10px] uppercase tracking-widest transition ${
+              activeTab === "voice"
+                ? "border-b-2 border-primary text-primary jarvis-glow bg-primary/5"
+                : "text-muted-foreground/60 hover:text-foreground/80"
+            }`}
           >
-            <div className="py-2">
-              <div className="font-mono text-[10px] uppercase tracking-widest text-foreground/80">
-                AI Provider
-              </div>
-              <div className="mt-1 rounded-md border jarvis-border-cyan bg-primary/10 px-3 py-2 font-mono text-[11px] text-primary">
-                Ollama (Local AI)
-              </div>
-              <div className="mt-1 font-mono text-[9px] text-muted-foreground/50">
-                ✅ Chat • ✅ Vision • ✅ TTS • ✅ ASR • ❌ Search • ❌ Image Gen
-              </div>
-            </div>
-          </SettingsSection>
-
-          {/* Section 3: Поведение / Behavior */}
-          <SettingsSection
-            icon={<Sliders className="h-3.5 w-3.5" />}
-            title="Поведение"
-            subtitle="Behavior"
-          >
-            <ToggleRow
-              label="Auto-speak"
-              description="Авто-озвучка ответов"
-              checked={settings.autoSpeak}
-              onCheckedChange={(v) => update("autoSpeak", v)}
-            />
-            <div className="flex items-center justify-between gap-4 py-2">
-              <div>
-                <div className="font-mono text-[10px] uppercase tracking-widest text-foreground/80">
-                  Language
-                </div>
-                <div className="font-mono text-[9px] text-muted-foreground/60">Язык интерфейса</div>
-              </div>
-              <div className="flex items-center gap-1 rounded-lg border jarvis-border-cyan bg-muted/30 p-0.5">
-                {(["ru", "en"] as const).map((lang) => (
-                  <button
-                    key={lang}
-                    onClick={() => update("language", lang)}
-                    className={`rounded-md px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
-                      settings.language === lang
-                        ? "bg-primary/20 text-primary jarvis-box-glow"
-                        : "text-muted-foreground hover:text-foreground/80"
-                    }`}
-                  >
-                    {lang}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </SettingsSection>
+            <Volume2 className="mr-1.5 inline h-3 w-3" />
+            Голос & Система
+          </button>
         </div>
 
-        {/* Footer */}
+        {/* ─── Scrollable content ─── */}
+        <div className="jarvis-scroll max-h-[60vh] overflow-y-auto p-5">
+          {activeTab === "behavior" && (
+            <div className="space-y-0">
+              {/* ── Persona Presets ── */}
+              <SettingsSection
+                icon={<Sparkles className="h-3.5 w-3.5" />}
+                title="Персона"
+                subtitle="Behavior Preset"
+              >
+                <div className="grid grid-cols-2 gap-2 py-1">
+                  {PERSONA_PRESETS.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => applyPreset(p)}
+                      className={`group relative rounded-lg border p-2.5 text-left transition ${
+                        settings.persona === p.id
+                          ? "border-primary/60 bg-primary/10 jarvis-box-glow"
+                          : "border-jarvis-border-cyan/30 bg-muted/20 hover:border-primary/30 hover:bg-primary/5"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{p.icon}</span>
+                        <span className="font-mono text-[10px] font-semibold uppercase tracking-wider text-foreground/90">
+                          {p.name}
+                        </span>
+                      </div>
+                      <p className="mt-1 font-mono text-[8px] leading-tight text-muted-foreground/60">
+                        {p.desc}
+                      </p>
+                      {settings.persona === p.id && (
+                        <div className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+              </SettingsSection>
+
+              {/* ── User Identity ── */}
+              <SettingsSection
+                icon={<User className="h-3.5 w-3.5" />}
+                title="Идентификация"
+                subtitle="User Identity"
+              >
+                <InputRow
+                  label="Имя пользователя"
+                  value={settings.userName}
+                  placeholder="Как к вам обращаться? (пусто = 'сэр')"
+                  onChange={(v) => update("userName", v)}
+                />
+              </SettingsSection>
+
+              {/* ── Personality Sliders ── */}
+              <SettingsSection
+                icon={<Brain className="h-3.5 w-3.5" />}
+                title="Характер"
+                subtitle="Personality Tuning"
+              >
+                <SliderRow
+                  label="Формальность"
+                  value={settings.formality}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  displayValue={settings.formality.toFixed(2)}
+                  onChange={(v) => { update("formality", v); update("persona", "custom" as PersonaId); }}
+                  leftLabel="Неформально"
+                  rightLabel="Строго"
+                />
+                <SliderRow
+                  label="Юмор"
+                  value={settings.humor}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  displayValue={settings.humor.toFixed(2)}
+                  onChange={(v) => { update("humor", v); update("persona", "custom" as PersonaId); }}
+                  leftLabel="Серьёзно"
+                  rightLabel="Остроумно"
+                />
+              </SettingsSection>
+
+              {/* ── Response Style ── */}
+              <SettingsSection
+                icon={<MessageSquare className="h-3.5 w-3.5" />}
+                title="Стиль ответов"
+                subtitle="Response Style"
+              >
+                <div className="grid grid-cols-2 gap-1.5 py-1">
+                  {RESPONSE_STYLES.map((rs) => (
+                    <button
+                      key={rs.id}
+                      onClick={() => { update("responseStyle", rs.id); update("persona", "custom" as PersonaId); }}
+                      className={`rounded-lg border px-3 py-2 text-left transition ${
+                        settings.responseStyle === rs.id
+                          ? "border-primary/60 bg-primary/10 jarvis-box-glow"
+                          : "border-jarvis-border-cyan/30 bg-muted/20 hover:border-primary/30"
+                      }`}
+                    >
+                      <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-foreground/90">
+                        {rs.label}
+                      </div>
+                      <div className="font-mono text-[8px] text-muted-foreground/50">{rs.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </SettingsSection>
+
+              {/* ── AI Parameters ── */}
+              <SettingsSection
+                icon={<Thermometer className="h-3.5 w-3.5" />}
+                title="Параметры ИИ"
+                subtitle="AI Parameters"
+              >
+                <SliderRow
+                  label="Температура"
+                  value={settings.temperature}
+                  min={0}
+                  max={2.0}
+                  step={0.05}
+                  displayValue={settings.temperature.toFixed(2)}
+                  onChange={(v) => update("temperature", v)}
+                  leftLabel="Точно"
+                  rightLabel="Креативно"
+                />
+                <SliderRow
+                  label="Макс. токенов"
+                  value={settings.maxTokens}
+                  min={256}
+                  max={8192}
+                  step={256}
+                  displayValue={String(settings.maxTokens)}
+                  onChange={(v) => update("maxTokens", v)}
+                />
+                <SliderRow
+                  label="Окно контекста"
+                  value={settings.contextWindow}
+                  min={4}
+                  max={50}
+                  step={2}
+                  displayValue={`${settings.contextWindow} сообщ.`}
+                  onChange={(v) => update("contextWindow", v)}
+                />
+              </SettingsSection>
+
+              {/* ── Custom Prompt ── */}
+              <SettingsSection
+                icon={<FileText className="h-3.5 w-3.5" />}
+                title="Кастомный промт"
+                subtitle="Custom System Prompt"
+              >
+                <div className="py-1">
+                  <p className="mb-2 font-mono text-[9px] text-muted-foreground/50">
+                    Переопределите системный промт JARVIS полностью. Оставьте пустым — будет использован пресет.
+                  </p>
+                  <Textarea
+                    value={settings.customPrompt}
+                    onChange={(e) => { update("customPrompt", e.target.value); if (e.target.value) update("persona", "custom" as PersonaId); }}
+                    placeholder="Вы — персональный ИИ-ассистент..."
+                    rows={5}
+                    className="min-h-[100px] resize-y rounded-md border jarvis-border-cyan bg-muted/20 font-mono text-[11px] text-foreground/90 placeholder:text-muted-foreground/40 focus-visible:border-primary/50 focus-visible:ring-primary/30"
+                  />
+                </div>
+              </SettingsSection>
+            </div>
+          )}
+
+          {activeTab === "voice" && (
+            <div className="space-y-0">
+              {/* ── Voice ── */}
+              <SettingsSection
+                icon={<Volume2 className="h-3.5 w-3.5" />}
+                title="Голос"
+                subtitle="Voice Synthesis"
+              >
+                <SliderRow
+                  label="TTS Rate"
+                  value={settings.ttsRate}
+                  min={0.5}
+                  max={2.0}
+                  step={0.05}
+                  displayValue={settings.ttsRate.toFixed(2)}
+                  onChange={(v) => update("ttsRate", v)}
+                />
+                <SliderRow
+                  label="Pitch"
+                  value={settings.ttsPitch}
+                  min={0.5}
+                  max={2.0}
+                  step={0.05}
+                  displayValue={settings.ttsPitch.toFixed(2)}
+                  onChange={(v) => update("ttsPitch", v)}
+                />
+                <SliderRow
+                  label="Volume"
+                  value={settings.volume}
+                  min={0}
+                  max={1.0}
+                  step={0.05}
+                  displayValue={Math.round(settings.volume * 100) + "%"}
+                  onChange={(v) => update("volume", v)}
+                />
+              </SettingsSection>
+
+              {/* ── System ── */}
+              <SettingsSection
+                icon={<Cpu className="h-3.5 w-3.5" />}
+                title="Система"
+                subtitle="Neural Core"
+              >
+                <div className="py-2">
+                  <div className="font-mono text-[10px] uppercase tracking-widest text-foreground/80">
+                    AI Provider
+                  </div>
+                  <div className="mt-1 rounded-md border jarvis-border-cyan bg-primary/10 px-3 py-2 font-mono text-[11px] text-primary">
+                    Ollama (Local AI)
+                  </div>
+                  <div className="mt-1 font-mono text-[9px] text-muted-foreground/50">
+                    ✅ Chat • ✅ Vision • ✅ TTS • ✅ ASR • ❌ Search • ❌ Image Gen
+                  </div>
+                </div>
+              </SettingsSection>
+
+              {/* ── Behavior ── */}
+              <SettingsSection
+                icon={<BookOpen className="h-3.5 w-3.5" />}
+                title="Поведение"
+                subtitle="Behavior"
+              >
+                <ToggleRow
+                  label="Auto-speak"
+                  description="Авто-озвучка ответов"
+                  checked={settings.autoSpeak}
+                  onCheckedChange={(v) => update("autoSpeak", v)}
+                />
+                <div className="flex items-center justify-between gap-4 py-2">
+                  <div>
+                    <div className="font-mono text-[10px] uppercase tracking-widest text-foreground/80">
+                      Language
+                    </div>
+                    <div className="font-mono text-[9px] text-muted-foreground/60">Язык интерфейса</div>
+                  </div>
+                  <div className="flex items-center gap-1 rounded-lg border jarvis-border-cyan bg-muted/30 p-0.5">
+                    {(["ru", "en"] as const).map((lang) => (
+                      <button
+                        key={lang}
+                        onClick={() => update("language", lang)}
+                        className={`rounded-md px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
+                          settings.language === lang
+                            ? "bg-primary/20 text-primary jarvis-box-glow"
+                            : "text-muted-foreground hover:text-foreground/80"
+                        }`}
+                      >
+                        {lang}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </SettingsSection>
+            </div>
+          )}
+        </div>
+
+        {/* ─── Footer ─── */}
         <div className="border-t jarvis-border-cyan bg-primary/5 px-5 py-3">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/50">
-              {loaded ? "settings loaded" : "loading..."}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/50">
+                {loaded ? "settings loaded" : "loading..."}
+              </span>
+              <button
+                onClick={() => { setSettings(DEFAULTS); playSound("click"); }}
+                className="flex items-center gap-1 font-mono text-[9px] uppercase tracking-widest text-muted-foreground/40 transition hover:text-warning"
+                title="Сбросить к настройкам по умолчанию"
+              >
+                <RotateCcw className="h-2.5 w-2.5" /> Reset
+              </button>
+            </div>
             <Button
               onClick={handleSave}
               disabled={saving}
@@ -316,6 +672,8 @@ function SliderRow({
   step,
   displayValue,
   onChange,
+  leftLabel,
+  rightLabel,
 }: {
   label: string;
   value: number;
@@ -324,6 +682,8 @@ function SliderRow({
   step: number;
   displayValue: string;
   onChange: (v: number) => void;
+  leftLabel?: string;
+  rightLabel?: string;
 }) {
   return (
     <div className="py-2">
@@ -331,7 +691,7 @@ function SliderRow({
         <Label className="font-mono text-[10px] uppercase tracking-widest text-foreground/80">
           {label}
         </Label>
-        <span className="min-w-[3rem] text-right font-mono text-[10px] tabular-nums text-primary/80">
+        <span className="min-w-[4rem] text-right font-mono text-[10px] tabular-nums text-primary/80">
           {displayValue}
         </span>
       </div>
@@ -344,8 +704,8 @@ function SliderRow({
         className="py-1"
       />
       <div className="mt-0.5 flex justify-between font-mono text-[8px] text-muted-foreground/40">
-        <span>{min}</span>
-        <span>{max}</span>
+        <span>{leftLabel ?? min}</span>
+        <span>{rightLabel ?? max}</span>
       </div>
     </div>
   );

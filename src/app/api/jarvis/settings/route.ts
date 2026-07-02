@@ -4,11 +4,22 @@ import { db } from "@/lib/db";
 export const runtime = "nodejs";
 
 const VALID_KEYS = [
+  // Voice
   "ttsRate",
   "ttsPitch",
   "volume",
   "autoSpeak",
   "language",
+  // Behavior / Personality
+  "persona",
+  "userName",
+  "formality",
+  "humor",
+  "responseStyle",
+  "temperature",
+  "maxTokens",
+  "contextWindow",
+  "customPrompt",
 ];
 
 const DEFAULTS: Record<string, string> = {
@@ -17,6 +28,16 @@ const DEFAULTS: Record<string, string> = {
   volume: "1.0",
   autoSpeak: "true",
   language: "ru",
+  // Behavior defaults
+  persona: "classic",
+  userName: "",
+  formality: "0.7",
+  humor: "0.4",
+  responseStyle: "standard",
+  temperature: "0.7",
+  maxTokens: "2048",
+  contextWindow: "20",
+  customPrompt: "",
 };
 
 /**
