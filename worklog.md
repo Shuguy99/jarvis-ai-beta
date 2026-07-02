@@ -1812,3 +1812,51 @@ Work Log:
 - Framer Motion mount/unmount animations (fade-in, slide-up)
 - Components (TrendArrow, MetricChart, ToggleBtn) declared outside render to satisfy react-hooks/static-components lint rule
 - ESLint: 0 new errors, 0 new warnings
+
+---
+Task ID: 6-6
+Agent: main (Z.ai Code)
+Task: QA, bug fixes, and v12.0.0 release
+
+Work Log:
+- Full API test suite (15 endpoints):
+  - ✅ GET / 200 (29KB page)
+  - ✅ GET /api/jarvis/system 200
+  - ✅ GET /api/jarvis/settings 200
+  - ✅ GET /api/jarvis/conversations 200
+  - ✅ POST /api/jarvis/search 200
+  - ✅ GET /api/jarvis/weather 200 (POST 405 — uses GET, expected)
+  - ✅ GET /api/jarvis/files 200
+  - ✅ GET /api/jarvis/processes 200
+  - ✅ GET/POST /api/jarvis/notes 200/201
+  - ✅ POST /api/jarvis/tts 200 (WAV)
+  - ⚠️ Ollama-dependent (chat/agent/voice-parse/insights/vision) → 503 without Ollama
+- React hooks import scan: all components correct (false positives filtered)
+- Fixed: `useMemo` not imported in plugin-panel.tsx → added to import
+- Installed missing deps: @radix-ui/react-select, @radix-ui/react-collapsible
+- ESLint: 0 errors, 2 pre-existing warnings
+- Git commit + tag v12.0.0
+
+Stage Summary:
+- JARVIS v12.0.0 «Advanced Features» — Этап 6 завершён и выпущен
+- 4 новых файла (metrics-history-chart + 3 DnD), 1 исправление (useMemo)
+- Все API работают корректно (Ollama-зависимые — ожидаемо 503 без Ollama)
+- Git tag: v12.0.0
+
+---
+## Проект: текущий статус (v12.0.0)
+
+### Описание/оценка
+JARVIS v12.0.0 «Advanced Features» — Этап 6 завершён. Добавлены: Metrics History Chart (SVG sparklines), Widget DnD инфраструктура (3 файла), Notification Center интеграция (кнопка + панель), расширенный поиск в Command Palette, Voice LLM Fallback API. 50+ компонентов, 15+ API endpoints, 37 директив. ESLint: 0 ошибок.
+
+### Выполненные модификации
+- MetricsHistoryChart: чистый SVG, Catmull-Rom сплайны, hover tooltip, toggle кнопки, статистика
+- Widget DnD: useWidgetDnd hook, DraggableWidget wrapper, DndWidgetList container
+- NotificationCenter: добавлен в рендер page.tsx + кнопка Alerts в хедере
+- CommandPalette: передаёт messages/conversations для индексации поиска
+- plugin-panel.tsx: добавлен useMemo в импорт
+
+### Нерешённые/Следующие шаги:
+- [ ] Этап 7: Polish & Release (Performance, Accessibility, Final QA)
+- [ ] Подключить DnD к сайдбарам page.tsx
+- [ ] Создать icon.ico для Electron инсталлятора
