@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useJarvis, type CommandHandlers } from "@/hooks/use-jarvis";
 import { useWakeWord } from "@/hooks/use-wake-word";
+import { useHotkeys } from "@/hooks/use-hotkeys";
 import { ArcReactor } from "@/components/jarvis/arc-reactor";
 import { SystemMonitor } from "@/components/jarvis/system-monitor";
 import { ChatPanel } from "@/components/jarvis/chat-panel";
@@ -21,11 +22,13 @@ import { ErrorFlash } from "@/components/jarvis/error-flash";
 import { NotesPanel } from "@/components/jarvis/notes-panel";
 import { TodoWidget } from "@/components/jarvis/todo-widget";
 import { TimerWidget, type TimerHandle } from "@/components/jarvis/timer-widget";
+import { CalculatorWidget } from "@/components/jarvis/calculator-widget";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
 import { SettingsPanel, type JarvisSettingsData } from "@/components/jarvis/settings-panel";
 import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSound } from "@/lib/sounds";
+import { toast } from "@/hooks/use-toast";
 
 const CAPABILITIES = [
   { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
@@ -43,6 +46,7 @@ export default function Home() {
   const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [timerVisible, setTimerVisible] = useState(true);
+  const [calcVisible, setCalcVisible] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [jarvisSettings, setJarvisSettings] = useState<JarvisSettingsData | null>(null);
@@ -78,7 +82,10 @@ export default function Home() {
 
   const jarvis = useJarvis({ autoSpeak: true, ttsRate: 1.05, ttsPitch: 0.92, settings: jarvisSettings ?? undefined });
 
-  const handleBootComplete = useCallback(() => setBooted(true), []);
+  const handleBootComplete = useCallback(() => {
+    setBooted(true);
+    toast({ title: "J.A.R.V.I.S. Online", description: "Все системы в норме. Ожидаю ваших указаний, сэр." });
+  }, []);
 
   // Set up command handlers for the hook
   useEffect(() => {
@@ -104,6 +111,23 @@ export default function Home() {
     };
     jarvis.setCommandHandlers(handlers);
   }, [jarvis.setCommandHandlers]);
+
+  // Global hotkeys
+  useHotkeys({
+    onToggleTimer: () => setTimerVisible((v) => !v),
+    onToggleCalc: () => setCalcVisible((v) => !v),
+    onToggleNotes: () => setNotesOpen((v) => !v),
+    onOpenSettings: () => setSettingsOpen(true),
+    onNewChat: () => jarvis.newChat(),
+    onToggleVoice: () => jarvis.toggleRecording(),
+    onToggleFullscreen: async () => {
+      try {
+        if (document.fullscreenElement) await document.exitFullscreen();
+        else await document.documentElement.requestFullscreen();
+      } catch { /* ignore */ }
+    },
+    onOpenPalette: () => setPaletteOpen(true),
+  });
 
   // Fullscreen toggle helper (for command palette)
   const toggleFullscreen = useCallback(async () => {
@@ -222,6 +246,7 @@ export default function Home() {
           jarvis.updateTTSSettings?.(s.ttsRate, s.ttsPitch, s.volume);
           if (s.autoSpeak !== jarvis.autoSpeakOn) jarvis.setAutoSpeakOn(s.autoSpeak);
           setJarvisSettings(s);
+          toast({ title: "Конфигурация сохранена", description: "Настройки JARVIS обновлены" });
         }}
       />
 
@@ -515,6 +540,20 @@ export default function Home() {
                         transition={{ delay: 0.4, duration: 0.4 }}
                       >
                         <TimerWidget ref={timerRef} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Calculator Widget */}
+                  <AnimatePresence>
+                    {calcVisible && (
+                      <motion.div
+                        initial={{ opacity: 0, x: 20, height: 0 }}
+                        animate={{ opacity: 1, x: 0, height: "auto" }}
+                        exit={{ opacity: 0, x: 20, height: 0 }}
+                        transition={{ delay: 0.4, duration: 0.4 }}
+                      >
+                        <CalculatorWidget onClose={() => setCalcVisible(false)} />
                       </motion.div>
                     )}
                   </AnimatePresence>
