@@ -54,6 +54,9 @@ model Note {
   title     String
   content   String
   done      Boolean  @default(false)
+  category  String   @default("general")
+  color     String   @default("cyan")
+  pinned    Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Clipboard, Copy, Trash2, ExternalLink, Clock, FileText, Link as LinkIcon } from "lucide-react";
 import { playSound } from "@/lib/sounds";
+import { addActivityEvent } from "@/components/jarvis/activity-feed";
 
 interface ClipboardEntry {
   id: string;
@@ -66,6 +67,13 @@ export function ClipboardWidget() {
       });
       setLastContent(text);
       playSound("data-received");
+      // Log URL copies to activity feed
+      if (detectType(text) === "url") {
+        try {
+          const domain = new URL(text.trim()).hostname.replace(/^www\./, "");
+          addActivityEvent({ severity: "info", category: "system", message: `URL скопирован: ${domain}` });
+        } catch { /* invalid URL */ }
+      }
     } catch {
       // Clipboard API requires permission or focus — silently ignore
     }

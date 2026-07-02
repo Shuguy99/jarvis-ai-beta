@@ -969,3 +969,208 @@ Stage Summary:
 - World Clock Widget: 6 часовых поясов с real-time обновлением
 - Sidebar стал скроллируемым
 - Версия: v6.1.0
+---
+Task ID: 3
+Agent: notification-builder
+Task: Create HUD Notification Toast System with Activity Feed integration
+
+Work Log:
+- Created `/src/components/jarvis/notification-toast.tsx`:
+  - Module-level notification bus with `toastListeners` Set, `showNotification()` function, `useNotificationListener()` hook
+  - `showNotification()` auto-pushes events to Activity Feed via `addActivityEvent()`
+  - `NotificationToastContainer` component: fixed top-right, max 5 visible toasts, auto-dismiss with progress bar
+  - HUD-styled toast cards: backdrop-blur, left color bar by type (primary/emerald/amber/rose), type-specific icons (Info/CheckCircle/AlertTriangle/XCircle), monospace font
+  - Framer Motion entrance (slide from right) and exit animations with spring physics
+  - Progress bar that shrinks over duration using setInterval (50ms ticks)
+  - Close button (X) visible on hover
+  - Sound only plays for warning (playSound("warning", 0.3)) and error (playSound("error", 0.3)) types to avoid noise fatigue
+- Updated `/src/app/page.tsx`:
+  - Replaced `import { toast } from "@/hooks/use-toast"` with `import { showNotification, NotificationToastContainer } from "@/components/jarvis/notification-toast"`
+  - Added `<NotificationToastContainer />` after ErrorFlash, before BootSequence
+  - Replaced boot toast: `toast({ title: "J.A.R.V.I.S. Online", ... })` → `showNotification({ title: "J.A.R.V.I.S. Online", message: "Все системы в норме. Ожидаю ваших указаний, сэр.", type: "success", duration: 5000 })`
+  - Replaced settings toast: `toast({ title: "Конфигурация сохранена", ... })` → `showNotification({ title: "Конфигурация сохранена", message: "Настройки JARVIS обновлены", type: "success" })`
+  - No remaining `toast()` calls or `use-toast` imports in page.tsx
+- Ran `bun run lint` — 0 errors (3 pre-existing warnings in other files)
+
+Stage Summary:
+- Global HUD notification toast system with module-level bus (same pattern as activity-feed)
+- Automatic Activity Feed integration — every notification also appears in the feed
+- Sound only on warning/error to avoid noise fatigue
+- Max 5 visible toasts with oldest-first dismissal
+- All existing functionality preserved, zero lint errors
+---
+Task ID: 2
+Agent: network-widget-builder
+Task: Create Network Traffic Widget with real-time throughput and sparkline
+
+Work Log:
+- Enhanced `/src/app/api/jarvis/system/route.ts`:
+  - Added `readProcNetDev()` function to read cumulative RX/TX byte counters from `/proc/net/dev` (Linux)
+  - Added `getNetworkThroughput()` with module-level `prevCounters` cache for delta computation
+  - Computes real throughput in Mbps (bytes × 8 / seconds / 1_000_000) between consecutive API calls
+  - Falls back to realistic simulated values (sinusoidal base + noise) if `/proc/net/dev` unavailable
+  - API now returns `netSpeedIn` and `netSpeedOut` fields alongside existing `netThroughput`
+- Created `/src/components/jarvis/network-widget.tsx`:
+  - Named export `NetworkWidget` with full HUD styling (jarvis-box-glow, corner brackets, grid bg, framer-motion entrance)
+  - Real-time download ↑ / upload ↓ speed display in Mbps/KB/s with Russian labels (Загрузка/Отдача)
+  - Dual SVG sparkline charts (last 30 data points, stroke-only polyline) — cyan for download, emerald for upload
+  - Active network interface name + IP display with Wifi/Cable icon auto-detection
+  - Session cumulative download/upload byte counter
+  - Session timer (MM:SS format)
+  - Color coding: normal traffic in cyan/emerald, high traffic (>100 Mbps) in amber
+  - Auto-updates every 3 seconds via `useEffect` + `setInterval`
+  - `playSound("data-received", 0.2)` on each data fetch
+  - Loading state with "Сканирование сетевого трафика..." and error state with "НЕДОСТУПНО"
+  - Compact sidebar-friendly design
+- Ran `bun run lint` — 0 errors (3 pre-existing warnings in other files)
+
+Stage Summary:
+- Real network throughput measurement via /proc/net/dev byte counter deltas with simulated fallback
+- NetworkWidget component with dual sparkline charts, speed readouts, interface info, session totals, and timer
+- API returns netSpeedIn/netSpeedOut in Mbps; widget polls every 3 seconds
+- All HUD styling patterns consistent with existing widgets (weather-widget reference)
+
+---
+Task ID: 1
+Agent: activity-integration
+Task: Integrate addActivityEvent() into existing components for real Activity Feed events
+
+Work Log:
+- Read and analyzed all 5 target files + activity-feed.tsx (event bus API)
+- Added `import { addActivityEvent }` and helper `trunc()` to use-jarvis.ts
+- use-jarvis.ts: 13 event integration points:
+  - Text message sent → info/chat
+  - LLM reply received (with char count) → success/chat
+  - Web search triggered (SSE `parsed.search` check) → info/chat
+  - Voice recording started (both SpeechRecognition & MediaRecorder paths) → info/voice
+  - Voice transcript received (both paths) → success/voice
+  - TTS starts speaking → info/voice
+  - Image analysis starts → info/vision
+  - Image analysis complete → success/vision
+  - Screen capture starts → info/vision
+  - Error in sendText → error/system
+  - Error in analyzeImage → error/system
+  - New conversation created → info/chat
+- pomodoro-widget.tsx: 3 event points (focus start, focus complete, break start)
+- clipboard-widget.tsx: URL copy detection with domain extraction → info/system
+- weather-widget.tsx: successful weather fetch with temperature → success/weather
+- music-player.tsx: track play start with truncated name → info/media
+- Ran `bun run lint` — 0 new errors from changes (2 pre-existing errors in notes-panel.tsx unrelated)
+
+Stage Summary:
+- All 5 files modified with addActivityEvent() calls at appropriate code flow points
+- Event messages in Russian, truncated to ≤40 chars for readability
+- No circular dependency issues (activity-feed.tsx only exports functions)
+- No lint regressions introduced
+---
+Task ID: 4
+Agent: notes-enhancer
+Task: Enhance Notes Panel with categories, search, pin, and color coding
+
+Work Log:
+- Read current notes-panel.tsx (simple list with add/toggle-done/delete), API route, Prisma schema
+- Updated Prisma schema: added `category String @default("general")`, `color String @default("cyan")`, `pinned Boolean @default(false)` to Note model
+- Ran `bun run db:push` — schema applied successfully, Prisma Client regenerated
+- Updated API route `/api/jarvis/notes/route.ts`:
+  - GET: ordered by pinned desc, then updatedAt desc
+  - POST: accepts category, color, pinned with validation (validCategories, validColors)
+  - PUT: handles category, color, pinned updates with validation
+  - DELETE: unchanged
+- Rewrote `/src/components/jarvis/notes-panel.tsx` with all requested features:
+  - Note categories: 5 predefined (Общее, Идеи, Код, Задачи, Личное) + "Все" with pill tab bar
+  - Category counters: each pill shows count e.g. "Идеи (3)"
+  - Search: HUD-styled input with Search icon, real-time filtering by title+content (case-insensitive), clear button (X)
+  - Pin notes: Bookmark/BookmarkCheck icons on each note, pinned notes at top with `bg-primary/5 border-primary/30` highlight
+  - Color coding: 6 accent colors (cyan, emerald, amber, rose, violet, orange), left border accent on note cards
+  - Enhanced note editor: title input (auto-focus on new), content textarea, category pills, color picker dots (4px circles), pin toggle
+  - Relative time display (e.g. "5 мин назад", "только что")
+  - Keyboard shortcuts: Ctrl+N for new note (stopPropagation), Escape to close/cancel, Ctrl+Enter to save
+  - Framer Motion: AnimatePresence for editor/list transitions, motion.div for note enter/exit animations
+  - Backward compatible: loadNotes maps old notes with defaults (category="general", color="cyan", pinned=false)
+  - Click note body to edit, hover reveals action buttons (pin, edit pencil, delete trash)
+  - "New note" button at bottom of list when notes exist, with Ctrl+N hint
+- Fixed ESLint errors: removed unused eslint-disable directives, reordered callbacks to avoid "access before declaration"
+- Ran `bun run lint` — 0 errors (2 pre-existing warnings in other files)
+
+Stage Summary:
+- Full-featured notes panel with categories, search, pin, and 6-color accent coding
+- Backend updated: Prisma schema + API route handle new fields
+- Backward compatible with existing notes (defaults applied on load)
+- Framer Motion animations for editor transitions and note list items
+- All text in Russian, HUD aesthetic preserved (jarvis-box-glow, jarvis-border-cyan, font-mono, etc.)
+- Clean lint: 0 errors
+---
+Task ID: 5
+Agent: system-alerts-builder
+Task: Create System Alerts Widget with threshold monitoring
+
+Work Log:
+- Created `/src/components/jarvis/system-alerts-widget.tsx` with named export `SystemAlertsWidget`
+- Implemented live system metrics polling from `/api/jarvis/system` every 5 seconds (CPU, RAM, Disk, Temperature)
+- Added color-coded thresholds: Normal (emerald), Warning (amber), Critical (rose) with per-metric level functions
+- Built animated Status Banner with 3 states: "ALL SYSTEMS NOMINAL" / "ATTENTION REQUIRED" / "CRITICAL ALERT" with pulse animation for warning/critical
+- Integrated with `useActivityListener` from activity-feed to capture last 5 warning/error events
+- Added Quick Actions: "Диагностика" button (fetches data + pushes success event, plays `scan` sound) and "Clear" button (clears local alert history)
+- Used `MetricBar` sub-component with thin h-1.5 horizontal bars, rounded ends, motion-animated width, icon + label + value layout
+- Followed exact HUD styling patterns: `jarvis-box-glow`, `jarvis-corner-brackets`, `jarvis-grid-bg`, `font-mono`, `text-[10px]`/`text-[11px]`
+- Framer Motion entrance animation (opacity + y slide)
+- All text in Russian except header "System Health" (English)
+- Icons from lucide-react: ShieldAlert, Cpu, MemoryStick, HardDrive, Thermometer, Activity, XCircle
+- Lint passed: 0 errors (2 pre-existing warnings in unrelated files)
+- Dev server compiles without errors
+
+Stage Summary:
+- Compact sidebar-ready System Alerts Widget with 4 color-coded metric bars, status banner with pulse animation, alert history list, and quick action buttons
+- Fully matches existing JARVIS HUD aesthetic and component patterns
+
+---
+Task ID: 6 (Round 3 — v7.0.0)
+Agent: main (Z.ai Code)
+Task: Stage 2/3 continuation — Activity Events integration, Network Traffic Widget, HUD Notifications, Enhanced Notes, System Alerts Widget
+
+Work Log:
+- **Task 1 — Activity Events Integration** (subagent):
+  - `use-jarvis.ts`: 13 event points — text sent, LLM reply, web search, voice record/start/transcript, TTS start, image analysis start/complete, screen capture, errors, new conversation
+  - `pomodoro-widget.tsx`: focus start, focus complete, break start events
+  - `clipboard-widget.tsx`: URL copy detection (extracts domain)
+  - `weather-widget.tsx`: weather updated with temperature
+  - `music-player.tsx`: track playback started
+  - All messages in Russian, <50 chars, correct severity/category
+
+- **Task 2 — Network Traffic Widget** (subagent):
+  - Enhanced `/api/jarvis/system` with real throughput measurement via `/proc/net/dev` parsing, fallback to simulated sinusoidal data
+  - Created `network-widget.tsx`: dual sparkline charts (download/upload), interface info, session counters, color coding, HUD styling
+  - Auto-updates every 3 seconds
+
+- **Task 3 — HUD Notification Toast System** (subagent):
+  - Created `notification-toast.tsx`: module-level notification bus, `showNotification()` API, auto-hooks into Activity Feed
+  - `NotificationToastContainer`: fixed top-right, slide-in/out animations, color bar by type, progress bar, max 5 toasts
+  - Sound only for warning/error types
+  - Integrated into `page.tsx`: replaced `toast()` with `showNotification()`
+
+- **Task 4 — Enhanced Notes Panel** (subagent):
+  - Updated Prisma schema: Note model +category, +color, +pinned fields
+  - Updated Notes API: ordered by pinned desc, validates new fields
+  - Rewrote `notes-panel.tsx`: 5 categories with count badges, search with real-time filter, pin/unpin, 6 color accents, keyboard shortcuts (Ctrl+N, Ctrl+Enter, Escape)
+
+- **Task 5 — System Alerts Widget** (subagent):
+  - Created `system-alerts-widget.tsx`: polls system API every 5s, 4 metric bars (CPU/RAM/Disk/Temp) with 3-level color coding
+  - Status banner: ALL SYSTEMS NOMINAL / ATTENTION REQUIRED / CRITICAL ALERT
+  - Alert history from Activity Feed (last 5 warning/error events)
+  - Quick actions: Run Diagnostics, Clear Alerts
+
+- **Task 6 — Integration** (main):
+  - Added NetworkWidget, SystemAlertsWidget imports to page.tsx
+  - CAPABILITIES: 8 → 11 items (added Network, Health, Alerts)
+  - Directives: 14 → 18 points (added Network Traffic, System Health, HUD Notifications, Enhanced Notes)
+  - Version: v6.2.0 → v7.0.0
+
+Stage Summary:
+- JARVIS v7.0.0 — 6 major features in one round
+- Activity Feed now shows REAL events from all components (chat, voice, vision, weather, music, pomodoro, clipboard)
+- Network Traffic Widget with real-time sparkline charts and interface info
+- HUD Notification Toast System with auto-Activity Feed integration
+- Enhanced Notes: categories, search, pin, color coding, keyboard shortcuts
+- System Alerts Widget with threshold monitoring and diagnostic actions
+- ESLint: 0 errors, 2 pre-existing warnings
+- Dev server: GET / 200, all APIs 200, no runtime errors

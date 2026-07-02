@@ -17,6 +17,9 @@ import {
   Timer,
   Palette,
   MessageSquarePlus,
+  Calculator,
+  Monitor,
+  Ear,
 } from "lucide-react";
 import { playSound } from "@/lib/sounds";
 
@@ -206,6 +209,9 @@ export function buildDefaultCommands(handlers: {
   toggleNotes: () => void;
   toggleTimer: () => void;
   setTheme: (id: string) => void;
+  toggleCalculator?: () => void;
+  captureScreen?: () => void;
+  toggleWakeWord?: () => void;
 }): CommandItem[] {
   return [
     {
@@ -283,6 +289,30 @@ export function buildDefaultCommands(handlers: {
       keywords: ["тема", "mark50", "mark 50", "красный", "red"],
       action: () => handlers.setTheme("mark50"),
     },
+    ...(handlers.toggleCalculator ? [{
+      id: "calculator",
+      label: "Калькулятор",
+      icon: Calculator,
+      category: "Tools",
+      keywords: ["калькулятор", "calculator", "посчитать"],
+      action: handlers.toggleCalculator,
+    }] : []),
+    ...(handlers.captureScreen ? [{
+      id: "screen-capture",
+      label: "Захват экрана",
+      icon: Monitor,
+      category: "Vision",
+      keywords: ["скриншот", "экран", "screen", "capture", "захват"],
+      action: handlers.captureScreen,
+    }] : []),
+    ...(handlers.toggleWakeWord ? [{
+      id: "wake-word",
+      label: "Wake Word",
+      icon: Ear,
+      category: "Voice",
+      keywords: ["wake", "hey jarvis", "пробуждение", "слово"],
+      action: handlers.toggleWakeWord,
+    }] : []),
   ];
 }
 

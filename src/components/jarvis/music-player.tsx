@@ -7,6 +7,7 @@ import {
   Plus, ChevronDown, ChevronUp, Music, X
 } from "lucide-react";
 import { playSound } from "@/lib/sounds";
+import { addActivityEvent } from "@/components/jarvis/activity-feed";
 
 interface Track {
   file: File;
@@ -127,6 +128,7 @@ export function MusicPlayer() {
       setIsPlaying(true);
       ensureAnalyser();
       startVizLoop();
+      addActivityEvent({ severity: "info", category: "media", message: `Воспроизведение: ${tracks[idx].name.length > 35 ? tracks[idx].name.slice(0, 35) + "..." : tracks[idx].name}` });
     }).catch(() => {
       // Autoplay blocked
     });

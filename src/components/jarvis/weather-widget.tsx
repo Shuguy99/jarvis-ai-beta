@@ -16,6 +16,7 @@ import {
   Gauge,
 } from "lucide-react";
 import { playSound } from "@/lib/sounds";
+import { addActivityEvent } from "@/components/jarvis/activity-feed";
 
 // ── Types ─────────────────────────────────────────────────────
 interface WeatherCurrent {
@@ -84,6 +85,7 @@ export function WeatherWidget() {
       setData(json);
       setError(false);
       playSound("data-received");
+      addActivityEvent({ severity: "success", category: "weather", message: `Погода обновлена: ${Math.round(json.current.temperature_2m)}°C` });
     } catch {
       setError(true);
     }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage, Conversation } from "@/lib/types";
 import { playSound } from "@/lib/sounds";
+import { addActivityEvent } from "@/components/jarvis/activity-feed";
 
 export type JarvisState = "idle" | "listening" | "thinking" | "speaking" | "error";
 
@@ -39,6 +40,8 @@ export interface CommandHandlers {
   setTheme?: (theme: string) => void;
   toggleFullscreen?: () => void;
   openSettings?: () => void;
+  toggleCalculator?: () => void;
+  captureScreen?: () => void;
 }
 
 interface UseJarvisOptions {
@@ -62,6 +65,8 @@ const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2);
+
+const trunc = (s: string, max = 40) => (s.length > max ? s.slice(0, max) + "..." : s);
 
 /**
  * Picks the best Russian voice from available browser SpeechSynthesis voices.
@@ -220,6 +225,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     setSearchedSources(null);
     setError(null);
     setState("idle");
+    addActivityEvent({ severity: "info", category: "chat", message: "Новая сессия создана" });
   }, []);
 
   const deleteConversation = useCallback(async (id: string) => {
@@ -263,6 +269,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
       speakingAbortRef.current = false;
       setState("speaking");
+      addActivityEvent({ severity: "info", category: "voice", message: "Озвучка ответа..." });
       synth.cancel();
 
       const utterance = new SpeechSynthesisUtterance(text);
@@ -391,6 +398,66 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         return { handled: true, response: "Таймер остановлен, сэр." };
       }
 
+      // Calculator: "калькулятор", "открой калькулятор", "посчитай"
+      if (/^(калькулятор|открой калькулятор|покажи калькулятор|посчитай)/i.test(cmd)) {
+        if (handlers.toggleCalculator) handlers.toggleCalculator();
+        return { handled: true, response: "Калькулятор активирован, сэр." };
+      }
+
+      // Notes: "заметки", "открой заметки", "покажи заметки"
+      if (/^(заметки|открой заметки|покажи заметки|мои записи)/i.test(cmd)) {
+        if (handlers.openNotes) handlers.openNotes();
+        return { handled: true, response: "Панель заметок открыта, сэр." };
+      }
+
+      // Fullscreen: "полный экран", "фуллскрин", "во весь экран"
+      if (/^(полный экран|фуллскрин|во весь экран|fullscreen)/i.test(cmd)) {
+        if (handlers.toggleFullscreen) handlers.toggleFullscreen();
+        return { handled: true, response: "Полноэкранный режим активирован, сэр." };
+      }
+
+      // Settings: "настройки", "параметры", "открой настройки"
+      if (/^(настройки|параметры|открой настройки|settings)/i.test(cmd)) {
+        if (handlers.openSettings) handlers.openSettings();
+        return { handled: true, response: "Панель настроек открыта, сэр." };
+      }
+
+      // Screen capture: "скриншот", "захват экрана", "покажи экран"
+      if (/^(скриншот|захват экрана|покажи экран|сделай скриншот|screen capture)/i.test(cmd)) {
+        if (handlers.captureScreen) handlers.captureScreen();
+        return { handled: true, response: "Инициализирую захват экрана, сэр." };
+      }
+
+      // Theme: "марк 1", "марк 42", "марк 50", "тема 1", "сменить тему"
+      const themeMatch = cmd.match(/(?:марк|mark|тема|theme)\s+(1|42|50)/i);
+      if (themeMatch) {
+        const themeId = `mark-${themeMatch[1]}`;
+        if (handlers.setTheme) handlers.setTheme(themeId);
+        return { handled: true, response: `Костюм Mark ${themeMatch[1]} активирован, сэр.` };
+      }
+
+      // Mute/unmute: "тихо", "замолчи", "молчи" / "говори", "голос", "включи голос"
+      if (/^(тихо|замолчи|молчи|выключи голос|mute)/i.test(cmd)) {
+        setAutoSpeakOn(false);
+        return { handled: true, response: "Режим молчания активирован, сэр." };
+      }
+      if (/^(говори|голос|включи голос|звук|unmute)/i.test(cmd)) {
+        setAutoSpeakOn(true);
+        return { handled: true, response: "Голосовой вывод восстановлен, сэр." };
+      }
+
+      // New chat: "новый чат", "новый разговор", "очисти чат"
+      if (/^(новый чат|новый разговор|очисти чат|новая сессия|новый диалог)/i.test(cmd)) {
+        clearMessages();
+        void newConversation();
+        return { handled: true, response: "Новая сессия инициализирована, сэр." };
+      }
+
+      // Weather: "погода", "какая погода"
+      if (/^(погода|какая погода|прогноз|покажи погоду)/i.test(cmd)) {
+        return { handled: false }; // Let LLM handle with search
+      }
+
       return null; // not a local command
     },
     []
@@ -414,6 +481,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         source,
       };
       setMessages((prev) => [...prev, userMsg]);
+      addActivityEvent({ severity: "info", category: "chat", message: `Сообщение отправлено: ${trunc(clean)}` });
 
       // Try local command processing first
       const cmdResult = await processCommand(clean);
@@ -506,7 +574,10 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
             try {
               const parsed = JSON.parse(payload);
               if (parsed.error) throw new Error(parsed.error);
-              if (parsed.chunk) {
+              if (parsed.search) {
+                  addActivityEvent({ severity: "info", category: "chat", message: "Веб-поиск активирован" });
+                }
+                if (parsed.chunk) {
                 fullContent += parsed.chunk;
                 setMessages((prev) =>
                   prev.map((m) =>
@@ -535,6 +606,8 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
         if (convoId) void persistMessage("assistant", fullContent);
 
+        addActivityEvent({ severity: "success", category: "chat", message: `Ответ получен (${fullContent.length} символов)` });
+
         if (autoSpeakOn) {
           await speak(fullContent);
         } else {
@@ -544,6 +617,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         const msg = e instanceof Error ? e.message : "Неизвестная ошибка";
         setError(msg);
         setState("error");
+        addActivityEvent({ severity: "error", category: "system", message: `Ошибка: ${trunc(msg, 35)}` });
         playSound("alert");
         setMessages((prev) =>
           prev.map((m) =>
@@ -612,6 +686,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
           setAudioLevel(0);
           const transcript = event.results[0]?.[0]?.transcript?.trim();
           if (transcript) {
+            addActivityEvent({ severity: "success", category: "voice", message: `Распознано: ${trunc(transcript)}` });
             setIsRecording(false);
             setState("idle");
             void sendText(transcript, "voice");
@@ -649,6 +724,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         recognition.start();
         setIsRecording(true);
         setState("listening");
+        addActivityEvent({ severity: "info", category: "voice", message: "Голосовой ввод активирован" });
         playSound("voice-activate");
         return; // Done — browser handles everything
       } catch (e) {
@@ -709,6 +785,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
               if (!res.ok) throw new Error(data.error || "ASR failed");
               const text = (data.text || "").trim();
               if (text) {
+                addActivityEvent({ severity: "success", category: "voice", message: `Распознано: ${trunc(text)}` });
                 await sendText(text, "voice");
               } else {
                 setState("idle");
@@ -728,6 +805,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       mr.start();
       setIsRecording(true);
       setState("listening");
+      addActivityEvent({ severity: "info", category: "voice", message: "Голосовой ввод активирован" });
     } catch (e) {
       setError(
         e instanceof Error
@@ -786,6 +864,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       setSearchedSources(null);
       stopSpeaking();
       setState("thinking");
+      addActivityEvent({ severity: "info", category: "vision", message: "Анализ изображения..." });
 
       const userMsg: ChatMessage = {
         id: uid(),
@@ -839,6 +918,8 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
         if (convoId) void persistMessage("assistant", reply);
 
+        addActivityEvent({ severity: "success", category: "vision", message: "Анализ изображения завершён" });
+
         if (autoSpeakOn) {
           await speak(reply);
         } else {
@@ -848,6 +929,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         const msg = e instanceof Error ? e.message : "Неизвестная ошибка";
         setError(msg);
         setState("error");
+        addActivityEvent({ severity: "error", category: "system", message: `Ошибка: ${trunc(msg, 35)}` });
         setMessages((prev) =>
           prev.map((m) =>
             m.id === pendingId
@@ -885,6 +967,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   const captureScreen = useCallback(
     async (customPrompt?: string) => {
       if (state === "thinking" || state === "speaking") return;
+      addActivityEvent({ severity: "info", category: "vision", message: "Захват экрана..." });
 
       try {
         playSound("scan");

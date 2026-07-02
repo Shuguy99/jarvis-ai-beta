@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useJarvis, type CommandHandlers } from "@/hooks/use-jarvis";
 import { useWakeWord } from "@/hooks/use-wake-word";
 import { useHotkeys } from "@/hooks/use-hotkeys";
+import { useSystemAlerts } from "@/hooks/use-system-alerts";
 import { ArcReactor } from "@/components/jarvis/arc-reactor";
 import { SystemMonitor } from "@/components/jarvis/system-monitor";
 import { ChatPanel } from "@/components/jarvis/chat-panel";
@@ -27,22 +28,30 @@ import { WeatherWidget } from "@/components/jarvis/weather-widget";
 import { MusicPlayer } from "@/components/jarvis/music-player";
 import { ClipboardWidget } from "@/components/jarvis/clipboard-widget";
 import { WorldClockWidget } from "@/components/jarvis/world-clock-widget";
+import { QuickLaunchWidget } from "@/components/jarvis/quick-launch-widget";
+import { ActivityFeed } from "@/components/jarvis/activity-feed";
+import { PomodoroWidget } from "@/components/jarvis/pomodoro-widget";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
 import { SettingsPanel, type JarvisSettingsData } from "@/components/jarvis/settings-panel";
-import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music } from "lucide-react";
+import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSound } from "@/lib/sounds";
-import { toast } from "@/hooks/use-toast";
+import { showNotification, NotificationToastContainer } from "@/components/jarvis/notification-toast";
+import { NetworkWidget } from "@/components/jarvis/network-widget";
+import { SystemAlertsWidget } from "@/components/jarvis/system-alerts-widget";
 
 const CAPABILITIES = [
   { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
   { icon: Volume2, label: "Voice I/O", desc: "Распознавание + синтез" },
   { icon: Eye, label: "Vision", desc: "Анализ изображений" },
   { icon: Monitor, label: "Screen", desc: "Захват экрана + VLM" },
+  { icon: Rocket, label: "Launch", desc: "Быстрый доступ" },
+  { icon: Target, label: "Focus", desc: "Pomodoro таймер" },
   { icon: CloudSun, label: "Weather", desc: "Погода в реальном" },
-  { icon: Music, label: "Audio", desc: "Музыкальный плеер" },
-  { icon: Radar, label: "Diagnostics", desc: "Мониторинг систем" },
-  { icon: Shield, label: "Secure", desc: "Локальная история" },
+  { icon: Activity, label: "Events", desc: "Лог активности" },
+  { icon: Network, label: "Network", desc: "Мониторинг трафика" },
+  { icon: ShieldAlert, label: "Health", desc: "Мониторинг систем" },
+  { icon: Bell, label: "Alerts", desc: "Уведомления HUD" },
 ];
 
 export default function Home() {
@@ -88,7 +97,7 @@ export default function Home() {
 
   const handleBootComplete = useCallback(() => {
     setBooted(true);
-    toast({ title: "J.A.R.V.I.S. Online", description: "Все системы в норме. Ожидаю ваших указаний, сэр." });
+    showNotification({ title: "J.A.R.V.I.S. Online", message: "Все системы в норме. Ожидаю ваших указаний, сэр.", type: "success", duration: 5000 });
   }, []);
 
   // Set up command handlers for the hook
@@ -112,9 +121,17 @@ export default function Home() {
         document.documentElement.setAttribute("data-theme", id);
         localStorage.setItem("jarvis-theme", id);
       },
+      toggleCalculator: () => setCalcVisible((v) => !v),
+      captureScreen: () => {
+        if (jarvis.captureScreen) void jarvis.captureScreen();
+      },
+      openSettings: () => setSettingsOpen(true),
     };
     jarvis.setCommandHandlers(handlers);
   }, [jarvis.setCommandHandlers]);
+
+  // System alerts → Activity Feed
+  useSystemAlerts();
 
   // Global hotkeys
   useHotkeys({
@@ -222,6 +239,11 @@ export default function Home() {
       document.documentElement.setAttribute("data-theme", id);
       localStorage.setItem("jarvis-theme", id);
     },
+    toggleCalculator: () => setCalcVisible((v) => !v),
+    captureScreen: () => {
+      if (jarvis.captureScreen) void jarvis.captureScreen();
+    },
+    toggleWakeWord: () => setWakeWordEnabled((v) => !v),
   });
 
   // Get active conversation title for export
@@ -231,6 +253,9 @@ export default function Home() {
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       {/* ===== Error Flash Overlay ===== */}
       {jarvis.state === "error" && <ErrorFlash key={errorFlashKey} />}
+
+      {/* ===== Notification Toasts ===== */}
+      <NotificationToastContainer />
 
       {/* ===== Boot Sequence Overlay ===== */}
       <BootSequence onComplete={handleBootComplete} />
@@ -250,7 +275,7 @@ export default function Home() {
           jarvis.updateTTSSettings?.(s.ttsRate, s.ttsPitch, s.volume);
           if (s.autoSpeak !== jarvis.autoSpeakOn) jarvis.setAutoSpeakOn(s.autoSpeak);
           setJarvisSettings(s);
-          toast({ title: "Конфигурация сохранена", description: "Настройки JARVIS обновлены" });
+          showNotification({ title: "Конфигурация сохранена", message: "Настройки JARVIS обновлены", type: "success" });
         }}
       />
 
@@ -390,6 +415,15 @@ export default function Home() {
               <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 lg:grid-cols-12 lg:gap-4 lg:p-4">
                 {/* Left sidebar */}
                 <aside className="jarvis-scroll flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
+                  {/* Quick Launch */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.15, duration: 0.5 }}
+                  >
+                    <QuickLaunchWidget />
+                  </motion.div>
+
                   <motion.div
                     className="jarvis-holo-glitch jarvis-crt-noise flex-shrink-0"
                     initial={{ opacity: 0, x: -20 }}
@@ -398,6 +432,25 @@ export default function Home() {
                   >
                     <SystemMonitor />
                   </motion.div>
+
+                  {/* Activity Feed */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.32, duration: 0.5 }}
+                  >
+                    <ActivityFeed />
+                  </motion.div>
+
+                  {/* System Alerts Widget */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.33, duration: 0.5 }}
+                  >
+                    <SystemAlertsWidget />
+                  </motion.div>
+
                   {/* Holographic Globe */}
                   <motion.div
                     className="jarvis-box-glow jarvis-corner-brackets relative flex items-center justify-center overflow-hidden rounded-xl border jarvis-border-cyan bg-card/20 p-2 backdrop-blur-sm"
@@ -570,6 +623,24 @@ export default function Home() {
                     <ClipboardWidget />
                   </motion.div>
 
+                  {/* Network Traffic */}
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.395, duration: 0.5 }}
+                  >
+                    <NetworkWidget />
+                  </motion.div>
+
+                  {/* Pomodoro Focus */}
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.41, duration: 0.5 }}
+                  >
+                    <PomodoroWidget />
+                  </motion.div>
+
                   {/* Timer Widget */}
                   <AnimatePresence>
                     {timerVisible && (
@@ -671,13 +742,37 @@ export default function Home() {
                           <span className="text-primary/60">12.</span>
                           <span>Continuous Listen — Auto-Listen режим.</span>
                         </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">13.</span>
+                          <span>Quick Launch — быстрые ссылки по категориям.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">14.</span>
+                          <span>Pomodoro Focus — режим концентрации 25/5.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">15.</span>
+                          <span>Network Traffic — мониторинг сети в реальном времени.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">16.</span>
+                          <span>System Health — пороговые алерты и диагностика.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">17.</span>
+                          <span>HUD Notifications — всплывающие уведомления.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">18.</span>
+                          <span>Enhanced Notes — категории, поиск, закрепление.</span>
+                        </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
                         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v6.1.0 · Stark Industries
+                          JARVIS v7.0.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Ollama local neural core
