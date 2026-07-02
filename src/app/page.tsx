@@ -22,7 +22,7 @@ import { NotesPanel } from "@/components/jarvis/notes-panel";
 import { TodoWidget } from "@/components/jarvis/todo-widget";
 import { TimerWidget, type TimerHandle } from "@/components/jarvis/timer-widget";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
-import { SettingsPanel } from "@/components/jarvis/settings-panel";
+import { SettingsPanel, type JarvisSettingsData } from "@/components/jarvis/settings-panel";
 import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSound } from "@/lib/sounds";
@@ -45,9 +45,38 @@ export default function Home() {
   const [timerVisible, setTimerVisible] = useState(true);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [jarvisSettings, setJarvisSettings] = useState<JarvisSettingsData | null>(null);
   const timerRef = useRef<TimerHandle>(null);
 
-  const jarvis = useJarvis({ autoSpeak: true, ttsRate: 1.05, ttsPitch: 0.92 });
+  // Load behavior settings from DB on mount
+  useEffect(() => {
+    fetch("/api/jarvis/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.settings) {
+          const s = data.settings;
+          setJarvisSettings({
+            ttsRate: parseFloat(s.ttsRate) || 1.05,
+            ttsPitch: parseFloat(s.ttsPitch) || 0.95,
+            volume: parseFloat(s.volume) ?? 1.0,
+            autoSpeak: s.autoSpeak !== "false",
+            language: s.language || "ru",
+            persona: s.persona || "classic",
+            userName: s.userName || "",
+            formality: parseFloat(s.formality) || 0.7,
+            humor: parseFloat(s.humor) || 0.4,
+            responseStyle: s.responseStyle || "standard",
+            temperature: parseFloat(s.temperature) || 0.7,
+            maxTokens: parseInt(s.maxTokens, 10) || 2048,
+            contextWindow: parseInt(s.contextWindow, 10) || 20,
+            customPrompt: s.customPrompt || "",
+          });
+        }
+      })
+      .catch(() => { /* use defaults */ });
+  }, []);
+
+  const jarvis = useJarvis({ autoSpeak: true, ttsRate: 1.05, ttsPitch: 0.92, settings: jarvisSettings ?? undefined });
 
   const handleBootComplete = useCallback(() => setBooted(true), []);
 
@@ -192,6 +221,7 @@ export default function Home() {
         onSave={(s) => {
           jarvis.updateTTSSettings?.(s.ttsRate, s.ttsPitch, s.volume);
           if (s.autoSpeak !== jarvis.autoSpeakOn) jarvis.setAutoSpeakOn(s.autoSpeak);
+          setJarvisSettings(s);
         }}
       />
 

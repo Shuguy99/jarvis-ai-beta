@@ -718,3 +718,24 @@ Stage Summary:
 - Dependencies: 18 runtime + 9 dev = 27 total (down from 42)
 - All deps verified: exist on npm, compatible with Windows, actually used in source code
 - Key deps: next@16, react@19, framer-motion, lucide-react, prisma, radix-ui (6 packages), cmdk, react-markdown
+---
+Task ID: 10
+Agent: main (Z.ai Code)
+Task: Добавить настройки модели поведения JARVIS (пресеты, формальность, юмор, стиль ответов, кастомный промт)
+
+Work Log:
+- Расширен API настроек `/api/jarvis/settings`: добавлены VALID_KEYS для behavior (persona, userName, formality, humor, responseStyle, temperature, maxTokens, contextWindow, customPrompt) с дефолтами
+- Полностью переписан `settings-panel.tsx`: две вкладки (Модель поведения / Голос & Система), 6 пресетов персон, слайдеры формальности/юмора/температуры/токенов/контекста, 4 стиля ответов, кастомный промт, кнопка Reset
+- Переписан `jarvis.ts`: динамическая генерация system prompt через `buildSystemPrompt(behavior)` — 5 шаблонов персон + модификаторы тона + стиль ответов + кастомный промт
+- Обновлён `ai-provider.ts`: добавлен `LLMOptions` тип, `chat()` принимает `temperature` и `maxTokens`
+- Обновлён `/api/jarvis/chat`: принимает `behavior` из body, передаёт в `buildChatMessages` и `ai.chat()`
+- Обновлён `use-jarvis.ts`: расширен `JarvisSettings` тип, добавлен `behaviorRef`, behavior пробрасывается в POST /api/jarvis/chat
+- Обновлён `page.tsx`: загрузка настроек с API при mount, передача в hook, обновление при onSave
+- Проверено через agent-browser: обе вкладки работают, пресеты корректно обновляют слайдеры (проверен Military: формальность→1.0, юмор→0.0, стиль→Кратко)
+
+Stage Summary:
+- Полная система настройки поведения JARVIS: от UI до генерации промта и проброса в Ollama
+- Пресеты: Classic JARVIS, Military Mode, Casual Buddy, Dr. JARVIS, Creative Muse, Custom
+- Параметры ИИ: температура (0-2), макс. токенов (256-8192), окно контекста (4-50)
+- Кастомный промт полностью переопределяет системный промт
+- ESLint: 0 ошибок

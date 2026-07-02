@@ -27,6 +27,11 @@ export interface LLMResponse {
   content: string;
 }
 
+export interface LLMOptions {
+  temperature?: number;
+  maxTokens?: number;
+}
+
 export interface SearchResult {
   name: string;
   url: string;
@@ -52,7 +57,7 @@ function getConfig() {
 
 // ─── Ollama Chat (OpenAI-compatible) ────────────────────────────
 
-async function ollamaChat(messages: LLMMessage[]): Promise<LLMResponse> {
+async function ollamaChat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
   const cfg = getConfig();
 
   const body = {
@@ -61,8 +66,8 @@ async function ollamaChat(messages: LLMMessage[]): Promise<LLMResponse> {
       if (typeof m.content === "string") return { role: m.role, content: m.content };
       return { role: m.role, content: m.content };
     }),
-    max_tokens: 2048,
-    temperature: 0.7,
+    max_tokens: opts?.maxTokens ?? 2048,
+    temperature: opts?.temperature ?? 0.7,
     stream: false,
   };
 
@@ -127,8 +132,8 @@ async function ollamaVision(imageBase64: string, prompt: string): Promise<LLMRes
 
 export const ai = {
   /** Send messages to the LLM and get a response */
-  async chat(messages: LLMMessage[]): Promise<LLMResponse> {
-    return ollamaChat(messages);
+  async chat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
+    return ollamaChat(messages, opts);
   },
 
   /** Analyze an image with a vision model */

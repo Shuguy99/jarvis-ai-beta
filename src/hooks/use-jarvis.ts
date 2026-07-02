@@ -17,6 +17,16 @@ export interface JarvisSettings {
   volume: number;
   autoSpeak: boolean;
   language: string;
+  // Behavior
+  persona: string;
+  userName: string;
+  formality: number;
+  humor: number;
+  responseStyle: string;
+  temperature: number;
+  maxTokens: number;
+  contextWindow: number;
+  customPrompt: string;
 }
 
 export interface CommandHandlers {
@@ -103,12 +113,17 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   const ttsPitchRef = useRef(ttsPitch);
   const volumeRef = useRef(volume);
 
+  // Ref for behavior settings — always fresh when sending chat requests
+  const behaviorRef = useRef<Partial<JarvisSettings>>();
+
   // Sync refs when props or settings change
   useEffect(() => {
     if (externalSettings) {
       ttsRateRef.current = externalSettings.ttsRate ?? ttsRate;
       ttsPitchRef.current = externalSettings.ttsPitch ?? ttsPitch;
       volumeRef.current = externalSettings.volume ?? volume;
+      // Store full settings for behavior pass-through
+      behaviorRef.current = externalSettings;
     }
   }, [externalSettings, ttsRate, ttsPitch, volume]);
 
@@ -438,10 +453,22 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       try {
         const history = messages;
 
+        const behavior = behaviorRef.current ? {
+          persona: behaviorRef.current.persona as any,
+          userName: behaviorRef.current.userName,
+          formality: behaviorRef.current.formality,
+          humor: behaviorRef.current.humor,
+          responseStyle: behaviorRef.current.responseStyle as any,
+          temperature: behaviorRef.current.temperature,
+          maxTokens: behaviorRef.current.maxTokens,
+          contextWindow: behaviorRef.current.contextWindow,
+          customPrompt: behaviorRef.current.customPrompt,
+        } : undefined;
+
         const res = await fetch("/api/jarvis/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: history, query: clean }),
+          body: JSON.stringify({ messages: history, query: clean, behavior }),
         });
 
         const data = await res.json();

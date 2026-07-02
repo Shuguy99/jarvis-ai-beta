@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ai } from "@/lib/ai-provider";
-import { buildChatMessages, JARVIS_SYSTEM_PROMPT } from "@/lib/jarvis";
+import { buildChatMessages, buildSystemPrompt } from "@/lib/jarvis";
+import type { BehaviorSettings } from "@/lib/jarvis";
 import type { ChatMessage } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -9,12 +10,13 @@ interface ChatRequestBody {
   messages: ChatMessage[];
   query: string;
   search?: boolean;
+  behavior?: Partial<BehaviorSettings>;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as ChatRequestBody;
-    const { messages = [], query } = body;
+    const { messages = [], query, behavior } = body;
 
     if (!query || !query.trim()) {
       return NextResponse.json({ error: "Пустой запрос." }, { status: 400 });
@@ -27,14 +29,19 @@ export async function POST(req: NextRequest) {
       createdAt: new Date().toISOString(),
     }];
 
-    const llmMessages = buildChatMessages(history);
+    const llmMessages = buildChatMessages(history, { behavior });
 
-    const reply = (await ai.chat(llmMessages)).content;
+    // Pass temperature and maxTokens to the AI provider if supported
+    const reply = await ai.chat(llmMessages, {
+      temperature: behavior?.temperature,
+      maxTokens: behavior?.maxTokens,
+    });
 
     return NextResponse.json({
-      reply,
+      reply: reply.content,
       provider: ai.getProviderName(),
       timestamp: new Date().toISOString(),
+      promptPreview: buildSystemPrompt(behavior ?? {}).slice(0, 80) + "...",
     });
   } catch (error) {
     console.error("JARVIS chat error:", error);
@@ -59,7 +66,6 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     name: "J.A.R.V.I.S.",
-    system: JARVIS_SYSTEM_PROMPT.slice(0, 120),
     online: true,
     provider: ai.getProviderName(),
     chatAvailable: ai.isChatAvailable(),
