@@ -7,6 +7,7 @@ export interface ChatMessage {
   createdAt: string;
   // optional UI metadata
   pending?: boolean;
+  streaming?: boolean;
   source?: "voice" | "text" | "image";
   hasAudio?: boolean;
   imagePreview?: string;

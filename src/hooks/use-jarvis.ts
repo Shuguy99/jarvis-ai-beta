@@ -11,12 +11,45 @@ interface Source {
   host_name?: string;
 }
 
+export interface JarvisSettings {
+  ttsRate: number;
+  ttsPitch: number;
+  volume: number;
+  autoSpeak: boolean;
+  language: string;
+  openaiModel: string;
+  openaiVisionModel: string;
+}
+
+export interface CommandHandlers {
+  startTimer?: (seconds: number) => void;
+  stopTimer?: () => void;
+  resetTimer?: () => void;
+  toggleNotes?: () => void;
+  openNotes?: () => void;
+  setTheme?: (theme: string) => void;
+  toggleFullscreen?: () => void;
+  openSettings?: () => void;
+}
+
 interface UseJarvisOptions {
   autoSpeak?: boolean;
   volume?: number;
   ttsRate?: number;
   ttsPitch?: number;
+  settings?: Partial<JarvisSettings>;
+  commandHandlers?: CommandHandlers;
 }
+
+const DEFAULT_SETTINGS: JarvisSettings = {
+  ttsRate: 1.05,
+  ttsPitch: 0.95,
+  volume: 1.0,
+  autoSpeak: true,
+  language: "ru",
+  openaiModel: "gpt-4o-mini",
+  openaiVisionModel: "gpt-4o",
+};
 
 const uid = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -57,7 +90,7 @@ function getSpeechRecognition(): (typeof window.SpeechRecognition) | null {
 }
 
 export function useJarvis(opts: UseJarvisOptions = {}) {
-  const { autoSpeak = true, volume = 1.0, ttsRate = 1.05, ttsPitch = 0.95 } = opts;
+  const { autoSpeak = true, volume = 1.0, ttsRate = 1.05, ttsPitch = 0.95, settings: externalSettings } = opts;
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [state, setState] = useState<JarvisState>("idle");
@@ -68,6 +101,20 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
+
+  // Use refs for TTS params so speak() always gets latest values
+  const ttsRateRef = useRef(ttsRate);
+  const ttsPitchRef = useRef(ttsPitch);
+  const volumeRef = useRef(volume);
+
+  // Sync refs when props or settings change
+  useEffect(() => {
+    if (externalSettings) {
+      ttsRateRef.current = externalSettings.ttsRate ?? ttsRate;
+      ttsPitchRef.current = externalSettings.ttsPitch ?? ttsPitch;
+      volumeRef.current = externalSettings.volume ?? volume;
+    }
+  }, [externalSettings, ttsRate, ttsPitch, volume]);
 
   // MediaRecorder refs (legacy/fallback for ZAI cloud mode)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -82,6 +129,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
   const speakingAbortRef = useRef<boolean>(false);
   const russianVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const commandHandlersRef = useRef<CommandHandlers>(opts.commandHandlers ?? {});
 
   // ---- conversation persistence ----
   const persistMessage = useCallback(
@@ -205,9 +253,9 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "ru-RU";
-      utterance.rate = ttsRate;
-      utterance.pitch = ttsPitch;
-      utterance.volume = volume;
+      utterance.rate = ttsRateRef.current;
+      utterance.pitch = ttsPitchRef.current;
+      utterance.volume = volumeRef.current;
 
       const voice = russianVoiceRef.current || pickRussianVoice();
       if (voice) utterance.voice = voice;
@@ -235,10 +283,187 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
       synth.speak(utterance);
     },
-    [ttsRate, ttsPitch, volume]
+    []
   );
 
-  // ---- Chat send ----
+  // ---- SSE streaming reader ----
+  const readSSEStream = useCallback(
+    async (
+      response: Response,
+      pendingId: string,
+      convoId: string | null,
+      isFirst: boolean,
+    ): Promise<string> => {
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No response body for streaming");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let fullContent = "";
+
+      // Switch pending → streaming
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === pendingId
+            ? { ...m, pending: false, streaming: true }
+            : m
+        )
+      );
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith("data: ")) continue;
+
+          const payload = trimmed.slice(6);
+          if (payload === "[DONE]") continue;
+
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.error) {
+              throw new Error(parsed.error);
+            }
+            if (parsed.content) {
+              fullContent += parsed.content;
+              const currentContent = fullContent;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === pendingId
+                    ? { ...m, content: currentContent }
+                    : m
+                )
+              );
+            }
+            if (parsed.sources) {
+              setSearchedSources(parsed.sources as Source[]);
+            }
+          } catch (e) {
+            if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
+              // Only throw real errors, skip malformed JSON
+              if (!e.message.startsWith("[")) throw e;
+            }
+          }
+        }
+      }
+
+      // Mark streaming complete
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === pendingId
+            ? { ...m, streaming: false, hasAudio: true }
+            : m
+        )
+      );
+
+      return fullContent;
+    },
+    []
+  );
+
+  // ---- Command parser (local commands) ----
+  const processCommand = useCallback(
+    async (text: string): Promise<{ handled: boolean; response?: string } | null> => {
+      const cmd = text.trim().toLowerCase();
+      const handlers = commandHandlersRef.current;
+
+      // Create note: "запиши X", "создай заметку X", "заметка: X", "добавь заметку X"
+      const noteMatch =
+        cmd.match(/^(?:запиши|создай заметку|заметка|добавь заметку|новая заметка)[:\s]+(.+)/i);
+      if (noteMatch) {
+        const noteText = noteMatch[1].trim();
+        try {
+          const res = await fetch("/api/jarvis/notes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title: noteText, content: noteText }),
+          });
+          const data = await res.json();
+          if (data.note) {
+            return { handled: true, response: `Заметка сохранена, сэр: «${noteText}»` };
+          }
+        } catch {
+          /* ignore */
+        }
+        return { handled: true, response: "Не удалось сохранить заметку, сэр." };
+      }
+
+      // List notes: "какие заметки", "покажи заметки", "список заметок"
+      if (/^(какие заметки|покажи заметк|список заметок|мои заметки|что в замет)/i.test(cmd)) {
+        try {
+          const res = await fetch("/api/jarvis/notes");
+          const data = await res.json();
+          const notes = data.notes ?? [];
+          if (notes.length === 0) {
+            return { handled: true, response: "У вас пока нет заметок, сэр." };
+          }
+          const lines = notes
+            .slice(0, 10)
+            .map(
+              (n: { done: boolean; title: string }, i: number) =>
+                `${n.done ? "\u2611" : "\u2610"} ${i + 1}. ${n.title}`
+            )
+            .join("\n");
+          return {
+            handled: true,
+            response: `Ваши заметки (${notes.length}):\n${lines}${notes.length > 10 ? `\n\u2026 и ещё ${notes.length - 10}` : ""}`,
+          };
+        } catch {
+          return { handled: true, response: "Не удалось загрузить заметки, сэр." };
+        }
+      }
+
+      // Delete all notes: "удали все заметки", "очисти заметки"
+      if (/^(удали все заметки|удали заметки|очисти заметки|удали все задачи)/i.test(cmd)) {
+        try {
+          await fetch("/api/jarvis/notes", {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: "all" }),
+          });
+          return { handled: true, response: "Все заметки удалены, сэр." };
+        } catch {
+          return { handled: true, response: "Не удалось удалить заметки, сэр." };
+        }
+      }
+
+      // Timer: "таймер на X минут", "поставь таймер X", "таймер X минут", "таймер на X секунд"
+      const timerMatch = cmd.match(
+        /(?:таймер|таймер на|поставь таймер|установи таймер|заведи таймер)\s+(\d+(?:[.,]\d+)?)\s*(?:минут|мин|minutes?|m|секунд|сек|seconds?|s)?/i
+      );
+      if (timerMatch) {
+        const num = parseFloat(timerMatch[1].replace(",", "."));
+        const hasSec = /секунд|сек|seconds?|s/i.test(cmd);
+        const seconds = hasSec ? Math.round(num) : Math.round(num * 60);
+        if (seconds > 0 && handlers.startTimer) {
+          handlers.startTimer(seconds);
+          const mins = Math.floor(seconds / 60);
+          const secs = seconds % 60;
+          const display = mins > 0 ? `${mins} мин${secs > 0 ? ` ${secs} сек` : ""}` : `${secs} сек`;
+          return { handled: true, response: `Таймер установлен на ${display}, сэр.` };
+        }
+        return { handled: true, response: "Таймер недоступен, сэр." };
+      }
+
+      // Stop/reset timer: "стоп таймер", "сбрось таймер", "останови таймер"
+      if (/^(стоп таймер|сбрось таймер|останови таймер|отмени таймер)/i.test(cmd)) {
+        if (handlers.stopTimer) handlers.stopTimer();
+        if (handlers.resetTimer) handlers.resetTimer();
+        return { handled: true, response: "Таймер остановлен, сэр." };
+      }
+
+      return null; // not a local command
+    },
+    []
+  );
+
+  // ---- Chat send (with SSE streaming) ----
   const sendText = useCallback(
     async (text: string, source: "voice" | "text" = "text") => {
       const clean = text.trim();
@@ -256,6 +481,26 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         source,
       };
       setMessages((prev) => [...prev, userMsg]);
+
+      // Try local command processing first
+      const cmdResult = await processCommand(clean);
+      if (cmdResult?.handled) {
+        const reply = cmdResult.response || "Готово, сэр.";
+        const assistantMsg: ChatMessage = {
+          id: uid(),
+          role: "assistant",
+          content: reply,
+          createdAt: new Date().toISOString(),
+          hasAudio: true,
+        };
+        setMessages((prev) => [...prev, assistantMsg]);
+        if (autoSpeakOn) {
+          await speak(reply);
+        } else {
+          setState("idle");
+        }
+        return;
+      }
 
       const pendingId = uid();
       const pendingMsg: ChatMessage = {
@@ -277,24 +522,40 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
       try {
         const history = messages;
-        const res = await fetch("/api/jarvis/chat", {
+
+        // ─── Try streaming first ───
+        const streamRes = await fetch("/api/jarvis/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: history, query: clean }),
+          body: JSON.stringify({ messages: history, query: clean, stream: true }),
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Ошибка связи с J.A.R.V.I.S.");
 
-        const reply = data.reply as string;
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === pendingId
-              ? { ...m, content: reply, pending: false, hasAudio: true }
-              : m
-          )
-        );
+        if (!streamRes.ok) {
+          // Fall back to non-streaming
+          const fallbackData = await streamRes.json();
+          throw new Error(fallbackData.error || "Ошибка связи с J.A.R.V.I.S.");
+        }
 
-        if (data.sources) setSearchedSources(data.sources as Source[]);
+        // Check if we got SSE stream
+        const contentType = streamRes.headers.get("content-type") || "";
+        let reply: string;
+
+        if (contentType.includes("text/event-stream")) {
+          // SSE streaming mode
+          reply = await readSSEStream(streamRes, pendingId, convoId, isFirst);
+        } else {
+          // Non-streaming fallback (e.g. ZAI)
+          const data = await streamRes.json();
+          reply = data.reply as string;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === pendingId
+                ? { ...m, content: reply, pending: false, hasAudio: true }
+                : m
+            )
+          );
+          if (data.sources) setSearchedSources(data.sources as Source[]);
+        }
 
         if (convoId) void persistMessage("assistant", reply);
 
@@ -310,13 +571,13 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         setMessages((prev) =>
           prev.map((m) =>
             m.id === pendingId
-              ? { ...m, content: `» Ошибка: ${msg}`, pending: false }
+              ? { ...m, content: `» Ошибка: ${msg}`, pending: false, streaming: false }
               : m
           )
         );
       }
     },
-    [state, messages, activeConvoId, ensureConversation, persistMessage, autoSpeakOn, speak, stopSpeaking]
+    [state, messages, activeConvoId, ensureConversation, persistMessage, autoSpeakOn, speak, stopSpeaking, readSSEStream, processCommand]
   );
 
   // ---- Voice recording (ASR) ----
@@ -706,6 +967,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     searchedSources,
     conversations,
     activeConvoId,
+    processCommand,
     // actions
     sendText,
     analyzeImage,
@@ -716,12 +978,30 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     speak,
     stopSpeaking,
     setAutoSpeakOn,
+    updateTTSSettings: (rate: number, pitch: number, vol: number) => {
+      ttsRateRef.current = rate;
+      ttsPitchRef.current = pitch;
+      volumeRef.current = vol;
+    },
     clearMessages,
     newConversation,
     selectConversation,
     deleteConversation,
     loadConversations,
+    setCommandHandlers: (h: CommandHandlers) => { commandHandlersRef.current = h; },
   };
 }
 
 export type UseJarvisReturn = ReturnType<typeof useJarvis>;
+
+/** Parse timer seconds from natural text (for external use) */
+export function parseTimerSeconds(text: string): number | null {
+  const cmd = text.trim().toLowerCase();
+  const match = cmd.match(
+    /(?:таймер|таймер на|поставь таймер|установи таймер|заведи таймер)\s+(\d+(?:[.,]\d+)?)\s*(?:минут|мин|minutes?|m|секунд|сек|seconds?|s)?/i
+  );
+  if (!match) return null;
+  const num = parseFloat(match[1].replace(",", "."));
+  const hasSec = /секунд|сек|seconds?|s/i.test(cmd);
+  return hasSec ? Math.round(num) : Math.round(num * 60);
+}

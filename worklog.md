@@ -469,4 +469,143 @@ JARVIS v5.0.0 — ИИ-помощник для ПК в стиле Железно
 - Wake word «Джарвис» для активации по голосу
 - Генерация изображений в разных размерах
 - Реактивные темы для arc-reactor (SVG цвета)
-- WebSocket real-time обновления
+
+---
+Task ID: 1-streaming-settings
+Agent: main (Z.ai Code)
+Task: Streaming Chat Responses (SSE) + Settings Panel
+
+Work Log:
+- **Feature 1: SSE Streaming**
+  - Backend (`src/app/api/jarvis/chat/route.ts`):
+    - Добавлен SSE streaming handler в POST endpoint
+    - Проверка `stream: true` в теле запроса
+    - OpenAI provider: прямое проксирование SSE chunks от API, формат `data: {"content":"chunk"}\n\n`, завершение `data: [DONE]\n\n`
+    - ZAI provider: fallback на non-streaming, полный ответ как single chunk
+    - Search context корректно обрабатывается и передаётся в stream metadata
+  - Frontend (`src/hooks/use-jarvis.ts`):
+    - `sendText()` теперь отправляет `stream: true` и читает SSE через `ReadableStream.getReader()`
+    - Добавлен `readSSEStream()` callback для парсинга SSE событий
+    - Pending message получает `streaming: true` при начале потока, обновляется `content` progressively
+    - После завершения потока: `streaming: false`, `hasAudio: true`, trigger TTS если autoSpeak on
+    - Fallback на non-streaming если Content-Type не SSE
+    - Добавлен `updateTTSSettings()` метод для live-обновления TTS параметров из settings panel
+    - TTS параметры (rate/pitch/volume) хранятся в refs для стабильности callback'ов
+  - Frontend (`src/components/jarvis/chat-panel.tsx`):
+    - `MessageBubble` рендерит streaming контент напрямую через ReactMarkdown (без typewriter)
+    - Пульсирующий курсор (`animate-pulse bg-primary`) показывается во время streaming
+    - TypewriterText только для non-streamed, завершённых, latest assistant messages
+    - Audio replay button скрыт во время streaming и typewriter
+  - Types (`src/lib/types.ts`):
+    - Добавлено поле `streaming?: boolean` в `ChatMessage`
+
+- **Feature 2: Settings Panel**
+  - Backend (`src/app/api/jarvis/settings/route.ts`):
+    - GET — возвращает все настройки (с дефолтами для отсутствующих ключей) из Prisma Setting model
+    - PUT — upsert ключ-значение пар с валидацией ключей
+    - 7 настроек: ttsRate, ttsPitch, volume, autoSpeak, language, openaiModel, openaiVisionModel
+  - Frontend (`src/components/jarvis/settings-panel.tsx`):
+    - JARVIS HUD стиль: Dialog с `jarvis-border-cyan`, `jarvis-box-glow`, `jarvis-corner-brackets`, monospace
+    - 3 секции: Голос (3 слайдера TTS Rate/Pitch/Volume), Модель (2 инпута моделей), Поведение (auto-speak toggle, язык ru/en)
+    - Загрузка настроек с API при открытии, сохранение через PUT
+    - Секция uses: shadcn Slider, Switch, Input, Label, Button, Dialog
+    - Export типов: `JarvisSettingsData` interface
+  - Integration (`src/app/page.tsx`):
+    - Иконка Settings (⚙️) в header перед ThemeSwitcher
+    - `handleSettingsSave` syncs autoSpeak и TTS параметры в jarvis hook
+  - Prisma: модель Setting уже существовала в schema.prisma (key/value/updatedAt)
+
+- **Зависимости**: используются только существующие пакеты (shadcn/ui, Radix, framer-motion, lucide-react)
+- **Lint**: нет новых ошибок в модифицированных файлах
+
+---
+Task ID: 2-notes-timer-shortcuts
+Agent: main (Z.ai Code)
+Task: Notes/TODO, Timer/Stopwatch, Keyboard Shortcuts + Command Palette
+
+Work Log:
+- Создан API `/api/jarvis/notes` (GET/POST/PUT/DELETE) с Prisma ORM — полная CRUD для заметок с поддержкой `id: "all"` для удаления всех
+- `bun run db:push` — модель Note уже существовала, Prisma Client сгенерирован
+- Создан `src/components/jarvis/notes-panel.tsx` — HUD-панель заметок: список с чекбоксами (done/not done), добавление через input, удаление, стили `font-mono text-[10px] jarvis-border-cyan jarvis-box-glow jarvis-scroll`
+- Создан `src/components/jarvis/todo-widget.tsx` — виджет со счётчиком активных/выполненных задач и прогресс-баром, клик открывает заметки
+- Создан `src/components/jarvis/timer-widget.tsx` — таймер/секундомер с `forwardRef` + `useImperativeHandle`: режимы Timer (countdown) и Stopwatch (countup), состояния idle/running/paused/finished, input для мин/сек, крупный моноширинный дисплей `text-3xl font-mono` с `jarvis-glow-strong`, прогресс-бар, при завершении — `playSound("notification")` + SpeechSynthesis «Время вышло, сэр»
+- Модифицирован `src/hooks/use-jarvis.ts`:
+  - Добавлен `export interface CommandHandlers` с колбэками (startTimer, stopTimer, resetTimer, toggleNotes, openNotes, setTheme, toggleFullscreen, openSettings)
+  - Добавлен `processCommand()` — парсер русских голосовых/текстовых команд: «запиши X» → API POST note, «какие заметки» → GET + list, «удали все заметки» → DELETE all, «таймер на X минут» → parse + startTimer, «стоп таймер» → stop+reset
+  - `sendText()` теперь вызывает `processCommand()` перед отправкой в LLM — если команда обработана локально, добавляется assistant-сообщение без обращения к LLM
+  - Добавлен `setCommandHandlers()` для связи с page.tsx
+  - Экспортирован `parseTimerSeconds()` для внешнего использования
+- Создан `src/components/jarvis/command-palette.tsx` — командная палитра в стиле Spotlight/Alfred:
+  - Использует shadcn `Dialog` с `jarvis-box-glow-strong jarvis-border-cyan font-mono`
+  - Поиск по командам с фильтрацией
+  - Навигация стрелками + Enter + Escape
+  - 9 команд: Новый диалог, Голосовой ввод, Полный экран, Настройки, Заметки, Таймер, 3 темы (Mark I/42/50)
+  - `buildDefaultCommands()` для генерации списка команд
+- Модифицирован `src/app/page.tsx`:
+  - Интегрированы NotesPanel (overlay справа), TodoWidget, TimerWidget (imperative ref), CommandPalette
+  - Глобальные горячие клавиши: `Ctrl+K` → палитра, `Ctrl+M` → микрофон, `Ctrl+N` → новый диалог, `Escape` → стоп/закрытие, `F11` → fullscreen
+  - Кнопки в header: Commands (Keyboard icon), Notes (FileText icon)
+  - `useEffect` для установки `CommandHandlers` в хук JARVIS
+  - Версия обновлена до v5.2.0, директива 08 обновлена
+
+Файлы созданы:
+- `src/app/api/jarvis/notes/route.ts`
+- `src/components/jarvis/notes-panel.tsx`
+- `src/components/jarvis/todo-widget.tsx`
+- `src/components/jarvis/timer-widget.tsx`
+- `src/components/jarvis/command-palette.tsx`
+
+Файлы модифицированы:
+- `src/hooks/use-jarvis.ts`
+- `src/app/page.tsx`
+
+---
+Task ID: 3-visuals-wakeword
+Agent: main (Z.ai Code)
+Task: Wake Word Detection, Enhanced Visual Effects, Drag & Drop for Images
+
+Work Log:
+- Создан `src/hooks/use-wake-word.ts` — хук для обнаружения фраз активации ("привет джарвис", "hey jarvis", "джарвис", "jarvis" и др.) через Web Speech API в режиме continuous recognition. При обнаружении: playSound("activate"), вызов onWakeWord() callback, остановка распознавания, cooldown 3 сек, авторестарт.
+- Создан `src/components/jarvis/particles.tsx` — React-компонент с 40 плавающими частицами (2-4.5px, cyan, opacity 10-40%), использующий CSS keyframe `jarvis-particle-float` с кастомным CSS-переменным `--particle-drift` для горизонтального дрейфа. Заменяет старый CSS-only `.jarvis-particles`.
+- Добавлены новые CSS-эффекты в `src/app/globals.css`:
+  - `.jarvis-holo-glitch` — редкий микро-глитч для голографических панелей (8s цикл, 5% длительности)
+  - `.jarvis-data-stream-v2` — вертикальный поток данных (linear gradient с animation `data-flow`)
+  - `.jarvis-crt-noise` — CRT noise overlay через SVG data URI + анимация сдвига (steps 4)
+  - `.jarvis-border-pulse` — уже существовал, верифицирован
+  - `@keyframes jarvis-particle-float` — для React-частиц
+  - `.jarvis-error-flash` — CSS fallback для error flash
+  - `@keyframes error-flash-anim` — анимация красной вспышки
+- Улучшен `src/components/jarvis/arc-reactor.tsx`:
+  - Добавлены Ring 6 (outer segmented dashes, CCW 20s) и Ring 7 (inner micro-dots ring, CW 12s)
+  - Energy pulse при "thinking": усиленный drop-shadow, увеличенная анимация scale/opacity
+  - Particle emission при "speaking": 16 частиц радиально из центра (SVG animate)
+  - Hex grid pattern внутри ядра (SVG pattern + clipPath)
+  - Улучшенное box-shadow и glow для core в зависимости от состояния
+- Создан `src/components/jarvis/error-flash.tsx` — полноэкранная красная вспышка (8%→5% opacity, 300ms) с framer-motion AnimatePresence, управляемая через key-prop (remount на каждую новую ошибку)
+- Обновлён `src/app/page.tsx`:
+  - Интегрирован `useWakeWord` хук с toggle-кнопкой в хедере (Ear/EarOff иконки, "Wake: Active"/"Wake: Off")
+  - Пульсирующий dot-индикатор при активном прослушивании wake word
+  - Заменён CSS `.jarvis-particles` на React `<JarvisParticles count={40} />`
+  - Добавлены классы `.jarvis-holo-glitch` и `.jarvis-crt-noise` к System Monitor и Directives panel
+  - Добавлены `.jarvis-holo-glitch`, `.jarvis-data-stream-v2`, `.jarvis-border-pulse` к чат-панели
+  - Интегрирован `<ErrorFlash key={...} />` с key-based подходом (без useEffect + setState)
+  - Обновлена директива 04: "Загрузите или перетащите изображение для анализа"
+  - Добавлена директива 08: "Say Hey Jarvis — wake word activation"
+  - Версия обновлена на v5.1.0
+- Обновлён `src/components/jarvis/chat-panel.tsx`:
+  - Добавлены обработчики drag & drop (onDragEnter, onDragLeave, onDragOver, onDrop)
+  - Drag counter ref для корректной обработки вложенных drag-событий
+  - Drop zone overlay (AnimatePresence, dashed border, Upload иконка, "Drop image here")
+  - playSound("activate") при успешном drop изображения
+  - Обновлён placeholder подсказка: добавлено "Drag & Drop — изображение"
+
+Файлы созданы:
+- `src/hooks/use-wake-word.ts`
+- `src/components/jarvis/particles.tsx`
+- `src/components/jarvis/error-flash.tsx`
+
+Файлы модифицированы:
+- `src/app/globals.css` (добавлено ~90 строк новых CSS-эффектов и keyframes)
+- `src/components/jarvis/arc-reactor.tsx` (полная переработка: 2 новых кольца, hex grid, emission particles, energy pulse)
+- `src/components/jarvis/chat-panel.tsx` (drag & drop для изображений)
+- `src/app/page.tsx` (wake word, particles, visual effects, error flash)

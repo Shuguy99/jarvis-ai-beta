@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from "react-markdown";
-import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye } from "lucide-react";
+import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Upload } from "lucide-react";
 import type { ChatMessage } from "@/lib/types";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
 import { playSound } from "@/lib/sounds";
@@ -154,7 +154,9 @@ function MessageBubble({ msg, onSpeak, isLatest }: { msg: ChatMessage; onSpeak: 
 export function ChatPanel({ jarvis }: ChatPanelProps) {
   const { messages, sendText, state, searchedSources, stopSpeaking } = jarvis;
   const [input, setInput] = useState("");
+  const [isDragOver, setIsDragOver] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dragCounterRef = useRef(0);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -188,8 +190,57 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
     [jarvis, input]
   );
 
+  /* ─── Drag & Drop handlers ─── */
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    // Only show drop zone if dragging files
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragOver(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
+
+      const file = e.dataTransfer.files?.[0];
+      if (file && file.type.startsWith("image/")) {
+        playSound("activate");
+        void jarvis.analyzeImage(file, input.trim() || undefined);
+        setInput("");
+      }
+    },
+    [jarvis, input]
+  );
+
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="flex h-full flex-col"
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
       {/* Messages */}
       <div
         ref={scrollRef}
@@ -201,7 +252,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
               Awaiting your command, sir
             </div>
             <p className="max-w-xs font-mono text-[11px] leading-relaxed text-muted-foreground">
-              Напишите сообщение или нажмите кнопку микрофона, чтобы начать голосовой диалог с J.A.R.V.I.S.
+              Напишите сообщение, нажмите кнопку микрофона, или перетащите изображение для анализа.
             </p>
           </div>
         ) : (
@@ -240,6 +291,29 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
           </motion.div>
         )}
       </div>
+
+      {/* ─── Drop Zone Overlay ─── */}
+      <AnimatePresence>
+        {isDragOver && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-primary/60 bg-primary/5 backdrop-blur-sm"
+          >
+            <div className="flex flex-col items-center gap-2">
+              <Upload className="h-8 w-8 text-primary anim-pulse-glow" />
+              <span className="font-mono text-xs uppercase tracking-widest text-primary">
+                Drop image here
+              </span>
+              <span className="font-mono text-[9px] text-muted-foreground">
+                JARVIS will analyze the image
+              </span>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Input */}
       <form
@@ -301,7 +375,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
         </div>
         <div className="mt-1.5 flex items-center justify-between px-1">
           <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
-            Enter — отправить · Shift+Enter — перенос
+            Enter — отправить · Shift+Enter — перенос · Drag & Drop — изображение
           </span>
           <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
             {messages.length} сообщ.

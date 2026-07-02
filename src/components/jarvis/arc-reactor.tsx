@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useMemo } from "react";
 import type { JarvisState } from "@/hooks/use-jarvis";
 
 interface ArcReactorProps {
@@ -73,11 +74,38 @@ const NODES = Array.from({ length: 8 }, (_, i) => {
   return { cx: 100 + Math.cos(a) * 20, cy: 100 + Math.sin(a) * 20, i };
 });
 
+/* ─── NEW: Hex grid geometry inside core ─── */
+const HEX_GRID: { x: number; y: number; r: number; a: number }[] = [];
+{
+  const hexR = 3;
+  const hexW = hexR * Math.sqrt(3);
+  const hexH = hexR * 2;
+  for (let row = -2; row <= 2; row++) {
+    for (let col = -2; col <= 2; col++) {
+      const x = 100 + col * hexW + (row % 2 !== 0 ? hexW / 2 : 0);
+      const y = 100 + row * hexH * 0.75;
+      const dist = Math.sqrt((x - 100) ** 2 + (y - 100) ** 2);
+      if (dist < 16) {
+        HEX_GRID.push({ x, y, r: hexR, a: Math.max(0.03, 0.12 - dist * 0.006) });
+      }
+    }
+  }
+}
+
+/* ─── NEW: Emission particles (for speaking state) ─── */
+const EMISSION_ANGLES = Array.from({ length: 16 }, (_, i) => ({
+  angle: (i / 16) * Math.PI * 2,
+  delay: i * 0.15,
+}));
+
 /* ─── Component ─── */
 export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
   const c = STATE_COLORS[state];
   const sp = SPEED[state];
   const corePx = size * 0.45;
+
+  const isThinking = state === "thinking";
+  const isSpeaking = state === "speaking";
 
   /* State-specific core pulse */
   const pulseDur = state === "listening" ? 0.4 : state === "thinking" ? 0.6 : state === "speaking" ? 1.2 : 2.4;
@@ -95,9 +123,28 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
   const a3 = `jarvis-spin-slow ${10 / sp}s linear infinite`;      // ring3 CW
   const a4 = `jarvis-spin-reverse ${8 / sp}s linear infinite`;    // ring4 CCW
   const a5 = `jarvis-spin-slow ${6 / sp}s linear infinite`;       // ring5 CW
+  // NEW rings
+  const a6 = `jarvis-spin-reverse ${20 / sp}s linear infinite`;   // ring6 CCW (outer dash)
+  const a7 = `jarvis-spin-slow ${12 / sp}s linear infinite`;      // ring7 CW (inner dots)
   const aPulse = `jarvis-pulse-glow ${2.6 / sp}s ease-in-out infinite`;
 
   const origin = "100px 100px";
+
+  /* Emission particles for speaking state */
+  const emissionParticles = useMemo(() => {
+    if (!isSpeaking) return null;
+    return EMISSION_ANGLES.map((p) => {
+      const r1 = 28;
+      const r2 = 55;
+      return {
+        x1: 100 + Math.cos(p.angle) * r1,
+        y1: 100 + Math.sin(p.angle) * r1,
+        x2: 100 + Math.cos(p.angle) * r2,
+        y2: 100 + Math.sin(p.angle) * r2,
+        delay: p.delay,
+      };
+    });
+  }, [isSpeaking]);
 
   return (
     <div
@@ -105,16 +152,24 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
       style={{ width: size, height: size + 40 }}
       aria-label={`JARVIS core — ${c.label}`}
     >
-      {/* ── 0. Outer glow halo ── */}
-      <div
+      {/* ── 0. Outer glow halo (brighter during thinking) ── */}
+      <motion.div
         className="absolute rounded-full pointer-events-none"
         style={{
           width: size * 1.35,
           height: size * 1.35,
           top: `calc(50% - ${(size * 1.35) / 2}px)`,
           left: `calc(50% - ${(size * 1.35) / 2}px)`,
-          background: `radial-gradient(circle, ${c.glow} 0%, ${c.glow.replace(" / 45%", " / 12%")} 45%, transparent 72%)`,
-          animation: `jarvis-pulse-glow ${(state === "thinking" ? 1.2 : state === "listening" ? 1.8 : 3) / sp}s ease-in-out infinite`,
+          background: `radial-gradient(circle, ${c.glow} 0%, ${c.glow.replace(" / 45%", " / 12%").replace(" / 55%", " / 18%")} 45%, transparent 72%)`,
+        }}
+        animate={{
+          scale: isThinking ? [1, 1.08, 1] : [1, 1.02, 1],
+          opacity: isThinking ? [0.85, 1, 0.85] : [0.55, 1, 0.55],
+        }}
+        transition={{
+          duration: isThinking ? 1.2 : 3,
+          repeat: Infinity,
+          ease: "easeInOut",
         }}
       />
 
@@ -122,13 +177,34 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
       <svg
         viewBox="0 0 200 200"
         className="absolute top-0 left-0"
-        style={{ width: size, height: size, filter: `drop-shadow(0 0 6px ${c.glow})` }}
+        style={{
+          width: size,
+          height: size,
+          filter: `drop-shadow(0 0 ${isThinking ? 12 : 6}px ${c.glow})`,
+        }}
       >
         <defs>
           <radialGradient id="ar-core-bg" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor={c.ring} stopOpacity="0.18" />
             <stop offset="100%" stopColor={c.ring} stopOpacity="0" />
           </radialGradient>
+          {/* Hex grid pattern */}
+          <pattern id="hex-grid-pattern" x="0" y="0" width="10.39" height="18" patternUnits="userSpaceOnUse">
+            <polygon
+              points="5.2,0 10.39,3 10.39,9 5.2,12 0,9 0,3"
+              fill="none"
+              stroke={c.ring}
+              strokeWidth="0.4"
+              opacity="0.12"
+            />
+            <polygon
+              points="5.2,6 10.39,9 10.39,15 5.2,18 0,15 0,9"
+              fill="none"
+              stroke={c.ring}
+              strokeWidth="0.4"
+              opacity="0.08"
+            />
+          </pattern>
         </defs>
 
         {/* ── Ring 1 (outermost): 60 tick marks, CW 18s ── */}
@@ -138,6 +214,13 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
             <line key={`t${i}`} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
               stroke={c.ring} strokeOpacity={t.op} strokeWidth={t.w} />
           ))}
+        </g>
+
+        {/* ── NEW Ring 6: Outer segmented dashes, CCW 20s ── */}
+        <g style={{ animation: a6, transformOrigin: origin }}>
+          <circle cx="100" cy="100" r="92" fill="none"
+            stroke={c.ring} strokeOpacity="0.1" strokeWidth="0.4"
+            strokeDasharray="3 8 12 5 6 10" strokeLinecap="round" />
         </g>
 
         {/* ── Ring 2: Segmented arcs + 6 triangular markers, CCW 14s ── */}
@@ -174,7 +257,25 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
           ))}
         </g>
 
-        {/* ── Ring 5 (innermost): Solid thin ring with pulse, CW 6s ── */}
+        {/* ── NEW Ring 7: Inner micro-dots ring, CW 12s ── */}
+        <g style={{ animation: a7, transformOrigin: origin }}>
+          {Array.from({ length: 24 }, (_, i) => {
+            const a = (i / 24) * Math.PI * 2;
+            const r = 46;
+            return (
+              <circle
+                key={`id${i}`}
+                cx={100 + Math.cos(a) * r}
+                cy={100 + Math.sin(a) * r}
+                r="0.6"
+                fill={c.ring}
+                fillOpacity="0.3"
+              />
+            );
+          })}
+        </g>
+
+        {/* ── Ring 5 (innermost solid ring): Solid thin ring with pulse, CW 6s ── */}
         <g style={{ animation: `${a5}, ${aPulse}`, transformOrigin: origin }}>
           <circle cx="100" cy="100" r="40" fill="none"
             stroke={c.ring} strokeOpacity="0.15" strokeWidth="4" />
@@ -196,6 +297,14 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
         {/* ── Core background glow ── */}
         <circle cx="100" cy="100" r="28" fill="url(#ar-core-bg)" />
 
+        {/* ── Hex grid pattern inside core ── */}
+        <clipPath id="core-clip">
+          <circle cx="100" cy="100" r="28" />
+        </clipPath>
+        <g clipPath="url(#core-clip)">
+          <rect x="72" y="72" width="56" height="56" fill="url(#hex-grid-pattern)" />
+        </g>
+
         {/* ── Core outer ring + 8 energy nodes ── */}
         <g>
           <circle cx="100" cy="100" r="20" fill="none"
@@ -208,6 +317,49 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
             </circle>
           ))}
         </g>
+
+        {/* ── NEW: Emission particles during speaking state ── */}
+        {emissionParticles?.map((p, i) => (
+          <circle
+            key={`ep${i}`}
+            cx={p.x1}
+            cy={p.y1}
+            r="1.2"
+            fill={c.ring}
+            fillOpacity="0"
+          >
+            <animate
+              attributeName="cx"
+              from={p.x1}
+              to={p.x2}
+              dur="1.5s"
+              begin={`${p.delay}s`}
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="cy"
+              from={p.y1}
+              to={p.y2}
+              dur="1.5s"
+              begin={`${p.delay}s`}
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="fill-opacity"
+              values="0;0.7;0.3;0"
+              dur="1.5s"
+              begin={`${p.delay}s`}
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="r"
+              values="1.2;0.8;0.4"
+              dur="1.5s"
+              begin={`${p.delay}s`}
+              repeatCount="indefinite"
+            />
+          </circle>
+        ))}
       </svg>
 
       {/* ── Core (Framer Motion) ── */}
@@ -219,7 +371,9 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
           top: `calc(50% - ${corePx / 2}px)`,
           left: `calc(50% - ${corePx / 2}px)`,
           background: `radial-gradient(circle, ${c.ring} 0%, ${c.ring}33 60%, transparent 100%)`,
-          boxShadow: `0 0 30px ${c.glow}, inset 0 0 18px ${c.ring}66`,
+          boxShadow: isThinking
+            ? `0 0 50px ${c.glow}, 0 0 100px ${c.glow.replace(" / 55%", " / 25%")}, inset 0 0 25px ${c.ring}88`
+            : `0 0 30px ${c.glow}, inset 0 0 18px ${c.ring}66`,
         }}
         animate={{
           scale: pulseScale,
@@ -240,7 +394,9 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
             top: "26%",
             left: "26%",
             background: c.ring,
-            boxShadow: `0 0 18px ${c.ring}, 0 0 36px ${c.glow}, 0 0 60px ${c.glow}`,
+            boxShadow: isThinking
+              ? `0 0 25px ${c.ring}, 0 0 50px ${c.glow}, 0 0 80px ${c.glow}`
+              : `0 0 18px ${c.ring}, 0 0 36px ${c.glow}, 0 0 60px ${c.glow}`,
           }}
         />
       </motion.div>

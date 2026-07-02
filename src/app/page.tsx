@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useJarvis } from "@/hooks/use-jarvis";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { useJarvis, type CommandHandlers } from "@/hooks/use-jarvis";
+import { useWakeWord } from "@/hooks/use-wake-word";
 import { ArcReactor } from "@/components/jarvis/arc-reactor";
 import { SystemMonitor } from "@/components/jarvis/system-monitor";
 import { ChatPanel } from "@/components/jarvis/chat-panel";
@@ -15,8 +16,16 @@ import { NewsTicker } from "@/components/jarvis/news-ticker";
 import { FullscreenToggle } from "@/components/jarvis/fullscreen-toggle";
 import { ThemeSwitcher } from "@/components/jarvis/theme-switcher";
 import { ConversationExport } from "@/components/jarvis/conversation-export";
-import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu } from "lucide-react";
+import { JarvisParticles } from "@/components/jarvis/particles";
+import { ErrorFlash } from "@/components/jarvis/error-flash";
+import { NotesPanel } from "@/components/jarvis/notes-panel";
+import { TodoWidget } from "@/components/jarvis/todo-widget";
+import { TimerWidget, type TimerHandle } from "@/components/jarvis/timer-widget";
+import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
+import { SettingsPanel } from "@/components/jarvis/settings-panel";
+import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { playSound } from "@/lib/sounds";
 
 const CAPABILITIES = [
   { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
@@ -31,17 +40,160 @@ const CAPABILITIES = [
 
 export default function Home() {
   const [booted, setBooted] = useState(false);
+  const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [timerVisible, setTimerVisible] = useState(true);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const timerRef = useRef<TimerHandle>(null);
+
   const jarvis = useJarvis({ autoSpeak: true, ttsRate: 1.05, ttsPitch: 0.92 });
 
   const handleBootComplete = useCallback(() => setBooted(true), []);
+
+  // Set up command handlers for the hook
+  useEffect(() => {
+    const handlers: CommandHandlers = {
+      startTimer: (seconds: number) => {
+        setTimerVisible(true);
+        timerRef.current?.startTimer(seconds);
+      },
+      stopTimer: () => timerRef.current?.stop(),
+      resetTimer: () => timerRef.current?.reset(),
+      toggleNotes: () => setNotesOpen((v) => !v),
+      openNotes: () => setNotesOpen(true),
+      toggleFullscreen: async () => {
+        try {
+          if (document.fullscreenElement) await document.exitFullscreen();
+          else await document.documentElement.requestFullscreen();
+        } catch { /* ignore */ }
+      },
+      setTheme: (id: string) => {
+        document.documentElement.setAttribute("data-theme", id);
+        localStorage.setItem("jarvis-theme", id);
+      },
+    };
+    jarvis.setCommandHandlers(handlers);
+  }, [jarvis.setCommandHandlers]);
+
+  // Fullscreen toggle helper (for command palette)
+  const toggleFullscreen = useCallback(async () => {
+    playSound("activate");
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await document.documentElement.requestFullscreen();
+    } catch { /* ignore */ }
+  }, []);
+
+  // Wake word detection
+  const handleWakeWord = useCallback(() => {
+    jarvis.startListening();
+  }, [jarvis]);
+
+  const { isListening: isWakeListening } = useWakeWord({
+    enabled: wakeWordEnabled,
+    onWakeWord: handleWakeWord,
+  });
+
+  // Error flash — key changes on each new error message
+  const errorFlashKey = jarvis.state === "error" ? jarvis.error ?? "err" : 0;
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+K → Command Palette
+      if ((e.ctrlKey || e.metaKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+        return;
+      }
+      // Ctrl+M → toggle microphone
+      if ((e.ctrlKey || e.metaKey) && e.key === "m") {
+        e.preventDefault();
+        jarvis.toggleListening();
+        return;
+      }
+      // Ctrl+N → new conversation
+      if ((e.ctrlKey || e.metaKey) && e.key === "n") {
+        e.preventDefault();
+        jarvis.newConversation();
+        return;
+      }
+      // Escape → stop speaking / close dialogs
+      if (e.key === "Escape") {
+        if (paletteOpen) {
+          setPaletteOpen(false);
+          return;
+        }
+        if (settingsOpen) {
+          setSettingsOpen(false);
+          return;
+        }
+        if (notesOpen) {
+          setNotesOpen(false);
+          return;
+        }
+        if (jarvis.state === "speaking") {
+          jarvis.stopSpeaking();
+          return;
+        }
+      }
+      // F11 → fullscreen
+      if (e.key === "F11") {
+        e.preventDefault();
+        void toggleFullscreen();
+        return;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [jarvis, paletteOpen, settingsOpen, notesOpen, toggleFullscreen]);
+
+  // Build commands for palette
+  const commands = buildDefaultCommands({
+    newConversation: () => jarvis.newConversation(),
+    toggleListening: () => jarvis.toggleListening(),
+    toggleFullscreen,
+    openSettings: () => {
+      playSound("click");
+      setSettingsOpen(true);
+    },
+    toggleNotes: () => setNotesOpen((v) => !v),
+    toggleTimer: () => setTimerVisible((v) => !v),
+    setTheme: (id: string) => {
+      document.documentElement.setAttribute("data-theme", id);
+      localStorage.setItem("jarvis-theme", id);
+    },
+  });
 
   // Get active conversation title for export
   const activeTitle = jarvis.conversations.find(c => c.id === jarvis.activeConvoId)?.title;
 
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
+      {/* ===== Error Flash Overlay ===== */}
+      {jarvis.state === "error" && <ErrorFlash key={errorFlashKey} />}
+
       {/* ===== Boot Sequence Overlay ===== */}
       <BootSequence onComplete={handleBootComplete} />
+
+      {/* ===== Command Palette ===== */}
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        commands={commands}
+      />
+
+      {/* ===== Settings Panel ===== */}
+      <SettingsPanel
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        onSave={(s) => {
+          jarvis.updateTTSSettings?.(s.ttsRate, s.ttsPitch, s.volume);
+          if (s.autoSpeak !== jarvis.autoSpeakOn) jarvis.setAutoSpeakOn(s.autoSpeak);
+        }}
+      />
 
       {/* ===== Main Content (fades in after boot) ===== */}
       <AnimatePresence>
@@ -82,6 +234,51 @@ export default function Home() {
                     Systems Online
                   </span>
                 </div>
+
+                {/* Command Palette trigger */}
+                <button
+                  onClick={() => setPaletteOpen(true)}
+                  className="flex items-center gap-1.5 rounded-full border jarvis-border-cyan bg-card/40 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition hover:border-primary/50 hover:text-primary hover:jarvis-box-glow"
+                  title="Командная палитра (Ctrl+K)"
+                >
+                  <Keyboard className="h-3 w-3" />
+                  <span className="hidden sm:inline">Commands</span>
+                </button>
+
+                {/* Notes toggle */}
+                <button
+                  onClick={() => setNotesOpen((v) => !v)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
+                    notesOpen
+                      ? "border-primary/50 bg-primary/15 text-primary"
+                      : "jarvis-border-cyan bg-card/40 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                  }`}
+                  title="Заметки"
+                >
+                  <FileText className="h-3 w-3" />
+                  <span className="hidden sm:inline">Notes</span>
+                </button>
+
+                {/* Wake Word Toggle */}
+                <button
+                  onClick={() => setWakeWordEnabled(prev => !prev)}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
+                    wakeWordEnabled
+                      ? "border-primary/50 bg-primary/15 text-primary"
+                      : "border-muted-foreground/30 bg-muted/30 text-muted-foreground"
+                  }`}
+                  title="Wake Word Detection"
+                >
+                  {wakeWordEnabled ? <Ear className="h-3 w-3" /> : <EarOff className="h-3 w-3" />}
+                  <span className="hidden sm:inline">{wakeWordEnabled ? "Wake: Active" : "Wake: Off"}</span>
+                  {wakeWordEnabled && isWakeListening && (
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+                    </span>
+                  )}
+                </button>
+
                 <button
                   onClick={() => jarvis.setAutoSpeakOn(!jarvis.autoSpeakOn)}
                   className={`flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
@@ -94,6 +291,13 @@ export default function Home() {
                   {jarvis.autoSpeakOn ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
                   <span className="hidden sm:inline">{jarvis.autoSpeakOn ? "Voice On" : "Muted"}</span>
                 </button>
+                <button
+                  onClick={() => { playSound("click"); setSettingsOpen(true); }}
+                  className="flex items-center gap-1.5 rounded-full border jarvis-border-cyan bg-card/40 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition hover:border-primary/50 hover:text-primary hover:jarvis-box-glow"
+                  title="Настройки"
+                >
+                  <Settings className="h-3 w-3" />
+                </button>
                 <ThemeSwitcher />
                 <FullscreenToggle />
                 <StatusClock />
@@ -102,15 +306,33 @@ export default function Home() {
 
             {/* ===== Main ===== */}
             <main className="relative flex-1 overflow-hidden">
-              {/* Floating particles layer */}
-              <div className="pointer-events-none absolute inset-0 jarvis-particles opacity-60" />
+              {/* React floating particles */}
+              <JarvisParticles count={40} />
               <div className="pointer-events-none absolute inset-0 jarvis-grid-bg opacity-30" />
+
+              {/* ===== Notes Panel Overlay ===== */}
+              <AnimatePresence>
+                {notesOpen && (
+                  <motion.div
+                    className="absolute right-4 top-3 z-30 w-80 sm:w-96"
+                    initial={{ opacity: 0, x: 40, scale: 0.95 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    exit={{ opacity: 0, x: 40, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <NotesPanel
+                      open={notesOpen}
+                      onClose={() => setNotesOpen(false)}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 lg:grid-cols-12 lg:gap-4 lg:p-4">
                 {/* Left sidebar */}
                 <aside className="flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-hidden">
                   <motion.div
-                    className="flex-shrink-0"
+                    className="jarvis-holo-glitch jarvis-crt-noise flex-shrink-0"
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2, duration: 0.6 }}
@@ -190,7 +412,7 @@ export default function Home() {
 
                   {/* Chat */}
                   <motion.div
-                    className="jarvis-box-glow jarvis-gradient-border relative flex min-h-[340px] flex-1 overflow-hidden rounded-xl bg-card/40 backdrop-blur-sm lg:min-h-0"
+                    className="jarvis-holo-glitch jarvis-box-glow jarvis-gradient-border jarvis-data-stream-v2 jarvis-border-pulse relative flex min-h-[340px] flex-1 overflow-hidden rounded-xl bg-card/40 backdrop-blur-sm lg:min-h-0"
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.3, duration: 0.6 }}
@@ -253,8 +475,32 @@ export default function Home() {
                     </div>
                   </motion.div>
 
+                  {/* Timer Widget */}
+                  <AnimatePresence>
+                    {timerVisible && (
+                      <motion.div
+                        initial={{ opacity: 0, x: 20, height: 0 }}
+                        animate={{ opacity: 1, x: 0, height: "auto" }}
+                        exit={{ opacity: 0, x: 20, height: 0 }}
+                        transition={{ delay: 0.4, duration: 0.4 }}
+                      >
+                        <TimerWidget ref={timerRef} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* TODO Widget */}
                   <motion.div
-                    className="jarvis-box-glow jarvis-corner-brackets relative flex-1 overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.45, duration: 0.4 }}
+                  >
+                    <TodoWidget onToggleNotes={() => setNotesOpen((v) => !v)} />
+                  </motion.div>
+
+                  {/* Directives */}
+                  <motion.div
+                    className="jarvis-holo-glitch jarvis-crt-noise jarvis-box-glow jarvis-corner-brackets relative flex-1 overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.5, duration: 0.6 }}
@@ -282,7 +528,7 @@ export default function Home() {
                         </div>
                         <div className="flex gap-2">
                           <span className="text-primary/60">04.</span>
-                          <span>Загрузите изображение — Джарвис проанализирует его.</span>
+                          <span>Загрузите или перетащите изображение для анализа.</span>
                         </div>
                         <div className="flex gap-2">
                           <span className="text-primary/60">05.</span>
@@ -298,7 +544,11 @@ export default function Home() {
                         </div>
                         <div className="flex gap-2">
                           <span className="text-primary/60">08.</span>
-                          <span>Диалоги сохраняются локально в базе данных.</span>
+                          <span>Заметки, таймер, команды — Ctrl+K для палитры.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">09.</span>
+                          <span>Say &quot;Hey Jarvis&quot; — wake word activation.</span>
                         </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
@@ -306,7 +556,7 @@ export default function Home() {
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v5.0.0 · Stark Industries
+                          JARVIS v5.2.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Z.ai neural core
