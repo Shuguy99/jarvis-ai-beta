@@ -330,6 +330,8 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
   const { messages, sendText, state, searchedSources, stopSpeaking } = jarvis;
   const [input, setInput] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
+  const [screenCaptureOpen, setScreenCaptureOpen] = useState(false);
+  const [screenPrompt, setScreenPrompt] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
 
@@ -519,7 +521,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
           {jarvis.captureScreen && (
             <button
               type="button"
-              onClick={() => { playSound("scan"); void jarvis.captureScreen!(); }}
+              onClick={() => { playSound("activate"); setScreenCaptureOpen(true); }}
               disabled={busy}
               className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-card/60 text-primary/80 transition hover:bg-primary/15 hover:text-primary hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40"
               title="Показать экран Джарвису"
@@ -563,6 +565,66 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
             </button>
           )}
         </div>
+        {/* Screen Capture Modal */}
+        <AnimatePresence>
+          {screenCaptureOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-30 flex items-center justify-center rounded-xl border-2 border-primary/30 bg-background/90 backdrop-blur-md"
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="mx-4 w-full max-w-md rounded-xl border jarvis-border-cyan bg-card/90 p-5 shadow-2xl"
+              >
+                <div className="mb-4 flex items-center gap-2">
+                  <Monitor className="h-5 w-5 text-primary anim-pulse-glow" />
+                  <span className="font-mono text-xs uppercase tracking-widest text-primary jarvis-glow">
+                    Screen Analysis
+                  </span>
+                </div>
+                <p className="mb-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
+                  JARVIS захватит текущий экран и проанализирует его через систему компьютерного зрения.
+                </p>
+                <div className="mb-4">
+                  <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
+                    Вопрос (опционально)
+                  </label>
+                  <textarea
+                    value={screenPrompt}
+                    onChange={(e) => setScreenPrompt(e.target.value)}
+                    placeholder="Например: найди ошибки на странице, опиши открытые вкладки…"
+                    rows={3}
+                    autoFocus
+                    className="jarvis-scroll w-full resize-none rounded-lg border jarvis-border-cyan bg-background/60 px-3 py-2 font-mono text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50"
+                  />
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => { playSound("deactivate"); setScreenCaptureOpen(false); setScreenPrompt(""); }}
+                    className="rounded-lg border jarvis-border-cyan bg-card/60 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wider text-muted-foreground transition hover:bg-primary/10 hover:text-foreground"
+                  >
+                    Отмена
+                  </button>
+                  <button
+                    onClick={() => {
+                      setScreenCaptureOpen(false);
+                      const prompt = screenPrompt;
+                      setScreenPrompt("");
+                      void jarvis.captureScreen!(prompt || undefined);
+                    }}
+                    className="rounded-lg border jarvis-border-cyan bg-primary/20 px-4 py-1.5 font-mono text-[10px] uppercase tracking-wider text-primary transition hover:bg-primary/30 hover:jarvis-box-glow"
+                  >
+                    Захватить
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="mt-1.5 flex items-center justify-between px-1">
           <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
             Enter — отправить · Shift+Enter — перенос · Drag & Drop — изображение

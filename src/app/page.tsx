@@ -25,6 +25,8 @@ import { TimerWidget, type TimerHandle } from "@/components/jarvis/timer-widget"
 import { CalculatorWidget } from "@/components/jarvis/calculator-widget";
 import { WeatherWidget } from "@/components/jarvis/weather-widget";
 import { MusicPlayer } from "@/components/jarvis/music-player";
+import { ClipboardWidget } from "@/components/jarvis/clipboard-widget";
+import { WorldClockWidget } from "@/components/jarvis/world-clock-widget";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
 import { SettingsPanel, type JarvisSettingsData } from "@/components/jarvis/settings-panel";
 import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music } from "lucide-react";
@@ -36,7 +38,7 @@ const CAPABILITIES = [
   { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
   { icon: Volume2, label: "Voice I/O", desc: "Распознавание + синтез" },
   { icon: Eye, label: "Vision", desc: "Анализ изображений" },
-  { icon: Monitor, label: "Screen", desc: "Захват экрана" },
+  { icon: Monitor, label: "Screen", desc: "Захват экрана + VLM" },
   { icon: CloudSun, label: "Weather", desc: "Погода в реальном" },
   { icon: Music, label: "Audio", desc: "Музыкальный плеер" },
   { icon: Radar, label: "Diagnostics", desc: "Мониторинг систем" },
@@ -387,7 +389,7 @@ export default function Home() {
 
               <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 lg:grid-cols-12 lg:gap-4 lg:p-4">
                 {/* Left sidebar */}
-                <aside className="flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-hidden">
+                <aside className="jarvis-scroll flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
                   <motion.div
                     className="jarvis-holo-glitch jarvis-crt-noise flex-shrink-0"
                     initial={{ opacity: 0, x: -20 }}
@@ -497,7 +499,7 @@ export default function Home() {
                 </section>
 
                 {/* Right sidebar */}
-                <aside className="flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-hidden">
+                <aside className="jarvis-scroll flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
                   <motion.div
                     className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm"
                     initial={{ opacity: 0, x: 20 }}
@@ -541,6 +543,15 @@ export default function Home() {
                     <WeatherWidget />
                   </motion.div>
 
+                  {/* World Clock */}
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.37, duration: 0.5 }}
+                  >
+                    <WorldClockWidget />
+                  </motion.div>
+
                   {/* Music Player */}
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
@@ -548,6 +559,15 @@ export default function Home() {
                     transition={{ delay: 0.38, duration: 0.5 }}
                   >
                     <MusicPlayer />
+                  </motion.div>
+
+                  {/* Clipboard Widget */}
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.39, duration: 0.5 }}
+                  >
+                    <ClipboardWidget />
                   </motion.div>
 
                   {/* Timer Widget */}
@@ -641,11 +661,15 @@ export default function Home() {
                         </div>
                         <div className="flex gap-2">
                           <span className="text-primary/60">10.</span>
-                          <span>Screen Capture — покажите Джарвису ваш экран.</span>
+                          <span>Screen Capture — покажите экран + задайте вопрос.</span>
                         </div>
                         <div className="flex gap-2">
                           <span className="text-primary/60">11.</span>
-                          <span>Weather + Music + Continuous Listen — Auto-Listen.</span>
+                          <span>Weather + Music + Clipboard + World Clock.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">12.</span>
+                          <span>Continuous Listen — Auto-Listen режим.</span>
                         </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
@@ -653,7 +677,7 @@ export default function Home() {
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v6.0.0 · Stark Industries
+                          JARVIS v6.1.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Ollama local neural core

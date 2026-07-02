@@ -883,10 +883,11 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
   // ---- Screen Capture + VLM ----
   const captureScreen = useCallback(
-    async () => {
+    async (customPrompt?: string) => {
       if (state === "thinking" || state === "speaking") return;
 
       try {
+        playSound("scan");
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
 
         const video = document.createElement("video");
@@ -924,7 +925,10 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         const blob = new Blob([arr], { type: "image/jpeg" });
         const file = new File([blob], "screen-capture.jpg", { type: "image/jpeg" });
 
-        await analyzeImage(file, "Опиши что видишь на этом экране. Детально.");
+        const prompt = customPrompt?.trim()
+          ? `На этом скриншоте экрана: ${customPrompt.trim()}`
+          : "Опиши что видишь на этом экране. Детально.";
+        await analyzeImage(file, prompt);
       } catch (e) {
         // User cancelled screen share — silently ignore
         if (e instanceof DOMException && e.name === "NotAllowedError") return;

@@ -945,3 +945,27 @@ Stage Summary:
 - ESLint: 0 errors, 3 pre-existing warnings
 - Dev server компилируется без ошибок
 
+
+---
+Task ID: 10
+Agent: main (Z.ai Code)
+Task: Этап 2 — Enhanced Screen Capture, Clipboard Manager Widget, World Clock Widget
+
+Work Log:
+- Проверено текущее состояние: все фичи Этапа 1 уже реализованы (Screen Capture + VLM, Continuous Listen, Weather, Disk Monitor, Music Player)
+- Модифицирован `captureScreen` в `use-jarvis.ts` — добавлен параметр `customPrompt?: string`, если передан — формируется промпт "На этом скриншоте экрана: {customPrompt}"
+- Обновлён `chat-panel.tsx` — кнопка Monitor теперь открывает модальное окно "Screen Analysis" с опциональным текстовым полем для вопроса, кнопками "Захватить" и "Отмена"
+- Создан `src/components/jarvis/clipboard-widget.tsx` — Clipboard Intel виджет: мониторинг буфера обмена каждые 2с через `navigator.clipboard.readText()`, хранение до 20 записей, авто-определение URL, кнопки копирования/открытия/удаления, expand/collapse, time-ago отображение
+- Создан `src/components/jarvis/world-clock-widget.tsx` — Global Clock виджет: 6 часовых поясов (Новосибирск, Москва, Лондон, Нью-Йорк, Токио, Дубай), real-time обновление через requestAnimationFrame, флаги стран, иконки Sun/Moon, подсветка локального времени
+- Интегрированы оба виджета в `page.tsx` (sidebar между Weather и Music Player)
+- Sidebar изменён с `overflow-hidden` на `overflow-y-auto` + `jarvis-scroll` для скроллируемости
+- Обновлены Directives (добавлены пункты 10-12)
+- Версия обновлена до v6.1.0
+- Проверка: lint — 0 errors, dev server — HTTP 200, VLM анализ скриншота — оба виджета видны и работают
+
+Stage Summary:
+- Enhanced Screen Capture: модальное окно с кастомным вопросом перед захватом экрана
+- Clipboard Intel Widget: мониторинг и история буфера обмена
+- World Clock Widget: 6 часовых поясов с real-time обновлением
+- Sidebar стал скроллируемым
+- Версия: v6.1.0
