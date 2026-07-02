@@ -7,6 +7,9 @@ import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus,
 import type { ChatMessage } from "@/lib/types";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
 import { playSound } from "@/lib/sounds";
+import { getMarkdownComponents } from "@/components/jarvis/code-block";
+
+const mdComponents = getMarkdownComponents();
 
 interface ChatPanelProps {
   jarvis: UseJarvisReturn;
@@ -166,9 +169,7 @@ function TypewriterText({ text, speed = 25, onDone, onScroll }: { text: string; 
   // Completed: full markdown
   if (done) {
     const md = (
-      <ReactMarkdown
-        components={{ a: ({ ...props }) => <a target="_blank" rel="noreferrer" {...props} /> }}
-      >
+      <ReactMarkdown components={mdComponents}>
         {text}
       </ReactMarkdown>
     );
@@ -267,12 +268,8 @@ function MessageBubble({ msg, onSpeak, isLatest, onScroll }: { msg: ChatMessage;
           </div>
         ) : isStreaming ? (
           <>
-            <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-code:text-primary prose-code:before:hidden prose-code:after:hidden prose-code:rounded prose-code:bg-primary/10 prose-code:px-1 prose-pre:bg-muted/50 prose-a:text-primary">
-              <ReactMarkdown
-                components={{
-                  a: ({ ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
-                }}
-              >
+            <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-code:text-primary prose-code:before:hidden prose-code:after:hidden prose-code:rounded prose-code:bg-primary/10 prose-code:px-1 prose-pre:bg-transparent prose-pre:p-0 prose-a:text-primary">
+              <ReactMarkdown components={mdComponents}>
                 {msg.content}
               </ReactMarkdown>
             </div>
@@ -280,15 +277,11 @@ function MessageBubble({ msg, onSpeak, isLatest, onScroll }: { msg: ChatMessage;
           </>
         ) : (
           <>
-            <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-code:text-primary prose-code:before:hidden prose-code:after:hidden prose-code:rounded prose-code:bg-primary/10 prose-code:px-1 prose-pre:bg-muted/50 prose-a:text-primary">
+            <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-code:text-primary prose-code:before:hidden prose-code:after:hidden prose-code:rounded prose-code:bg-primary/10 prose-code:px-1 prose-pre:bg-transparent prose-pre:p-0 prose-a:text-primary">
               {isTypewriterTarget ? (
                 <TypewriterText text={msg.content} speed={25} onDone={handleTwDone} onScroll={onScroll} />
               ) : (
-                <ReactMarkdown
-                  components={{
-                    a: ({ ...props }) => <a target="_blank" rel="noreferrer" {...props} />,
-                  }}
-                >
+                <ReactMarkdown components={mdComponents}>
                   {msg.content}
                 </ReactMarkdown>
               )}

@@ -1044,3 +1044,77 @@ body {
     radial-gradient(2px 2px at 82% 42%, oklch(0.75 0.22 25 / 25%), transparent),
     radial-gradient(1px 1px at 28% 28%, oklch(0.75 0.22 25 / 18%), transparent);
 }
+
+/* ========================================
+   Task 6 — New HUD Animations & Utilities
+   ======================================== */
+
+/* HUD Utility: jarvis-data-badge */
+.jarvis-data-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  border: 1px solid oklch(0.85 0.19 193 / 30%);
+  background: oklch(0.85 0.19 193 / 8%);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: oklch(0.85 0.19 193);
+}
+
+/* HUD Utility: jarvis-hexagon — hexagonal clip-path for decorative elements */
+.jarvis-hexagon {
+  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+}
+
+/* Animation: jarvis-border-flow — animated border gradient that flows around the element */
+@keyframes jarvis-border-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.anim-border-flow {
+  background-size: 200% 200%;
+  animation: jarvis-border-flow 3s ease infinite;
+}
+
+/* Animation: jarvis-slide-in-bottom — slide up from below */
+@keyframes jarvis-slide-in-bottom {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.anim-slide-in-bottom {
+  animation: jarvis-slide-in-bottom 0.5s ease-out forwards;
+}
+
+/* HUD Utility: jarvis-text-glow-strong — stronger text glow for headings */
+.jarvis-text-glow-strong {
+  text-shadow:
+    0 0 7px oklch(0.85 0.19 193 / 60%),
+    0 0 20px oklch(0.85 0.19 193 / 30%),
+    0 0 40px oklch(0.85 0.19 193 / 15%);
+}
+
+/* HUD Utility: jarvis-line-accent — decorative line with glow */
+.jarvis-line-accent {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, oklch(0.85 0.19 193 / 60%), transparent);
+}
+
+/* Animation: jarvis-pulse-ring — expanding ring pulse */
+@keyframes jarvis-pulse-ring {
+  0% { transform: scale(1); opacity: 0.6; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
+.anim-pulse-ring {
+  animation: jarvis-pulse-ring 2s ease-out infinite;
+}
+
+/* HUD Utility: jarvis-grid-dots — dot grid background pattern */
+.jarvis-grid-dots {
+  background-image: radial-gradient(oklch(0.85 0.19 193 / 15%) 1px, transparent 1px);
+  background-size: 16px 16px;
+}

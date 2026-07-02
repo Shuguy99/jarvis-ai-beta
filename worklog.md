@@ -1174,3 +1174,156 @@ Stage Summary:
 - System Alerts Widget with threshold monitoring and diagnostic actions
 - ESLint: 0 errors, 2 pre-existing warnings
 - Dev server: GET / 200, all APIs 200, no runtime errors
+
+---
+Task ID: 2
+Agent: shortcuts-builder
+Task: Create Keyboard Shortcuts Reference Widget
+
+Work Log:
+- Read worklog.md and weather-widget.tsx for styling reference
+- Created `/src/components/jarvis/shortcuts-widget.tsx` with named export `ShortcutsWidget`
+- Implemented 4 shortcut categories: Общие (3), Чат (2), Инструменты (3), Голос (1) — 9 total
+- Each shortcut shows styled `kbd` elements with key combos, Russian descriptions on the right
+- Collapsed by default with "X shortcuts" count, expands/collapses on header click with AnimatePresence
+- Used `playSound("click", 0.3)` on toggle, Keyboard + ChevronDown/ChevronUp icons from lucide-react
+- Matched exact HUD styling: jarvis-box-glow, jarvis-corner-brackets, jarvis-grid-bg, backdrop-blur-sm
+- Ran `bun run lint` — 0 errors, 2 pre-existing warnings (unrelated)
+
+Stage Summary:
+- ShortcutsWidget component created at `/src/components/jarvis/shortcuts-widget.tsx`
+- Compact collapsible panel with 9 keyboard shortcuts across 4 categories
+- Matches JARVIS HUD design system, passes lint with no new issues
+---
+Task ID: 6
+Agent: css-polisher
+Task: Polish CSS with new HUD animations and utilities
+
+Work Log:
+- Read worklog.md and current globals.css to audit existing styles
+- Identified 3 items that already existed and were skipped: jarvis-scroll scrollbar styling, @keyframes jarvis-flicker / .anim-flicker, .jarvis-pulse-ring utility class
+- Appended 10 new CSS rules at the end of globals.css (lines 1048–1120):
+  - `.jarvis-data-badge` — pill-shaped data badge with mono font and cyan border
+  - `.jarvis-hexagon` — hexagonal clip-path utility
+  - `@keyframes jarvis-border-flow` + `.anim-border-flow` — flowing gradient border animation
+  - `@keyframes jarvis-slide-in-bottom` + `.anim-slide-in-bottom` — slide-up entrance animation
+  - `.jarvis-text-glow-strong` — triple-layer cyan text glow for headings
+  - `.jarvis-line-accent` — horizontal gradient line with glow
+  - `@keyframes jarvis-pulse-ring` + `.anim-pulse-ring` — expanding ring pulse keyframe + utility
+  - `.jarvis-grid-dots` — dot grid background pattern
+- Ran `bun run lint` — 0 errors, 2 pre-existing warnings (unrelated)
+
+Stage Summary:
+- 10 new HUD utilities and animations appended to globals.css
+- No existing CSS was modified or removed
+- All new styles use consistent oklch(0.85 0.19 193) cyan color tokens
+
+---
+Task ID: 5
+Agent: actions-bar-builder
+Task: Create Quick Actions Floating Bar
+
+Work Log:
+- Read worklog.md, sounds.ts, quick-commands.tsx, tooltip.tsx for project context
+- Created `/src/components/jarvis/quick-actions-bar.tsx` with named export `QuickActionsBar`
+- Implemented floating bar: `fixed bottom-16 left-1/2 -translate-x-1/2 z-40 hidden lg:block`
+- Bar styling: `backdrop-blur-xl bg-card/60 border border-primary/20 rounded-full px-3 py-2` + `jarvis-box-glow`
+- Action buttons: 36x36px circular, `border-primary/20 bg-primary/5`, Framer Motion `whileHover={{ scale: 1.15 }}`, `whileTap={{ scale: 0.9 }}`
+- Each button has Tooltip (top, 8px offset) with `font-mono text-[11px] tracking-wider` HUD styling
+- `playSound("click", 0.2)` on every action button click
+- Separator dots: `w-1 h-1 rounded-full bg-primary/20` inserted every 4 buttons via reduce
+- Expand/Collapse: toggle button with MoreHorizontal (collapsed) / ChevronDown (expanded) icons
+- Collapse state persisted to localStorage key `jarvis-actions-bar-collapsed`
+- Hydration-safe: returns null until localStorage read completes on mount
+- AnimatePresence with staggered entry/exit animations for buttons and separators
+- Exported `QuickAction` and `QuickActionsBarProps` interfaces for consumer use
+- Ran `bun run lint` — 0 errors, 2 pre-existing warnings (unrelated)
+
+Stage Summary:
+- QuickActionsBar component at `/src/components/jarvis/quick-actions-bar.tsx`
+- Floating bottom bar with circular action buttons, separator dots, tooltips, sound feedback
+- Collapsible with localStorage persistence, animated via Framer Motion
+- Hidden on mobile, visible on lg+; positioned above footer at bottom-16
+- Passes lint with no new issues; ready for integration into page.tsx
+---
+Task ID: 3
+Agent: stats-builder
+Task: Create Session Stats Widget
+
+Work Log:
+- Exported `ActivityEvent` interface from `activity-feed.tsx` for cross-component reuse
+- Created `/src/components/jarvis/session-stats-widget.tsx` with named export `SessionStatsWidget`
+- Implemented `DayStats` / `SessionStats` data structures with localStorage key `jarvis-session-stats`
+- Auto-tracking via `useActivityListener`: chat→messagesSent/messagesReceived, voice→voiceSessions, vision→imagesAnalyzed/screenCaptures, weather→webSearches, plus regex pattern detection for search queries in chat messages
+- Display: 8 stat cards (Сообщ., Ответы, Голос, Визия, Экран, Поиск, Фокус (м), Заметки) in a 4×2 grid with icons from lucide-react
+- `AnimatedNumber` component using `motion.span` with scale-up animation on value change
+- Weekly mini SVG bar chart (last 7 days, Russian day labels Пн–Вс, today highlighted in primary color, others in primary/30, animated bars)
+- Double-click reset button with `RotateCcw` icon and 800ms confirmation window
+- HUD styling: `jarvis-box-glow jarvis-corner-brackets` with inner brackets, grid bg, backdrop blur
+- Header: `BarChart3` icon + "Session Stats" in `font-mono text-xs uppercase tracking-widest text-primary jarvis-glow`
+- Stat cards: `rounded-lg border jarvis-border-cyan bg-primary/5 p-2`
+- Framer Motion entrance animation (fade + slide up)
+- Ran `bun run lint` — 0 errors, 2 pre-existing warnings (unrelated)
+
+Stage Summary:
+- SessionStatsWidget at `/src/components/jarvis/session-stats-widget.tsx`
+- Fully functional daily usage analytics with localStorage persistence and real-time event tracking
+- Ready for integration into page.tsx
+
+---
+Task ID: Round 4 — v7.1.0
+Agent: main (Z.ai Code)
+Task: Session Stats, Shortcuts Widget, Code Highlighting, Quick Actions Bar, CSS Polish
+
+Work Log:
+- **Task 2 — Keyboard Shortcuts Widget** (subagent):
+  - Created `shortcuts-widget.tsx`: 9 shortcuts in 4 categories (Общие/Чат/Инструменты/Голос)
+  - Collapsed by default, styled kbd elements, expand/collapse with sound
+  - HUD styling with corner brackets and grid bg
+
+- **Task 3 — Session Stats Widget** (subagent):
+  - Created `session-stats-widget.tsx`: auto-tracks via useActivityListener
+  - 8 stat cards (4x2 grid) with animated numbers
+  - Weekly mini SVG bar chart (last 7 days, Russian day labels)
+  - localStorage persistence, double-click reset
+  - Exported ActivityEvent type from activity-feed.tsx for reuse
+
+- **Task 4 — Code Syntax Highlighting** (main):
+  - Installed `react-syntax-highlighter` + `@types/react-syntax-highlighter`
+  - Created `code-block.tsx`: custom JARVIS Prism theme (cyan keywords, amber strings, emerald values, violet functions)
+  - Terminal-style header with traffic light dots, language label, copy button
+  - Line numbers, max-height scroll, jarvis-scroll styling
+  - `getMarkdownComponents()` shared override for all ReactMarkdown instances
+  - Integrated into chat-panel.tsx: all 3 ReactMarkdown instances now use code highlighting
+  - prose-pre:bg-transparent prose-pre:p-0 to prevent double backgrounds
+
+- **Task 5 — Quick Actions Floating Bar** (subagent):
+  - Created `quick-actions-bar.tsx`: fixed bottom-16, rounded-full, backdrop-blur
+  - 36x36px circular action buttons with whileHover/whileTap animations
+  - shadcn Tooltip integration, separator dots, expand/collapse with localStorage
+  - Installed `@radix-ui/react-tooltip` dependency
+  - 6 actions: Voice, Search, Screen, Notes, Stats, Settings
+
+- **Task 6 — CSS Polish** (subagent):
+  - 10 new CSS rules appended to globals.css
+  - New utilities: jarvis-data-badge, jarvis-hexagon, jarvis-text-glow-strong, jarvis-line-accent, jarvis-grid-dots
+  - New animations: jarvis-border-flow, jarvis-slide-in-bottom, jarvis-pulse-ring (+ existing flicker)
+  - 3 items skipped (already existed): jarvis-scroll, jarvis-flicker, jarvis-pulse-ring
+
+- **Integration** (main):
+  - Added ShortcutsWidget + SessionStatsWidget to left sidebar (after HoloGlobe)
+  - Added QuickActionsBar before footer with 6 action buttons
+  - Updated imports (Mic, Search, BarChart3 icons + new components)
+  - Directives: 18 → 22 points
+  - Version: v7.0.0 → v7.1.0
+
+Stage Summary:
+- JARVIS v7.1.0 — 5 features + CSS polish
+- Code blocks now have JARVIS-themed syntax highlighting with copy button
+- Session Stats tracks daily usage with weekly bar chart
+- Keyboard Shortcuts reference (collapsible, 9 hotkeys)
+- Quick Actions floating bar with 6 quick actions
+- 10 new CSS utilities and animations
+- ESLint: 0 errors, 2 pre-existing warnings
+- Dev server: GET / 200, VLM aesthetic: 9/10
+- Components total: 35

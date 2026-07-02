@@ -33,12 +33,15 @@ import { ActivityFeed } from "@/components/jarvis/activity-feed";
 import { PomodoroWidget } from "@/components/jarvis/pomodoro-widget";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
 import { SettingsPanel, type JarvisSettingsData } from "@/components/jarvis/settings-panel";
-import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSound } from "@/lib/sounds";
 import { showNotification, NotificationToastContainer } from "@/components/jarvis/notification-toast";
 import { NetworkWidget } from "@/components/jarvis/network-widget";
 import { SystemAlertsWidget } from "@/components/jarvis/system-alerts-widget";
+import { ShortcutsWidget } from "@/components/jarvis/shortcuts-widget";
+import { SessionStatsWidget } from "@/components/jarvis/session-stats-widget";
+import { QuickActionsBar, type QuickAction } from "@/components/jarvis/quick-actions-bar";
 
 const CAPABILITIES = [
   { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
@@ -461,6 +464,24 @@ export default function Home() {
                     <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
                     <HoloGlobe size={220} />
                   </motion.div>
+
+                  {/* Session Stats */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.36, duration: 0.5 }}
+                  >
+                    <SessionStatsWidget />
+                  </motion.div>
+
+                  {/* Keyboard Shortcuts */}
+                  <motion.div
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.37, duration: 0.5 }}
+                  >
+                    <ShortcutsWidget />
+                  </motion.div>
                   <motion.div
                     className="jarvis-box-glow jarvis-corner-brackets relative min-h-[160px] flex-1 overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-3 backdrop-blur-sm lg:min-h-0"
                     initial={{ opacity: 0, x: -20 }}
@@ -766,13 +787,29 @@ export default function Home() {
                           <span className="text-primary/60">18.</span>
                           <span>Enhanced Notes — категории, поиск, закрепление.</span>
                         </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">19.</span>
+                          <span>Code Highlighting — подсветка + копирование блоков.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">20.</span>
+                          <span>Quick Actions Bar — быстрые действия внизу.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">21.</span>
+                          <span>Session Stats — аналитика использования.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">22.</span>
+                          <span>Keyboard Shortcuts — справка по хоткеям.</span>
+                        </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
                         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v7.0.0 · Stark Industries
+                          JARVIS v7.1.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Ollama local neural core
@@ -783,6 +820,18 @@ export default function Home() {
                 </aside>
               </div>
             </main>
+
+            {/* ===== Quick Actions Bar ===== */}
+            <QuickActionsBar
+              actions={[
+                { icon: Mic, label: "Голос", onClick: () => jarvis.toggleListening() },
+                { icon: Search, label: "Поиск", onClick: () => jarvis.sendText("Найди информацию о", "text") },
+                { icon: Monitor, label: "Экран", onClick: () => { if (jarvis.captureScreen) void jarvis.captureScreen(); } },
+                { icon: FileText, label: "Заметки", onClick: () => setNotesOpen((v: boolean) => !v) },
+                { icon: BarChart3, label: "Статистика", onClick: () => setSettingsOpen(true) },
+                { icon: Settings, label: "Настройки", onClick: () => { playSound("click"); setSettingsOpen(true); } },
+              ] as QuickAction[]}
+            />
 
             {/* ===== Footer ===== */}
             <footer className="relative z-10 mt-auto border-t jarvis-border-cyan bg-card/40 px-4 py-2 backdrop-blur-md">

@@ -18,7 +18,7 @@ import { playSound } from "@/lib/sounds";
 type EventSeverity = "info" | "success" | "warning" | "error";
 type EventCategory = "system" | "chat" | "voice" | "vision" | "weather" | "media";
 
-interface ActivityEvent {
+export interface ActivityEvent {
   id: string;
   message: string;
   severity: EventSeverity;
