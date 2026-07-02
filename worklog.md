@@ -1860,3 +1860,18 @@ JARVIS v12.0.0 «Advanced Features» — Этап 6 завершён. Добав
 - [ ] Этап 7: Polish & Release (Performance, Accessibility, Final QA)
 - [ ] Подключить DnD к сайдбарам page.tsx
 - [ ] Создать icon.ico для Electron инсталлятора
+
+---
+Task ID: 7-2
+Agent: main (Z.ai Code)
+Task: Accessibility Improvements for JARVIS HUD — create reusable a11y utilities
+
+Work Log:
+- Created `src/lib/a11y-utils.tsx` with the following exports:
+  - `useFocusTrap(isOpen)` — focus trap hook for overlay/modal components; traps Tab/Shift+Tab within container, auto-focuses first focusable element on open, restores previous focus on close
+  - `SrOnly` — screen-reader-only text component using Tailwind's `sr-only` class
+  - `useAriaAnnounce()` — hook that provides an `announceRef` and `announce(message, priority)` function for programmatic aria-live announcements
+  - `VisuallyHidden` — visually hidden component with configurable HTML tag (`span`, `div`, `h1`–`h6`, `p`, `label`) using clip-rect technique
+  - `getOverlayProps(label, isOpen)` — returns standard ARIA dialog props (`role="dialog"`, `aria-modal`, `aria-label`, `aria-hidden`) for modal overlays
+- All hooks marked with `"use client"` directive
+- Lint passed with 0 new errors (2 pre-existing warnings in unrelated files)

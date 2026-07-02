@@ -259,9 +259,9 @@ export function ProcessManagerWidget() {
             </div>
           ) : (
             <div className="flex flex-col">
-              {processes.map((p) => (
+              {processes.map((p, i) => (
                 <div
-                  key={p.pid}
+                  key={`${p.pid}-${i}`}
                   className="group grid grid-cols-[3.5rem_1fr_3.2rem_3.2rem] items-center gap-1 border-b border-primary/5 py-1 last:border-0"
                 >
                   {/* PID */}

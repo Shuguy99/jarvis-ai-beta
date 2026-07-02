@@ -27,7 +27,7 @@ function parsePsAux(sort: string): ProcessInfo[] {
       sortFlag = "--sort=-%cpu";
   }
 
-  const raw = execSync(`ps aux ${sortFlag}`, {
+  const raw = execSync(`LC_ALL=C ps aux ${sortFlag}`, {
     encoding: "utf-8",
     timeout: 5000,
   });
@@ -53,8 +53,10 @@ function parsePsAux(sort: string): ProcessInfo[] {
 
     // Extract base name from full command path
     const name = command.split("/").pop()?.split(" ")[0] ?? command;
+    // Sanitize: replace non-printable chars
+    const sanitized = name.replace(/[\x00-\x1F\x7F]/g, "").trim();
     // Truncate long names
-    const displayName = name.length > 24 ? name.slice(0, 22) + "…" : name;
+    const displayName = sanitized.length > 24 ? sanitized.slice(0, 22) + "…" : sanitized;
 
     processes.push({
       pid,

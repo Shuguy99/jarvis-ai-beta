@@ -6,56 +6,36 @@ import { useWakeWord } from "@/hooks/use-wake-word";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useSystemAlerts } from "@/hooks/use-system-alerts";
 import { ArcReactor } from "@/components/jarvis/arc-reactor";
-import { SystemMonitor } from "@/components/jarvis/system-monitor";
 import { ChatPanel } from "@/components/jarvis/chat-panel";
 import { QuickCommands } from "@/components/jarvis/quick-commands";
 import { ConversationList } from "@/components/jarvis/conversation-list";
 import { VoiceControl } from "@/components/jarvis/voice-control";
 import { StatusClock } from "@/components/jarvis/status-clock";
 import { BootSequence } from "@/components/jarvis/boot-sequence";
-import { HoloGlobe } from "@/components/jarvis/holo-globe";
 import { NewsTicker } from "@/components/jarvis/news-ticker";
 import { FullscreenToggle } from "@/components/jarvis/fullscreen-toggle";
 import { ThemeSwitcher } from "@/components/jarvis/theme-switcher";
 import { ConversationExport } from "@/components/jarvis/conversation-export";
 import { JarvisParticles } from "@/components/jarvis/particles";
 import { ErrorFlash } from "@/components/jarvis/error-flash";
-import { NotesPanel } from "@/components/jarvis/notes-panel";
-import { TodoWidget } from "@/components/jarvis/todo-widget";
 import { TimerWidget, type TimerHandle } from "@/components/jarvis/timer-widget";
 import { CalculatorWidget } from "@/components/jarvis/calculator-widget";
-import { WeatherWidget } from "@/components/jarvis/weather-widget";
-import { MusicPlayer } from "@/components/jarvis/music-player";
-import { ClipboardWidget } from "@/components/jarvis/clipboard-widget";
-import { WorldClockWidget } from "@/components/jarvis/world-clock-widget";
-import { QuickLaunchWidget } from "@/components/jarvis/quick-launch-widget";
-import { ActivityFeed } from "@/components/jarvis/activity-feed";
-import { PomodoroWidget } from "@/components/jarvis/pomodoro-widget";
+import { WindowControls } from "@/components/jarvis/window-controls";
+import { VoiceCommandOverlay } from "@/components/jarvis/voice-command-overlay";
+import { useVoiceCommands } from "@/hooks/use-voice-commands";
+import { SystemInsightsWidget } from "@/components/jarvis/system-insights-widget";
+// Lazy-loaded overlays (code-split)
+import { LazyAgentPanel, LazyPluginPanel, LazyLayoutCustomizer, LazyNotificationCenter, LazySettingsPanel, LazyMarkdownWidget, LazyMetricsHistoryChart, JarvisSuspense } from "@/lib/lazy-components";
+// Memoized sidebar widgets (prevent re-renders)
+import { MemoizedSystemMonitor, MemoizedWeatherWidget, MemoizedWorldClockWidget, MemoizedMusicPlayer, MemoizedClipboardWidget, MemoizedNetworkWidget, MemoizedProcessManagerWidget, MemoizedAmbientSoundWidget, MemoizedPomodoroWidget, MemoizedSessionStatsWidget, MemoizedSystemAlertsWidget, MemoizedShortcutsWidget, MemoizedFileExplorerWidget, MemoizedCalendarWidget, MemoizedActivityFeed, MemoizedQuickLaunchWidget, MemoizedTodoWidget, MemoizedHoloGlobe } from "@/components/jarvis/memoized-widgets";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
-import { SettingsPanel, type JarvisSettingsData } from "@/components/jarvis/settings-panel";
+import type { JarvisSettingsData } from "@/components/jarvis/settings-panel";
+import { NotesPanel } from "@/components/jarvis/notes-panel";
 import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3, Terminal, Headphones, FolderOpen, CalendarDays, FileCode, Bot, Puzzle, LayoutGrid, Command, Sparkles, TrendingUp } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSound } from "@/lib/sounds";
 import { showNotification, NotificationToastContainer } from "@/components/jarvis/notification-toast";
-import { NetworkWidget } from "@/components/jarvis/network-widget";
-import { SystemAlertsWidget } from "@/components/jarvis/system-alerts-widget";
-import { ShortcutsWidget } from "@/components/jarvis/shortcuts-widget";
-import { SessionStatsWidget } from "@/components/jarvis/session-stats-widget";
-import { QuickActionsBar, type QuickAction } from "@/components/jarvis/quick-actions-bar"
-import { ProcessManagerWidget } from "@/components/jarvis/process-manager-widget"
-import { AmbientSoundWidget } from "@/components/jarvis/ambient-sound-widget"
-import { FileExplorerWidget } from "@/components/jarvis/file-explorer-widget"
-import { CalendarWidget } from "@/components/jarvis/calendar-widget"
-import { MarkdownWidget } from "@/components/jarvis/markdown-widget"
-import { WindowControls } from "@/components/jarvis/window-controls"
-import { VoiceCommandOverlay } from "@/components/jarvis/voice-command-overlay"
-import { AgentPanel } from "@/components/jarvis/agent-panel"
-import { PluginPanel } from "@/components/jarvis/plugin-panel"
-import { LayoutCustomizer } from "@/components/jarvis/layout-customizer"
-import { useVoiceCommands } from "@/hooks/use-voice-commands"
-import { SystemInsightsWidget } from "@/components/jarvis/system-insights-widget"
-import { NotificationCenter } from "@/components/jarvis/notification-center"
-import MetricsHistoryChart from "@/components/jarvis/metrics-history-chart"
+import { QuickActionsBar, type QuickAction } from "@/components/jarvis/quick-actions-bar";
 
 
 const CAPABILITIES = [
@@ -364,16 +344,18 @@ export default function Home() {
       />
 
       {/* ===== Settings Panel ===== */}
-      <SettingsPanel
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        onSave={(s) => {
-          jarvis.updateTTSSettings?.(s.ttsRate, s.ttsPitch, s.volume);
-          if (s.autoSpeak !== jarvis.autoSpeakOn) jarvis.setAutoSpeakOn(s.autoSpeak);
-          setJarvisSettings(s);
-          showNotification({ title: "Конфигурация сохранена", message: "Настройки JARVIS обновлены", type: "success" });
-        }}
-      />
+      <JarvisSuspense>
+        <LazySettingsPanel
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          onSave={(s) => {
+            jarvis.updateTTSSettings?.(s.ttsRate, s.ttsPitch, s.volume);
+            if (s.autoSpeak !== jarvis.autoSpeakOn) jarvis.setAutoSpeakOn(s.autoSpeak);
+            setJarvisSettings(s);
+            showNotification({ title: "Конфигурация сохранена", message: "Настройки JARVIS обновлены", type: "success" });
+          }}
+        />
+      </JarvisSuspense>
 
       {/* ===== Main Content (fades in after boot) ===== */}
       <AnimatePresence>
@@ -532,22 +514,22 @@ export default function Home() {
                     exit={{ opacity: 0, x: 40, scale: 0.95 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <MarkdownWidget onClose={() => setMarkdownOpen(false)} />
+                    <JarvisSuspense><LazyMarkdownWidget onClose={() => setMarkdownOpen(false)} /></JarvisSuspense>
                   </motion.div>
                 )}
               </AnimatePresence>
 
               {/* ===== Agent Panel Overlay ===== */}
-              <AgentPanel open={agentOpen} onClose={() => setAgentOpen(false)} />
+              <JarvisSuspense><LazyAgentPanel open={agentOpen} onClose={() => setAgentOpen(false)} /></JarvisSuspense>
 
               {/* ===== Plugin Panel Overlay ===== */}
-              <PluginPanel open={pluginOpen} onClose={() => setPluginOpen(false)} />
+              <JarvisSuspense><LazyPluginPanel open={pluginOpen} onClose={() => setPluginOpen(false)} /></JarvisSuspense>
 
               {/* ===== Layout Customizer Overlay ===== */}
-              <LayoutCustomizer open={layoutOpen} onClose={() => setLayoutOpen(false)} />
+              <JarvisSuspense><LazyLayoutCustomizer open={layoutOpen} onClose={() => setLayoutOpen(false)} /></JarvisSuspense>
 
               {/* ===== Notification Center Overlay ===== */}
-              <NotificationCenter open={notifOpen} onClose={() => setNotifOpen(false)} />
+              <JarvisSuspense><LazyNotificationCenter open={notifOpen} onClose={() => setNotifOpen(false)} /></JarvisSuspense>
 
               <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 lg:grid-cols-12 lg:gap-4 lg:p-4">
                 {/* Left sidebar */}
@@ -558,7 +540,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.15, duration: 0.5 }}
                   >
-                    <QuickLaunchWidget />
+                    <MemoizedQuickLaunchWidget />
                   </motion.div>
 
                   <motion.div
@@ -567,7 +549,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2, duration: 0.6 }}
                   >
-                    <SystemMonitor />
+                    <MemoizedSystemMonitor />
                   </motion.div>
 
                   {/* Metrics History Chart */}
@@ -576,7 +558,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.22, duration: 0.6 }}
                   >
-                    <MetricsHistoryChart />
+                    <JarvisSuspense><LazyMetricsHistoryChart /></JarvisSuspense>
                   </motion.div>
 
                   {/* Activity Feed */}
@@ -585,7 +567,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.32, duration: 0.5 }}
                   >
-                    <ActivityFeed />
+                    <MemoizedActivityFeed />
                   </motion.div>
 
                   {/* System Alerts Widget */}
@@ -594,7 +576,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.33, duration: 0.5 }}
                   >
-                    <SystemAlertsWidget />
+                    <MemoizedSystemAlertsWidget />
                   </motion.div>
 
                   {/* Holographic Globe */}
@@ -605,7 +587,7 @@ export default function Home() {
                     transition={{ delay: 0.35, duration: 0.6 }}
                   >
                     <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
-                    <HoloGlobe size={220} />
+                    <MemoizedHoloGlobe size={220} />
                   </motion.div>
 
                   {/* Session Stats */}
@@ -614,7 +596,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.36, duration: 0.5 }}
                   >
-                    <SessionStatsWidget />
+                    <MemoizedSessionStatsWidget />
                   </motion.div>
 
                   {/* Keyboard Shortcuts */}
@@ -623,7 +605,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.37, duration: 0.5 }}
                   >
-                    <ShortcutsWidget />
+                    <MemoizedShortcutsWidget />
                   </motion.div>
 
                   {/* File Explorer */}
@@ -632,7 +614,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.38, duration: 0.5 }}
                   >
-                    <FileExplorerWidget />
+                    <MemoizedFileExplorerWidget />
                   </motion.div>
 
                   {/* Calendar */}
@@ -641,7 +623,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.39, duration: 0.5 }}
                   >
-                    <CalendarWidget />
+                    <MemoizedCalendarWidget />
                   </motion.div>
                   <motion.div
                     className="jarvis-box-glow jarvis-corner-brackets relative min-h-[160px] flex-1 overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-3 backdrop-blur-sm lg:min-h-0"
@@ -775,7 +757,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.35, duration: 0.5 }}
                   >
-                    <WeatherWidget />
+                    <MemoizedWeatherWidget />
                   </motion.div>
 
                   {/* World Clock */}
@@ -784,7 +766,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.37, duration: 0.5 }}
                   >
-                    <WorldClockWidget />
+                    <MemoizedWorldClockWidget />
                   </motion.div>
 
                   {/* Music Player */}
@@ -793,7 +775,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.38, duration: 0.5 }}
                   >
-                    <MusicPlayer />
+                    <MemoizedMusicPlayer />
                   </motion.div>
 
                   {/* Clipboard Widget */}
@@ -802,7 +784,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.39, duration: 0.5 }}
                   >
-                    <ClipboardWidget />
+                    <MemoizedClipboardWidget />
                   </motion.div>
 
                   {/* Network Traffic */}
@@ -811,7 +793,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.395, duration: 0.5 }}
                   >
-                    <NetworkWidget />
+                    <MemoizedNetworkWidget />
                   </motion.div>
 
                   {/* Process Manager */}
@@ -820,7 +802,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.41, duration: 0.5 }}
                   >
-                    <ProcessManagerWidget />
+                    <MemoizedProcessManagerWidget />
                   </motion.div>
 
                   {/* Ambient Sound */}
@@ -829,7 +811,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.415, duration: 0.5 }}
                   >
-                    <AmbientSoundWidget />
+                    <MemoizedAmbientSoundWidget />
                   </motion.div>
 
                   {/* Pomodoro Focus */}
@@ -838,7 +820,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.42, duration: 0.5 }}
                   >
-                    <PomodoroWidget />
+                    <MemoizedPomodoroWidget />
                   </motion.div>
 
                   {/* Timer Widget */}
@@ -875,7 +857,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.45, duration: 0.4 }}
                   >
-                    <TodoWidget onToggleNotes={() => setNotesOpen((v) => !v)} />
+                    <MemoizedTodoWidget onToggleNotes={() => setNotesOpen((v) => !v)} />
                   </motion.div>
 
                   {/* Directives */}
@@ -1042,13 +1024,25 @@ export default function Home() {
                           <span className="text-primary/60">37.</span>
                           <span>Widget DnD — перетаскивание виджетов (инфраструктура).</span>
                         </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">38.</span>
+                          <span>Performance — React.memo + lazy loading оверлеев.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">39.</span>
+                          <span>Accessibility — ARIA utils и focus trap.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">40.</span>
+                          <span>Bugfix — Processes API locale, React key collision.</span>
+                        </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
                         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v12.0.0 · Stark Industries
+                          JARVIS v13.0.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Ollama local neural core

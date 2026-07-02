@@ -1,0 +1,41 @@
+"use client";
+
+import { memo } from "react";
+import { SystemMonitor } from "@/components/jarvis/system-monitor";
+import { WeatherWidget } from "@/components/jarvis/weather-widget";
+import { WorldClockWidget } from "@/components/jarvis/world-clock-widget";
+import { MusicPlayer } from "@/components/jarvis/music-player";
+import { ClipboardWidget } from "@/components/jarvis/clipboard-widget";
+import { NetworkWidget } from "@/components/jarvis/network-widget";
+import { ProcessManagerWidget } from "@/components/jarvis/process-manager-widget";
+import { AmbientSoundWidget } from "@/components/jarvis/ambient-sound-widget";
+import { PomodoroWidget } from "@/components/jarvis/pomodoro-widget";
+import { SessionStatsWidget } from "@/components/jarvis/session-stats-widget";
+import { SystemAlertsWidget } from "@/components/jarvis/system-alerts-widget";
+import { ShortcutsWidget } from "@/components/jarvis/shortcuts-widget";
+import { FileExplorerWidget } from "@/components/jarvis/file-explorer-widget";
+import { CalendarWidget } from "@/components/jarvis/calendar-widget";
+import { ActivityFeed } from "@/components/jarvis/activity-feed";
+import { QuickLaunchWidget } from "@/components/jarvis/quick-launch-widget";
+import { TodoWidget } from "@/components/jarvis/todo-widget";
+import { HoloGlobe } from "@/components/jarvis/holo-globe";
+
+// React.memo wrappers — prevent unnecessary re-renders from parent state changes
+export const MemoizedSystemMonitor = memo(SystemMonitor);
+export const MemoizedWeatherWidget = memo(WeatherWidget);
+export const MemoizedWorldClockWidget = memo(WorldClockWidget);
+export const MemoizedMusicPlayer = memo(MusicPlayer);
+export const MemoizedClipboardWidget = memo(ClipboardWidget);
+export const MemoizedNetworkWidget = memo(NetworkWidget);
+export const MemoizedProcessManagerWidget = memo(ProcessManagerWidget);
+export const MemoizedAmbientSoundWidget = memo(AmbientSoundWidget);
+export const MemoizedPomodoroWidget = memo(PomodoroWidget);
+export const MemoizedSessionStatsWidget = memo(SessionStatsWidget);
+export const MemoizedSystemAlertsWidget = memo(SystemAlertsWidget);
+export const MemoizedShortcutsWidget = memo(ShortcutsWidget);
+export const MemoizedFileExplorerWidget = memo(FileExplorerWidget);
+export const MemoizedCalendarWidget = memo(CalendarWidget);
+export const MemoizedActivityFeed = memo(ActivityFeed);
+export const MemoizedQuickLaunchWidget = memo(QuickLaunchWidget);
+export const MemoizedTodoWidget = memo(TodoWidget);
+export const MemoizedHoloGlobe = memo(HoloGlobe);
