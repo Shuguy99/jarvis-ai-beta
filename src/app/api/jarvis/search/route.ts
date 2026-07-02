@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { ai } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
 /**
  * POST /api/jarvis/search
  * Body: { query, num? }
- * Returns: { results: [...] }
+ * Returns: { results: [...], available: boolean }
  */
 export async function POST(req: NextRequest) {
   try {
@@ -16,22 +16,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Пустой поисковый запрос." }, { status: 400 });
     }
 
-    const zai = await ZAI.create();
-    const results = (await zai.functions.invoke("web_search", {
-      query,
-      num: Math.min(Math.max(num, 1), 20),
-    })) as {
-      url: string;
-      name: string;
-      snippet: string;
-      host_name?: string;
-      rank?: number;
-      date?: string;
-      favicon?: string;
-    }[];
+    if (!ai.isSearchAvailable()) {
+      return NextResponse.json({
+        results: [],
+        available: false,
+        message: "Web search is not configured. Set SEARCH_PROVIDER and SEARCH_API_KEY in .env to enable.",
+        timestamp: new Date().toISOString(),
+      });
+    }
+
+    const results = await ai.search(query, Math.min(Math.max(num, 1), 20));
 
     return NextResponse.json({
-      results: Array.isArray(results) ? results : [],
+      results,
+      available: true,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

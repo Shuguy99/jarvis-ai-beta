@@ -25,7 +25,6 @@ const uid = () =>
 
 /**
  * Picks the best Russian voice from available browser SpeechSynthesis voices.
- * Priority: Microsoft Irina/ Pavel > Google русский > Yandex > any ru-RU > any ru_*
  */
 function pickRussianVoice(): SpeechSynthesisVoice | null {
   const synth = window.speechSynthesis;
@@ -36,19 +35,25 @@ function pickRussianVoice(): SpeechSynthesisVoice | null {
   const ruVoices = voices.filter((v) => v.lang.startsWith("ru"));
   if (!ruVoices.length) return null;
 
-  // Prefer specific high-quality Russian voices
   const preferred = ["Microsoft Irina", "Microsoft Pavel", "Google русский", "Yandex"];
   for (const name of preferred) {
     const found = ruVoices.find((v) => v.name.includes(name));
     if (found) return found;
   }
 
-  // Prefer ru-RU exact match, then local voices, then any ru
   const exact = ruVoices.find((v) => v.lang === "ru-RU");
   if (exact) return exact;
   const local = ruVoices.find((v) => v.localService);
   if (local) return local;
   return ruVoices[0];
+}
+
+/**
+ * Detect if browser SpeechRecognition API is available
+ */
+function getSpeechRecognition(): (typeof window.SpeechRecognition) | null {
+  if (typeof window === "undefined") return null;
+  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
 }
 
 export function useJarvis(opts: UseJarvisOptions = {}) {
@@ -64,12 +69,17 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   const [isRecording, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
 
+  // MediaRecorder refs (legacy/fallback for ZAI cloud mode)
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
+
+  // Browser SpeechRecognition ref
+  const speechRecognitionRef = useRef<SpeechRecognition | null>(null);
+
   const speakingAbortRef = useRef<boolean>(false);
   const russianVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
 
@@ -162,7 +172,6 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
   // ---- TTS (browser SpeechSynthesis — native Russian voice) ----
 
-  // Preload Russian voice on mount
   useEffect(() => {
     const synth = window.speechSynthesis;
     if (!synth) return;
@@ -213,7 +222,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         setState("idle");
       };
 
-      // Chrome workaround: long text can stop mid-speech — resume on pause
+      // Chrome workaround: long text can stop mid-speech
       utterance.onpause = () => {
         if (!speakingAbortRef.current) {
           setTimeout(() => {
@@ -259,17 +268,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       setMessages((prev) => [...prev, pendingMsg]);
       setState("thinking");
 
-      // persist user message (creates conversation if needed)
       const convoId = await ensureConversation(clean);
-      if (convoId) {
-        // ensureConversation already stored the first message; for subsequent, store here
-        // but it only stores first, so we always persist
-        // Actually ensureConversation stored `clean` as first message when creating.
-        // If convo already existed, we need to persist.
-        // Simplest: always persist, accept possible first-message duplicate by checking.
-      }
-      // Persist user message (covers both new and existing convos). For new convo,
-      // the create endpoint already saved it, so skip the very first one.
       const isFirst =
         messages.filter((m) => m.role === "user").length === 0 && !activeConvoId;
       if (!isFirst && convoId) {
@@ -277,7 +276,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       }
 
       try {
-        const history = messages; // state snapshot before pending
+        const history = messages;
         const res = await fetch("/api/jarvis/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -321,7 +320,19 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   );
 
   // ---- Voice recording (ASR) ----
+  // Uses browser Web Speech API (SpeechRecognition) as primary method.
+  // Falls back to MediaRecorder + server ASR for ZAI cloud mode.
+
   const cleanupRecording = useCallback(() => {
+    // Stop SpeechRecognition
+    if (speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.abort(); } catch { /* ignore */ }
+      speechRecognitionRef.current = null;
+    }
+    // Stop MediaRecorder
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
+    }
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
@@ -342,11 +353,76 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     if (isRecording || state === "thinking") return;
     setError(null);
     stopSpeaking();
+
+    // ─── Method 1: Browser Web Speech API (recommended for local use) ───
+    const SpeechRecognition = getSpeechRecognition();
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = "ru-RU";
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        recognition.continuous = false;
+
+        // Simulate audio level animation while listening
+        const levelInterval = setInterval(() => {
+          setAudioLevel((prev) => 0.3 + Math.random() * 0.5);
+        }, 150);
+
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+          clearInterval(levelInterval);
+          setAudioLevel(0);
+          const transcript = event.results[0]?.[0]?.transcript?.trim();
+          if (transcript) {
+            setIsRecording(false);
+            setState("idle");
+            void sendText(transcript, "voice");
+          } else {
+            setIsRecording(false);
+            setState("idle");
+          }
+        };
+
+        recognition.onerror = (event) => {
+          clearInterval(levelInterval);
+          setAudioLevel(0);
+          setIsRecording(false);
+          if (event.error === "no-speech") {
+            setState("idle");
+          } else if (event.error === "not-allowed") {
+            setError("Нет доступа к микрофону. Разрешите доступ в настройках браузера.");
+            setState("error");
+          } else {
+            setError(`Ошибка распознавания: ${event.error}`);
+            setState("error");
+          }
+        };
+
+        recognition.onend = () => {
+          clearInterval(levelInterval);
+          setAudioLevel(0);
+          setIsRecording(false);
+          if (state !== "thinking" && state !== "speaking") {
+            setState("idle");
+          }
+        };
+
+        speechRecognitionRef.current = recognition;
+        recognition.start();
+        setIsRecording(true);
+        setState("listening");
+        return; // Done — browser handles everything
+      } catch (e) {
+        console.error("SpeechRecognition failed, falling back to MediaRecorder:", e);
+        // Fall through to MediaRecorder method
+      }
+    }
+
+    // ─── Method 2: MediaRecorder + Server ASR (ZAI cloud mode fallback) ───
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      // analyser for visualizer
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       audioCtxRef.current = ctx;
       const sourceNode = ctx.createMediaStreamSource(stream);
@@ -391,6 +467,12 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
                 body: JSON.stringify({ audio: base64 }),
               });
               const data = await res.json();
+              // If server says to use browser ASR, we already tried, so report error
+              if (data.useBrowserASR) {
+                setError("Серверное распознавание недоступно. Используйте Chrome для голосового ввода.");
+                setState("error");
+                return;
+              }
               if (!res.ok) throw new Error(data.error || "ASR failed");
               const text = (data.text || "").trim();
               if (text) {
@@ -425,6 +507,11 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   }, [isRecording, state, sendText, stopSpeaking, cleanupRecording]);
 
   const stopListening = useCallback(() => {
+    // Stop SpeechRecognition
+    if (speechRecognitionRef.current) {
+      try { speechRecognitionRef.current.stop(); } catch { /* ignore */ }
+    }
+    // Stop MediaRecorder
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
     }
@@ -485,7 +572,6 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       };
       setMessages((prev) => [...prev, pendingMsg]);
 
-      // persist
       const convoId = await ensureConversation(userMsg.content);
       if (convoId && messages.filter((m) => m.role === "user").length > 0) {
         void persistMessage("user", userMsg.content);

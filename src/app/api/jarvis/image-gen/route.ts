@@ -3,13 +3,13 @@
  *
  * POST /api/jarvis/image-gen
  * Accepts { prompt: string, size?: string } and returns a base64 data URL
- * of the generated image via z-ai-web-dev-sdk.
+ * of the generated image.
  *
  * Supported sizes: 1024x1024, 768x1344, 1344x768, 1440x720
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { ai } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -18,6 +18,8 @@ const SUPPORTED_SIZES = [
   "768x1344",
   "1344x768",
   "1440x720",
+  "1792x1024",
+  "1024x1792",
 ] as const;
 
 type SupportedSize = (typeof SUPPORTED_SIZES)[number];
@@ -39,30 +41,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!ai.isImageGenAvailable()) {
+      return NextResponse.json(
+        { error: "Image generation requires OPENAI_API_KEY in .env" },
+        { status: 503 }
+      );
+    }
+
     const size: SupportedSize =
       requestedSize && (SUPPORTED_SIZES as readonly string[]).includes(requestedSize)
         ? (requestedSize as SupportedSize)
         : "1024x1024";
 
-    const zai = await ZAI.create();
-
-    const response = await zai.images.generations.create({
-      prompt: prompt.trim(),
-      size,
-    });
-
-    const imageBase64 = response.data?.[0]?.base64;
-
-    if (!imageBase64) {
-      return NextResponse.json(
-        { error: "Image generation returned no data. Please try again." },
-        { status: 502 }
-      );
-    }
+    const result = await ai.imageGen(prompt, size);
 
     return NextResponse.json({
-      image: `data:image/png;base64,${imageBase64}`,
+      image: `data:image/png;base64,${result.base64}`,
       size,
+      revisedPrompt: result.revisedPrompt,
       timestamp: new Date().toISOString(),
     });
   } catch (error) {

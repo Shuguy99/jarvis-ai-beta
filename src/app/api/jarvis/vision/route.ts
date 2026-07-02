@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
+import { ai } from "@/lib/ai-provider";
 
 export const runtime = "nodejs";
 
@@ -19,34 +19,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!ai.isVisionAvailable()) {
+      return NextResponse.json(
+        { error: "Анализ изображений недоступен. Задайте OPENAI_API_KEY в .env." },
+        { status: 503 }
+      );
+    }
+
     const question =
       prompt || "Опиши это изображение подробно на русском языке, как это сделал бы J.A.R.V.I.S. из Железного Человека.";
 
-    const zai = await ZAI.create();
-
-    // Нормализуем base64 — если это data:url, используем как есть; иначе оборачиваем
-    const imageUrl = image.startsWith("data:")
-      ? image
-      : `data:image/jpeg;base64,${image}`;
-
-    const response = await zai.chat.completions.createVision({
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: question },
-            {
-              type: "image_url",
-              image_url: { url: imageUrl },
-            },
-          ],
-        },
-      ],
-      thinking: { type: "disabled" },
-    });
-
-    const reply =
-      response.choices?.[0]?.message?.content || "Не удалось проанализировать изображение.";
+    const reply = (await ai.vision(image, question)).content;
 
     return NextResponse.json({ reply });
   } catch (error) {
