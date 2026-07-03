@@ -1,6 +1,8 @@
 export const runtime = "nodejs";
 
-import { execSync } from "child_process";
+import { execFile as cpExecFile } from "child_process";
+import { promisify } from "util";
+const execFile = promisify(cpExecFile);
 import { NextResponse } from "next/server";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -61,34 +63,41 @@ function getDisplayType(type: string): string {
 
 // ── Token extraction ───────────────────────────────────────────────────────
 
-function extractGitHubToken(): string {
+async function getGitHubToken(): Promise<string> {
+  // Priority: env var > git remote (never expose to client)
+  const envToken = process.env.GITHUB_TOKEN;
+  if (envToken) return envToken;
+
   try {
-    const remoteUrl = execSync("git remote get-url origin", {
+    const { stdout } = await execFile("git", ["remote", "get-url", "origin"], {
       cwd: "/home/z/my-project",
-    })
-      .toString()
-      .trim();
-    const token = remoteUrl
-      .replace(/^https?:\/\//, "")
-      .replace(/@github\.com.*$/, "");
-    if (!token) {
-      throw new Error("Token is empty after extraction");
+      timeout: 5000,
+    });
+    const remoteUrl = stdout.toString().trim();
+    // Extract token from https://<TOKEN>@github.com/... format
+    const match = remoteUrl.match(/^https?:\/\/([^@]+)@github\.com/);
+    if (match?.[1] && !match[1].includes("://")) {
+      return match[1];
     }
-    return token;
   } catch {
-    throw new Error("GitHub token not found in git remote URL");
+    // git remote not available
   }
+
+  return ""; // Unauthenticated — limited to 60 req/hour
 }
 
 // ── GitHub fetch helpers ───────────────────────────────────────────────────
 
 function githubHeaders(token: string) {
-  return {
-    Authorization: `Bearer ${token}`,
+  const headers: Record<string, string> = {
     Accept: "application/vnd.github+json",
     "User-Agent": "JARVIS-AI-Beta",
     "X-GitHub-Api-Version": "2022-11-28",
   };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 async function fetchRepo(token: string): Promise<RepoInfo> {
@@ -200,7 +209,7 @@ async function getGitHubData(forceRefresh: boolean): Promise<GithubData> {
     return cachedData.data;
   }
 
-  const token = extractGitHubToken();
+  const token = await getGitHubToken();
 
   const [repo, recentEvents, releases] = await Promise.all([
     fetchRepo(token),
@@ -222,9 +231,6 @@ export async function GET() {
     return NextResponse.json(data);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    if (message.includes("GitHub token not found")) {
-      return NextResponse.json({ error: message }, { status: 500 });
-    }
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }
@@ -235,9 +241,6 @@ export async function POST() {
     return NextResponse.json(data);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    if (message.includes("GitHub token not found")) {
-      return NextResponse.json({ error: message }, { status: 500 });
-    }
     return NextResponse.json({ error: message }, { status: 502 });
   }
 }

@@ -11,17 +11,12 @@ function isElectron(): boolean {
 }
 
 export function WindowControls() {
-  const [isElectronEnv, setIsElectronEnv] = useState(false);
+  const [isElectronEnv] = useState(() => isElectron());
   const [panelOpen, setPanelOpen] = useState(false);
   const [alwaysOnTop, setAlwaysOnTop] = useState(false);
   const [opacity, setOpacity] = useState(100);
   const [version, setVersion] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-
-  // Detect Electron environment
-  useEffect(() => {
-    setIsElectronEnv(isElectron());
-  }, []);
 
   // Fetch version on mount
   useEffect(() => {
@@ -166,7 +161,7 @@ export function WindowControls() {
               backgroundColor: "oklch(0.15 0.02 250)",
               borderColor: "oklch(0.4 0.1 193)",
               WebkitAppRegion: "no-drag",
-            }}
+            } as React.CSSProperties}
           >
             <div className="space-y-3">
               {/* Always on Top */}

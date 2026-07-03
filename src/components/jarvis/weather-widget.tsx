@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   Sun,
@@ -51,8 +51,9 @@ function weatherIcon(code: number, className = "h-4 w-4") {
   if (code >= 1 && code <= 3) return <CloudSun className={className} />;
   if (code === 45 || code === 48) return <CloudFog className={className} />;
   if (code >= 51 && code <= 55) return <CloudDrizzle className={className} />;
-  if ((code >= 61 && code <= 65) || (code >= 80 && code <= 82))
+  if ((code >= 61 && code <= 65) || (code >= 80 && code <= 82)) {
     return <CloudRain className={className} />;
+  }
   if (code >= 71 && code <= 77) return <Snowflake className={className} />;
   if (code >= 95 && code <= 99) return <CloudLightning className={className} />;
   return <Cloud className={className} />;
@@ -75,38 +76,43 @@ function shortDay(dateStr: string): string {
 export function WeatherWidget() {
   const [data, setData] = useState<WeatherData | null>(null);
   const [error, setError] = useState(false);
+  // Hydration-safe: always start unlocated (matches SSR and client)
   const [coords, setCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [located, setLocated] = useState(false);
 
-  const fetchWeather = useCallback(async (lat: number, lon: number) => {
+  const prevTempRef = useRef<number | null>(null);
+
+  const fetchWeather = useCallback(async (lat: number, lon: number, signal?: AbortSignal) => {
     try {
-      const res = await fetch(`/api/jarvis/weather?lat=${lat}&lon=${lon}`);
+      const res = await fetch(`/api/jarvis/weather?lat=${lat}&lon=${lon}`, { signal });
       if (!res.ok) throw new Error();
       const json = await res.json();
       setData(json);
       setError(false);
-      publishWeatherUpdate({
-        temp: json.current.temperature_2m,
-        condition: String(json.current.weather_code),
-        humidity: json.current.relative_humidity_2m,
-        windSpeed: json.current.wind_speed_10m,
-        location: "Неизвестно",
-      });
-      playSound("data-received");
-      addActivityEvent({ severity: "success", category: "weather", message: `Погода обновлена: ${Math.round(json.current.temperature_2m)}°C` });
+
+      // Only fire side effects on first load or when temp actually changes
+      const newTemp = Math.round(json.current.temperature_2m);
+      if (prevTempRef.current === null || prevTempRef.current !== newTemp) {
+        prevTempRef.current = newTemp;
+        publishWeatherUpdate({
+          temp: json.current.temperature_2m,
+          condition: String(json.current.weather_code),
+          humidity: json.current.relative_humidity_2m,
+          windSpeed: json.current.wind_speed_10m,
+          location: "Неизвестно",
+        });
+        playSound("data-received");
+        addActivityEvent({ severity: "success", category: "weather", message: `Погода обновлена: ${newTemp}°C` });
+      }
     } catch {
+      if (signal?.aborted) return;
       setError(true);
     }
   }, []);
 
-  // Get user location, fallback to Moscow
+  // Get user location via geolocation API
   useEffect(() => {
     if (located) return;
-    if (!navigator.geolocation) {
-      setCoords({ lat: 55.75, lon: 37.62 });
-      setLocated(true);
-      return;
-    }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setCoords({ lat: pos.coords.latitude, lon: pos.coords.longitude });
@@ -117,16 +123,18 @@ export function WeatherWidget() {
         setCoords({ lat: 55.75, lon: 37.62 });
         setLocated(true);
       },
-      { timeout: 5000 },
+      { timeout: 5000, maximumAge: 300_000 },
     );
   }, [located]);
 
   // Fetch weather when coords are known, refresh every 10 min
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
     if (!coords) return;
-    void fetchWeather(coords.lat, coords.lon);
-    const id = setInterval(() => void fetchWeather(coords.lat, coords.lon), 600_000);
-    return () => clearInterval(id);
+    const ac = new AbortController();
+    void fetchWeather(coords.lat, coords.lon, ac.signal);
+    const id = setInterval(() => void fetchWeather(coords.lat, coords.lon, ac.signal), 600_000);
+    return () => { ac.abort(); clearInterval(id); };
   }, [coords, fetchWeather]);
 
   // ── Loading state ──────────────────────────────────────────

@@ -1,6 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { ai } from "@/lib/ai-provider";
 import { executeTool, getToolDefinitions } from "@/lib/agent-tools";
+import { parseJsonBody, BodyLimitError } from "@/lib/body-limit";
 
 export const runtime = "nodejs";
 
@@ -31,7 +33,7 @@ const MAX_TOOL_CALLS = 3;
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as AgentRequestBody;
+    const body = await parseJsonBody<AgentRequestBody>(req);
     const { task, tools: enabledTools } = body;
 
     if (!task || !task.trim()) {
@@ -87,9 +89,9 @@ IMPORTANT: When you want to call a tool, your ENTIRE response must be the JSON o
     // First LLM call
     addStep("thinking", `Analyzing task: "${task}"`);
 
-    const messages = [
-      { role: "system" as const, content: systemPrompt },
-      { role: "user" as const, content: task },
+    const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: task },
     ];
 
     let llmResponse = await ai.chat(messages, {
@@ -179,6 +181,9 @@ IMPORTANT: When you want to call a tool, your ENTIRE response must be the JSON o
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
+    if (error instanceof BodyLimitError) {
+      return NextResponse.json({ error: error.message }, { status: 413 });
+    }
     console.error("JARVIS agent error:", error);
 
     const msg =

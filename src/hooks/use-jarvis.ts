@@ -1,49 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { ChatMessage, Conversation } from "@/lib/types";
+import type { PersonaId, ResponseStyle } from "@/components/jarvis/settings-panel";
+import {
+  useJarvisStore,
+  uid,
+  trunc,
+  type JarvisState,
+  type Source,
+  type JarvisSettings,
+  type CommandHandlers,
+} from "@/lib/jarvis-store";
 import { playSound } from "@/lib/sounds";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";
 import { publishChatMessage } from "@/lib/context-bus";
 
-export type JarvisState = "idle" | "listening" | "thinking" | "speaking" | "error";
+// ── Re-exports for backward compatibility ─────────────────────
+export type { JarvisState, CommandHandlers, JarvisSettings };
+export type UseJarvisReturn = ReturnType<typeof useJarvis>;
 
-interface Source {
-  name: string;
-  url: string;
-  host_name?: string;
-}
-
-export interface JarvisSettings {
-  ttsRate: number;
-  ttsPitch: number;
-  volume: number;
-  autoSpeak: boolean;
-  language: string;
-  // Behavior
-  persona: string;
-  userName: string;
-  formality: number;
-  humor: number;
-  responseStyle: string;
-  temperature: number;
-  maxTokens: number;
-  contextWindow: number;
-  customPrompt: string;
-}
-
-export interface CommandHandlers {
-  startTimer?: (seconds: number) => void;
-  stopTimer?: () => void;
-  resetTimer?: () => void;
-  toggleNotes?: () => void;
-  openNotes?: () => void;
-  setTheme?: (theme: string) => void;
-  toggleFullscreen?: () => void;
-  openSettings?: () => void;
-  toggleCalculator?: () => void;
-  captureScreen?: () => void;
-}
+// ── Options ───────────────────────────────────────────────────
 
 interface UseJarvisOptions {
   autoSpeak?: boolean;
@@ -54,24 +31,8 @@ interface UseJarvisOptions {
   commandHandlers?: CommandHandlers;
 }
 
-const DEFAULT_SETTINGS: JarvisSettings = {
-  ttsRate: 1.05,
-  ttsPitch: 0.95,
-  volume: 1.0,
-  autoSpeak: true,
-  language: "ru",
-};
+// ── Browser-API helpers (non-serializable, stay in hook) ─────
 
-const uid = () =>
-  typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2);
-
-const trunc = (s: string, max = 40) => (s.length > max ? s.slice(0, max) + "..." : s);
-
-/**
- * Picks the best Russian voice from available browser SpeechSynthesis voices.
- */
 function pickRussianVoice(): SpeechSynthesisVoice | null {
   const synth = window.speechSynthesis;
   if (!synth) return null;
@@ -94,69 +55,62 @@ function pickRussianVoice(): SpeechSynthesisVoice | null {
   return ruVoices[0];
 }
 
-/**
- * Detect if browser SpeechRecognition API is available
- */
-function getSpeechRecognition(): (typeof window.SpeechRecognition) | null {
+function getSpeechRecognition(): SpeechRecognitionConstructor | null {
   if (typeof window === "undefined") return null;
-  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
+  return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
 }
+
+// ── Hook ──────────────────────────────────────────────────────
 
 export function useJarvis(opts: UseJarvisOptions = {}) {
   const { autoSpeak = true, volume = 1.0, ttsRate = 1.05, ttsPitch = 0.95, settings: externalSettings } = opts;
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [state, setState] = useState<JarvisState>("idle");
-  const [error, setError] = useState<string | null>(null);
-  const [autoSpeakOn, setAutoSpeakOn] = useState(autoSpeak);
-  const [searchedSources, setSearchedSources] = useState<Source[] | null>(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConvoId, setActiveConvoId] = useState<string | null>(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [audioLevel, setAudioLevel] = useState(0);
-  const [continuousMode, setContinuousMode] = useState(false);
-  const continuousModeRef = useRef(false);
+  // ── Zustand selectors (fine-grained reactivity) ───────────
+  const messages = useJarvisStore((s) => s.messages);
+  const jarvisState = useJarvisStore((s) => s.jarvisState);
+  const error = useJarvisStore((s) => s.error);
+  const autoSpeakOn = useJarvisStore((s) => s.autoSpeakOn);
+  const searchedSources = useJarvisStore((s) => s.searchedSources);
+  const conversations = useJarvisStore((s) => s.conversations);
+  const activeConvoId = useJarvisStore((s) => s.activeConvoId);
+  const isRecording = useJarvisStore((s) => s.isRecording);
+  const audioLevel = useJarvisStore((s) => s.audioLevel);
+  const continuousMode = useJarvisStore((s) => s.continuousMode);
 
-  // Use refs for TTS params so speak() always gets latest values
+  // ── Browser-only refs ─────────────────────────────────────
   const ttsRateRef = useRef(ttsRate);
   const ttsPitchRef = useRef(ttsPitch);
   const volumeRef = useRef(volume);
-
-  // Ref for behavior settings — always fresh when sending chat requests
-  const behaviorRef = useRef<Partial<JarvisSettings>>();
-
-  // Sync refs when props or settings change
-  useEffect(() => {
-    if (externalSettings) {
-      ttsRateRef.current = externalSettings.ttsRate ?? ttsRate;
-      ttsPitchRef.current = externalSettings.ttsPitch ?? ttsPitch;
-      volumeRef.current = externalSettings.volume ?? volume;
-      // Store full settings for behavior pass-through
-      behaviorRef.current = externalSettings;
-    }
-  }, [externalSettings, ttsRate, ttsPitch, volume]);
-
-  // MediaRecorder refs (for server-side ASR fallback)
+  const behaviorRef = useRef<Partial<JarvisSettings>>({});
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const rafRef = useRef<number | null>(null);
-
-  // Browser SpeechRecognition ref
   const speechRecognitionRef = useRef<SpeechRecognition | null>(null);
-
   const speakingAbortRef = useRef<boolean>(false);
   const russianVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const commandHandlersRef = useRef<CommandHandlers>(opts.commandHandlers ?? {});
 
-  // ---- conversation persistence ----
+  // Sync TTS/behavior refs when props change
+  useEffect(() => {
+    if (externalSettings) {
+      ttsRateRef.current = externalSettings.ttsRate ?? ttsRate;
+      ttsPitchRef.current = externalSettings.ttsPitch ?? ttsPitch;
+      volumeRef.current = externalSettings.volume ?? volume;
+      behaviorRef.current = externalSettings;
+    }
+  }, [externalSettings, ttsRate, ttsPitch, volume]);
+
+  // ── Conversation persistence ──────────────────────────────
+
   const persistMessage = useCallback(
     async (role: ChatMessage["role"], content: string) => {
-      if (!activeConvoId) return;
+      const convoId = useJarvisStore.getState().activeConvoId;
+      if (!convoId) return;
       try {
-        await fetch(`/api/jarvis/conversations/${activeConvoId}`, {
+        await fetch(`/api/jarvis/conversations/${convoId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ role, content }),
@@ -165,11 +119,12 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         /* ignore persistence errors */
       }
     },
-    [activeConvoId]
+    []
   );
 
   const ensureConversation = useCallback(async (firstUserText: string) => {
-    if (activeConvoId) return activeConvoId;
+    const convoId = useJarvisStore.getState().activeConvoId;
+    if (convoId) return convoId;
     try {
       const res = await fetch("/api/jarvis/conversations", {
         method: "POST",
@@ -178,21 +133,21 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       });
       const data = await res.json();
       if (data?.conversation?.id) {
-        setActiveConvoId(data.conversation.id);
-        setConversations((prev) => [data.conversation, ...prev]);
+        useJarvisStore.getState().setActiveConvoId(data.conversation.id);
+        useJarvisStore.getState().addConversation(data.conversation);
         return data.conversation.id as string;
       }
     } catch {
       /* ignore */
     }
     return null;
-  }, [activeConvoId]);
+  }, []);
 
   const loadConversations = useCallback(async () => {
     try {
       const res = await fetch("/api/jarvis/conversations");
       const data = await res.json();
-      setConversations(data.conversations ?? []);
+      useJarvisStore.getState().setConversations(data.conversations ?? []);
     } catch {
       /* ignore */
     }
@@ -204,8 +159,8 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       const data = await res.json();
       if (data?.conversation) {
         const c = data.conversation as Conversation;
-        setActiveConvoId(c.id);
-        setMessages(
+        useJarvisStore.getState().setActiveConvoId(c.id);
+        useJarvisStore.getState().setMessages(
           c.messages.map((m) => ({
             id: m.id,
             role: m.role as ChatMessage["role"],
@@ -213,7 +168,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
             createdAt: m.createdAt,
           }))
         );
-        setSearchedSources(null);
+        useJarvisStore.getState().setSearchedSources(null);
       }
     } catch {
       /* ignore */
@@ -221,25 +176,22 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   }, []);
 
   const newConversation = useCallback(() => {
-    setActiveConvoId(null);
-    setMessages([]);
-    setSearchedSources(null);
-    setError(null);
-    setState("idle");
+    useJarvisStore.getState().clearChat();
+    useJarvisStore.getState().setActiveConvoId(null);
     addActivityEvent({ severity: "info", category: "chat", message: "Новая сессия создана" });
   }, []);
 
   const deleteConversation = useCallback(async (id: string) => {
     try {
       await fetch(`/api/jarvis/conversations/${id}`, { method: "DELETE" });
-      setConversations((prev) => prev.filter((c) => c.id !== id));
-      if (activeConvoId === id) newConversation();
+      useJarvisStore.getState().removeConversation(id);
+      if (useJarvisStore.getState().activeConvoId === id) newConversation();
     } catch {
       /* ignore */
     }
-  }, [activeConvoId, newConversation]);
+  }, [newConversation]);
 
-  // ---- TTS (browser SpeechSynthesis — native Russian voice) ----
+  // ── TTS (browser SpeechSynthesis) ─────────────────────────
 
   useEffect(() => {
     const synth = window.speechSynthesis;
@@ -256,7 +208,8 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     speakingAbortRef.current = true;
     const synth = window.speechSynthesis;
     if (synth) synth.cancel();
-    setState((s) => (s === "speaking" ? "idle" : s));
+    const st = useJarvisStore.getState().jarvisState;
+    if (st === "speaking") useJarvisStore.getState().setJarvisState("idle");
   }, []);
 
   const speak = useCallback(
@@ -264,12 +217,12 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       if (!text.trim()) return;
       const synth = window.speechSynthesis;
       if (!synth) {
-        setState("idle");
+        useJarvisStore.getState().setJarvisState("idle");
         return;
       }
 
       speakingAbortRef.current = false;
-      setState("speaking");
+      useJarvisStore.getState().setJarvisState("speaking");
       addActivityEvent({ severity: "info", category: "voice", message: "Озвучка ответа..." });
       synth.cancel();
 
@@ -283,13 +236,13 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       if (voice) utterance.voice = voice;
 
       utterance.onend = () => {
-        if (!speakingAbortRef.current) setState("idle");
+        if (!speakingAbortRef.current) useJarvisStore.getState().setJarvisState("idle");
       };
       utterance.onerror = (e) => {
         if (e.error !== "canceled") {
           console.error("SpeechSynthesis error", e);
         }
-        setState("idle");
+        useJarvisStore.getState().setJarvisState("idle");
       };
 
       // Chrome workaround: long text can stop mid-speech
@@ -308,13 +261,13 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     []
   );
 
-  // ---- Command parser (local commands) ----
+  // ── Command parser (local commands) ───────────────────────
   const processCommand = useCallback(
     async (text: string): Promise<{ handled: boolean; response?: string } | null> => {
       const cmd = text.trim().toLowerCase();
       const handlers = commandHandlersRef.current;
 
-      // Create note: "запиши X", "создай заметку X", "заметка: X", "добавь заметку X"
+      // Create note
       const noteMatch =
         cmd.match(/^(?:запиши|создай заметку|заметка|добавь заметку|новая заметка)[:\s]+(.+)/i);
       if (noteMatch) {
@@ -335,7 +288,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         return { handled: true, response: "Не удалось сохранить заметку, сэр." };
       }
 
-      // List notes: "какие заметки", "покажи заметки", "список заметок"
+      // List notes
       if (/^(какие заметки|покажи заметк|список заметок|мои заметки|что в замет)/i.test(cmd)) {
         try {
           const res = await fetch("/api/jarvis/notes");
@@ -360,7 +313,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         }
       }
 
-      // Delete all notes: "удали все заметки", "очисти заметки"
+      // Delete all notes
       if (/^(удали все заметки|удали заметки|очисти заметки|удали все задачи)/i.test(cmd)) {
         try {
           await fetch("/api/jarvis/notes", {
@@ -374,7 +327,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         }
       }
 
-      // Timer: "таймер на X минут", "поставь таймер X", "таймер X минут"
+      // Timer
       const timerMatch = cmd.match(
         /(?:таймер|таймер на|поставь таймер|установи таймер|заведи таймер)\s+(\d+(?:[.,]\d+)?)\s*(?:минут|мин|minutes?|m|секунд|сек|seconds?|s)?/i
       );
@@ -392,44 +345,44 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         return { handled: true, response: "Таймер недоступен, сэр." };
       }
 
-      // Stop/reset timer: "стоп таймер", "сбрось таймер", "останови таймер"
+      // Stop/reset timer
       if (/^(стоп таймер|сбрось таймер|останови таймер|отмени таймер)/i.test(cmd)) {
         if (handlers.stopTimer) handlers.stopTimer();
         if (handlers.resetTimer) handlers.resetTimer();
         return { handled: true, response: "Таймер остановлен, сэр." };
       }
 
-      // Calculator: "калькулятор", "открой калькулятор", "посчитай"
+      // Calculator
       if (/^(калькулятор|открой калькулятор|покажи калькулятор|посчитай)/i.test(cmd)) {
         if (handlers.toggleCalculator) handlers.toggleCalculator();
         return { handled: true, response: "Калькулятор активирован, сэр." };
       }
 
-      // Notes: "заметки", "открой заметки", "покажи заметки"
+      // Notes
       if (/^(заметки|открой заметки|покажи заметки|мои записи)/i.test(cmd)) {
         if (handlers.openNotes) handlers.openNotes();
         return { handled: true, response: "Панель заметок открыта, сэр." };
       }
 
-      // Fullscreen: "полный экран", "фуллскрин", "во весь экран"
+      // Fullscreen
       if (/^(полный экран|фуллскрин|во весь экран|fullscreen)/i.test(cmd)) {
         if (handlers.toggleFullscreen) handlers.toggleFullscreen();
         return { handled: true, response: "Полноэкранный режим активирован, сэр." };
       }
 
-      // Settings: "настройки", "параметры", "открой настройки"
+      // Settings
       if (/^(настройки|параметры|открой настройки|settings)/i.test(cmd)) {
         if (handlers.openSettings) handlers.openSettings();
         return { handled: true, response: "Панель настроек открыта, сэр." };
       }
 
-      // Screen capture: "скриншот", "захват экрана", "покажи экран"
+      // Screen capture
       if (/^(скриншот|захват экрана|покажи экран|сделай скриншот|screen capture)/i.test(cmd)) {
         if (handlers.captureScreen) handlers.captureScreen();
         return { handled: true, response: "Инициализирую захват экрана, сэр." };
       }
 
-      // Theme: "марк 1", "марк 42", "марк 50", "тема 1", "сменить тему"
+      // Theme
       const themeMatch = cmd.match(/(?:марк|mark|тема|theme)\s+(1|42|50)/i);
       if (themeMatch) {
         const themeId = `mark-${themeMatch[1]}`;
@@ -437,41 +390,42 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         return { handled: true, response: `Костюм Mark ${themeMatch[1]} активирован, сэр.` };
       }
 
-      // Mute/unmute: "тихо", "замолчи", "молчи" / "говори", "голос", "включи голос"
+      // Mute/unmute
       if (/^(тихо|замолчи|молчи|выключи голос|mute)/i.test(cmd)) {
-        setAutoSpeakOn(false);
+        useJarvisStore.getState().setAutoSpeakOn(false);
         return { handled: true, response: "Режим молчания активирован, сэр." };
       }
       if (/^(говори|голос|включи голос|звук|unmute)/i.test(cmd)) {
-        setAutoSpeakOn(true);
+        useJarvisStore.getState().setAutoSpeakOn(true);
         return { handled: true, response: "Голосовой вывод восстановлен, сэр." };
       }
 
-      // New chat: "новый чат", "новый разговор", "очисти чат"
+      // New chat — uses store directly, no TDZ issue
       if (/^(новый чат|новый разговор|очисти чат|новая сессия|новый диалог)/i.test(cmd)) {
-        clearMessages();
-        void newConversation();
+        useJarvisStore.getState().clearChat();
+        useJarvisStore.getState().setActiveConvoId(null);
         return { handled: true, response: "Новая сессия инициализирована, сэр." };
       }
 
-      // Weather: "погода", "какая погода"
+      // Weather — delegate to LLM
       if (/^(погода|какая погода|прогноз|покажи погоду)/i.test(cmd)) {
-        return { handled: false }; // Let LLM handle with search
+        return { handled: false };
       }
 
-      return null; // not a local command
+      return null;
     },
     []
   );
 
-  // ---- Chat send (standard JSON request/response) ----
+  // ── Chat send (SSE streaming) ─────────────────────────────
   const sendText = useCallback(
     async (text: string, source: "voice" | "text" = "text") => {
+      const { jarvisState, autoSpeakOn: aso } = useJarvisStore.getState();
       const clean = text.trim();
-      if (!clean || state === "thinking" || state === "speaking") return;
+      if (!clean || jarvisState === "thinking" || jarvisState === "speaking") return;
 
-      setError(null);
-      setSearchedSources(null);
+      useJarvisStore.getState().setError(null);
+      useJarvisStore.getState().setSearchedSources(null);
       stopSpeaking();
 
       const userMsg: ChatMessage = {
@@ -481,7 +435,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         createdAt: new Date().toISOString(),
         source,
       };
-      setMessages((prev) => [...prev, userMsg]);
+      useJarvisStore.getState().addMessage(userMsg);
       publishChatMessage({ messageId: userMsg.id, content: userMsg.content, isUser: true, charCount: userMsg.content.length });
       addActivityEvent({ severity: "info", category: "chat", message: `Сообщение отправлено: ${trunc(clean)}` });
 
@@ -497,11 +451,11 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
           createdAt: new Date().toISOString(),
           hasAudio: true,
         };
-        setMessages((prev) => [...prev, assistantMsg]);
-        if (autoSpeakOn) {
+        useJarvisStore.getState().addMessage(assistantMsg);
+        if (aso) {
           await speak(reply);
         } else {
-          setState("idle");
+          useJarvisStore.getState().setJarvisState("idle");
         }
         return;
       }
@@ -514,26 +468,27 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         createdAt: new Date().toISOString(),
         streaming: true,
       };
-      setMessages((prev) => [...prev, pendingMsg]);
-      setState("thinking");
+      useJarvisStore.getState().addMessage(pendingMsg);
+      useJarvisStore.getState().setJarvisState("thinking");
       playSound("processing-start");
 
+      const { messages: currentMessages, activeConvoId } = useJarvisStore.getState();
       const convoId = await ensureConversation(clean);
       const isFirst =
-        messages.filter((m) => m.role === "user").length === 0 && !activeConvoId;
+        currentMessages.filter((m) => m.role === "user").length === 0 && !activeConvoId;
       if (!isFirst && convoId) {
         void persistMessage("user", clean);
       }
 
       try {
-        const history = messages;
+        const history = currentMessages;
 
         const behavior = behaviorRef.current ? {
-          persona: behaviorRef.current.persona as any,
+          persona: behaviorRef.current.persona as PersonaId,
           userName: behaviorRef.current.userName,
           formality: behaviorRef.current.formality,
           humor: behaviorRef.current.humor,
-          responseStyle: behaviorRef.current.responseStyle as any,
+          responseStyle: behaviorRef.current.responseStyle as ResponseStyle,
           temperature: behaviorRef.current.temperature,
           maxTokens: behaviorRef.current.maxTokens,
           contextWindow: behaviorRef.current.contextWindow,
@@ -577,17 +532,11 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
               const parsed = JSON.parse(payload);
               if (parsed.error) throw new Error(parsed.error);
               if (parsed.search) {
-                  addActivityEvent({ severity: "info", category: "chat", message: "Веб-поиск активирован" });
-                }
-                if (parsed.chunk) {
+                addActivityEvent({ severity: "info", category: "chat", message: "Веб-поиск активирован" });
+              }
+              if (parsed.chunk) {
                 fullContent += parsed.chunk;
-                setMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === pendingId
-                      ? { ...m, content: fullContent, streaming: true }
-                      : m
-                  )
-                );
+                useJarvisStore.getState().updateMessage(pendingId, { content: fullContent, streaming: true });
               }
             } catch (e) {
               if (e instanceof Error && e.message !== "Unexpected end of JSON input") {
@@ -599,73 +548,49 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
         // Finalize message
         if (!fullContent.trim()) {
-          // Empty response — replace with user-friendly message
           fullContent = "⚠️ Пустой ответ от модели. Попробуйте переформулировать запрос или перезапустить Ollama.";
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === pendingId
-                ? { ...m, content: fullContent, streaming: false }
-                : m
-            )
-          );
+          useJarvisStore.getState().updateMessage(pendingId, { content: fullContent, streaming: false });
           addActivityEvent({ severity: "warning", category: "chat", message: "Пустой ответ от модели (0 символов)" });
-          setState("idle");
+          useJarvisStore.getState().setJarvisState("idle");
           return;
         }
 
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === pendingId
-              ? { ...m, content: fullContent, streaming: false, hasAudio: true }
-              : m
-          )
-        );
+        useJarvisStore.getState().updateMessage(pendingId, { content: fullContent, streaming: false, hasAudio: true });
         publishChatMessage({ messageId: pendingId, content: fullContent, isUser: false, charCount: fullContent.length });
 
         if (convoId) void persistMessage("assistant", fullContent);
 
         addActivityEvent({ severity: "success", category: "chat", message: `Ответ получен (${fullContent.length} символов)` });
 
-        if (autoSpeakOn) {
+        if (aso) {
           await speak(fullContent);
         } else {
-          setState("idle");
+          useJarvisStore.getState().setJarvisState("idle");
         }
       } catch (e) {
         let msg = e instanceof Error ? e.message : "Неизвестная ошибка";
-        // Translate raw technical errors to user-friendly messages
         if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED")) {
           msg = "Сервер Ollama не запущен. Запустите Ollama и загрузите модель: ollama pull llama3.1";
         } else if (msg.includes("OLLAMA_UNAVAILABLE")) {
           msg = msg.replace("OLLAMA_UNAVAILABLE: ", "");
         }
-        setError(msg);
-        setState("error");
+        useJarvisStore.getState().setError(msg);
+        useJarvisStore.getState().setJarvisState("error");
         addActivityEvent({ severity: "error", category: "system", message: `Ошибка: ${trunc(msg, 35)}` });
         playSound("alert");
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === pendingId
-              ? { ...m, content: `» Ошибка: ${msg}`, pending: false }
-              : m
-          )
-        );
+        useJarvisStore.getState().updateMessage(pendingId, { content: `» Ошибка: ${msg}`, pending: false });
       }
     },
-    [state, messages, activeConvoId, ensureConversation, persistMessage, autoSpeakOn, speak, stopSpeaking, processCommand]
+    [ensureConversation, persistMessage, speak, stopSpeaking, processCommand]
   );
 
-  // ---- Voice recording (ASR) ----
-  // Primary: browser Web Speech API (SpeechRecognition)
-  // Fallback: MediaRecorder + server-side ZAI ASR
+  // ── Voice recording (ASR) ────────────────────────────────
 
   const cleanupRecording = useCallback(() => {
-    // Stop SpeechRecognition
     if (speechRecognitionRef.current) {
       try { speechRecognitionRef.current.abort(); } catch { /* ignore */ }
       speechRecognitionRef.current = null;
     }
-    // Stop MediaRecorder
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
     }
@@ -682,12 +607,13 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       audioCtxRef.current = null;
     }
     analyserRef.current = null;
-    setAudioLevel(0);
+    useJarvisStore.getState().setAudioLevel(0);
   }, []);
 
   const startListening = useCallback(async () => {
-    if (isRecording || state === "thinking") return;
-    setError(null);
+    const { isRecording: rec, jarvisState: st } = useJarvisStore.getState();
+    if (rec || st === "thinking") return;
+    useJarvisStore.getState().setError(null);
     stopSpeaking();
 
     // ─── Method 1: Browser Web Speech API (primary) ───
@@ -700,60 +626,59 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         recognition.maxAlternatives = 1;
         recognition.continuous = false;
 
-        // Simulate audio level animation while listening
         const levelInterval = setInterval(() => {
-          setAudioLevel((prev) => 0.3 + Math.random() * 0.5);
+          useJarvisStore.getState().setAudioLevel((prev) => 0.3 + Math.random() * 0.5);
         }, 150);
 
         recognition.onresult = (event: SpeechRecognitionEvent) => {
           clearInterval(levelInterval);
-          setAudioLevel(0);
+          useJarvisStore.getState().setAudioLevel(0);
           const transcript = event.results[0]?.[0]?.transcript?.trim();
           if (transcript) {
             addActivityEvent({ severity: "success", category: "voice", message: `Распознано: ${trunc(transcript)}` });
-            setIsRecording(false);
-            setState("idle");
+            useJarvisStore.getState().setIsRecording(false);
+            useJarvisStore.getState().setJarvisState("idle");
             void sendText(transcript, "voice");
           } else {
-            setIsRecording(false);
-            setState("idle");
+            useJarvisStore.getState().setIsRecording(false);
+            useJarvisStore.getState().setJarvisState("idle");
           }
         };
 
         recognition.onerror = (event) => {
           clearInterval(levelInterval);
-          setAudioLevel(0);
-          setIsRecording(false);
+          useJarvisStore.getState().setAudioLevel(0);
+          useJarvisStore.getState().setIsRecording(false);
           if (event.error === "no-speech") {
-            setState("idle");
+            useJarvisStore.getState().setJarvisState("idle");
           } else if (event.error === "not-allowed") {
-            setError("Нет доступа к микрофону. Разрешите доступ в настройках браузера.");
-            setState("error");
+            useJarvisStore.getState().setError("Нет доступа к микрофону. Разрешите доступ в настройках браузера.");
+            useJarvisStore.getState().setJarvisState("error");
           } else {
-            setError(`Ошибка распознавания: ${event.error}`);
-            setState("error");
+            useJarvisStore.getState().setError(`Ошибка распознавания: ${event.error}`);
+            useJarvisStore.getState().setJarvisState("error");
           }
         };
 
         recognition.onend = () => {
           clearInterval(levelInterval);
-          setAudioLevel(0);
-          setIsRecording(false);
-          if (state !== "thinking" && state !== "speaking") {
-            setState("idle");
+          useJarvisStore.getState().setAudioLevel(0);
+          useJarvisStore.getState().setIsRecording(false);
+          const currentState = useJarvisStore.getState().jarvisState;
+          if (currentState !== "thinking" && currentState !== "speaking") {
+            useJarvisStore.getState().setJarvisState("idle");
           }
         };
 
         speechRecognitionRef.current = recognition;
         recognition.start();
-        setIsRecording(true);
-        setState("listening");
+        useJarvisStore.getState().setIsRecording(true);
+        useJarvisStore.getState().setJarvisState("listening");
         addActivityEvent({ severity: "info", category: "voice", message: "Голосовой ввод активирован" });
         playSound("voice-activate");
-        return; // Done — browser handles everything
+        return;
       } catch (e) {
         console.error("SpeechRecognition failed, falling back to MediaRecorder:", e);
-        // Fall through to MediaRecorder method
       }
     }
 
@@ -762,7 +687,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       audioCtxRef.current = ctx;
       const sourceNode = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
@@ -775,7 +700,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         let sum = 0;
         for (let i = 0; i < data.length; i++) sum += data[i];
         const avg = sum / data.length;
-        setAudioLevel(Math.min(1, avg / 90));
+        useJarvisStore.getState().setAudioLevel(Math.min(1, avg / 90));
         rafRef.current = requestAnimationFrame(tick);
       };
       tick();
@@ -788,13 +713,13 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       };
       mr.onstop = async () => {
         cleanupRecording();
-        setIsRecording(false);
+        useJarvisStore.getState().setIsRecording(false);
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
         if (blob.size < 200) {
-          setState("idle");
+          useJarvisStore.getState().setJarvisState("idle");
           return;
         }
-        setState("thinking");
+        useJarvisStore.getState().setJarvisState("thinking");
         try {
           const reader = new FileReader();
           reader.onloadend = async () => {
@@ -812,50 +737,50 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
                 addActivityEvent({ severity: "success", category: "voice", message: `Распознано: ${trunc(text)}` });
                 await sendText(text, "voice");
               } else {
-                setState("idle");
+                useJarvisStore.getState().setJarvisState("idle");
               }
             } catch (err) {
-              setError(err instanceof Error ? err.message : "Распознавание не удалось");
-              setState("error");
+              useJarvisStore.getState().setError(err instanceof Error ? err.message : "Распознавание не удалось");
+              useJarvisStore.getState().setJarvisState("error");
             }
           };
           reader.readAsDataURL(blob);
         } catch (err) {
-          setError(err instanceof Error ? err.message : "Ошибка записи");
-          setState("error");
+          useJarvisStore.getState().setError(err instanceof Error ? err.message : "Ошибка записи");
+          useJarvisStore.getState().setJarvisState("error");
         }
       };
 
       mr.start();
-      setIsRecording(true);
-      setState("listening");
+      useJarvisStore.getState().setIsRecording(true);
+      useJarvisStore.getState().setJarvisState("listening");
       addActivityEvent({ severity: "info", category: "voice", message: "Голосовой ввод активирован" });
     } catch (e) {
-      setError(
+      useJarvisStore.getState().setError(
         e instanceof Error
           ? `Нет доступа к микрофону: ${e.message}`
           : "Микрофон недоступен"
       );
-      setState("error");
+      useJarvisStore.getState().setJarvisState("error");
       cleanupRecording();
     }
-  }, [isRecording, state, sendText, stopSpeaking, cleanupRecording]);
+  }, [sendText, stopSpeaking, cleanupRecording]);
 
   const stopListening = useCallback(() => {
-    // Stop SpeechRecognition
     if (speechRecognitionRef.current) {
       try { speechRecognitionRef.current.stop(); } catch { /* ignore */ }
     }
-    // Stop MediaRecorder
-    if (mediaRecorderRef.current && isRecording) {
+    const { isRecording: rec } = useJarvisStore.getState();
+    if (mediaRecorderRef.current && rec) {
       mediaRecorderRef.current.stop();
     }
-  }, [isRecording]);
+  }, []);
 
   const toggleListening = useCallback(() => {
-    if (isRecording) stopListening();
-    else startListening();
-  }, [isRecording, startListening, stopListening]);
+    const { isRecording: rec } = useJarvisStore.getState();
+    if (rec) stopListening();
+    else void startListening();
+  }, [startListening, stopListening]);
 
   // cleanup on unmount
   useEffect(() => {
@@ -873,21 +798,15 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     return () => { cancelled = true; };
   }, [loadConversations]);
 
-  const clearMessages = useCallback(() => {
-    setMessages([]);
-    setSearchedSources(null);
-    setError(null);
-    setState("idle");
-  }, []);
-
-  // ---- Vision (VLM) ----
+  // ── Vision (VLM) ─────────────────────────────────────────
   const analyzeImage = useCallback(
     async (file: File, textPrompt?: string) => {
-      if (state === "thinking" || state === "speaking") return;
-      setError(null);
-      setSearchedSources(null);
+      const { jarvisState: st, autoSpeakOn: aso } = useJarvisStore.getState();
+      if (st === "thinking" || st === "speaking") return;
+      useJarvisStore.getState().setError(null);
+      useJarvisStore.getState().setSearchedSources(null);
       stopSpeaking();
-      setState("thinking");
+      useJarvisStore.getState().setJarvisState("thinking");
       addActivityEvent({ severity: "info", category: "vision", message: "Анализ изображения..." });
 
       const userMsg: ChatMessage = {
@@ -898,7 +817,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         source: "text",
         imagePreview: URL.createObjectURL(file),
       };
-      setMessages((prev) => [...prev, userMsg]);
+      useJarvisStore.getState().addMessage(userMsg);
       publishChatMessage({ messageId: userMsg.id, content: userMsg.content, isUser: true, charCount: userMsg.content.length });
 
       const pendingId = uid();
@@ -909,10 +828,11 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         createdAt: new Date().toISOString(),
         pending: true,
       };
-      setMessages((prev) => [...prev, pendingMsg]);
+      useJarvisStore.getState().addMessage(pendingMsg);
 
+      const { messages: currentMessages, activeConvoId } = useJarvisStore.getState();
       const convoId = await ensureConversation(userMsg.content);
-      if (convoId && messages.filter((m) => m.role === "user").length > 0) {
+      if (convoId && currentMessages.filter((m) => m.role === "user").length > 0) {
         void persistMessage("user", userMsg.content);
       }
 
@@ -933,65 +853,50 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         if (!res.ok) throw new Error(data.error || "Ошибка анализа изображения.");
 
         const reply = data.reply as string;
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === pendingId
-              ? { ...m, content: reply, pending: false, hasAudio: true }
-              : m
-          )
-        );
+        useJarvisStore.getState().updateMessage(pendingId, { content: reply, pending: false, hasAudio: true });
 
         if (convoId) void persistMessage("assistant", reply);
 
         addActivityEvent({ severity: "success", category: "vision", message: "Анализ изображения завершён" });
 
-        if (autoSpeakOn) {
+        if (aso) {
           await speak(reply);
         } else {
-          setState("idle");
+          useJarvisStore.getState().setJarvisState("idle");
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Неизвестная ошибка";
-        setError(msg);
-        setState("error");
+        useJarvisStore.getState().setError(msg);
+        useJarvisStore.getState().setJarvisState("error");
         addActivityEvent({ severity: "error", category: "system", message: `Ошибка: ${trunc(msg, 35)}` });
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === pendingId
-              ? { ...m, content: `» Ошибка: ${msg}`, pending: false }
-              : m
-          )
-        );
+        useJarvisStore.getState().updateMessage(pendingId, { content: `» Ошибка: ${msg}`, pending: false });
       }
     },
-    [state, messages, activeConvoId, ensureConversation, persistMessage, autoSpeakOn, speak, stopSpeaking]
+    [ensureConversation, persistMessage, speak, stopSpeaking]
   );
 
-  // ---- Continuous Listen Mode ----
-  // Keep ref in sync for stable callback access
-  useEffect(() => { continuousModeRef.current = continuousMode; }, [continuousMode]);
-
+  // ── Continuous Listen Mode ───────────────────────────────
   const toggleContinuousMode = useCallback(() => {
-    setContinuousMode((prev) => {
-      const next = !prev;
-      playSound(next ? "activate" : "deactivate");
-      return next;
-    });
+    const next = !useJarvisStore.getState().continuousMode;
+    playSound(next ? "activate" : "deactivate");
+    useJarvisStore.getState().setContinuousMode(next);
   }, []);
 
   // Auto-listen after speaking ends when continuous mode is on
   useEffect(() => {
-    if (!continuousModeRef.current || state !== "idle" || isRecording || messages.length === 0) return;
+    const { continuousMode: cm, jarvisState: st, isRecording: rec, messages: msgs } = useJarvisStore.getState();
+    if (!cm || st !== "idle" || rec || msgs.length === 0) return;
     const timer = setTimeout(() => {
       void startListening();
     }, 500);
     return () => clearTimeout(timer);
-  }, [state, isRecording, messages.length, startListening]);
+  }, [jarvisState, isRecording, messages.length, startListening]);
 
-  // ---- Screen Capture + VLM ----
+  // ── Screen Capture + VLM ────────────────────────────────
   const captureScreen = useCallback(
     async (customPrompt?: string) => {
-      if (state === "thinking" || state === "speaking") return;
+      const { jarvisState: st } = useJarvisStore.getState();
+      if (st === "thinking" || st === "speaking") return;
       addActivityEvent({ severity: "info", category: "vision", message: "Захват экрана..." });
 
       try {
@@ -1010,7 +915,6 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
           setTimeout(() => reject(new Error("Timeout waiting for video")), 5000);
         });
 
-        // Brief delay so the first frame is fully rendered
         await new Promise((r) => setTimeout(r, 200));
 
         const canvas = document.createElement("canvas");
@@ -1020,12 +924,10 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         if (!ctx) throw new Error("Canvas context unavailable");
         ctx.drawImage(video, 0, 0);
 
-        // Clean up stream immediately
         stream.getTracks().forEach((t) => t.stop());
 
         const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
 
-        // Convert dataURL → Blob → File
         const parts = dataUrl.split(",");
         const b64 = atob(parts[1]);
         const arr = new Uint8Array(b64.length);
@@ -1038,24 +940,24 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
           : "Опиши что видишь на этом экране. Детально.";
         await analyzeImage(file, prompt);
       } catch (e) {
-        // User cancelled screen share — silently ignore
         if (e instanceof DOMException && e.name === "NotAllowedError") return;
         const msg = e instanceof Error ? e.message : "Ошибка захвата экрана";
-        setError(msg);
-        setState("error");
+        useJarvisStore.getState().setError(msg);
+        useJarvisStore.getState().setJarvisState("error");
       }
     },
-    [state, analyzeImage]
+    [analyzeImage]
   );
 
-  // ---- Image Generation ----
+  // ── Image Generation ─────────────────────────────────────
   const generateImage = useCallback(
     async (prompt: string) => {
-      if (state === "thinking" || state === "speaking") return;
-      setError(null);
-      setSearchedSources(null);
+      const { jarvisState: st, messages: currentMessages, activeConvoId } = useJarvisStore.getState();
+      if (st === "thinking" || st === "speaking") return;
+      useJarvisStore.getState().setError(null);
+      useJarvisStore.getState().setSearchedSources(null);
       stopSpeaking();
-      setState("thinking");
+      useJarvisStore.getState().setJarvisState("thinking");
 
       const userMsg: ChatMessage = {
         id: uid(),
@@ -1064,7 +966,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         createdAt: new Date().toISOString(),
         source: "text",
       };
-      setMessages((prev) => [...prev, userMsg]);
+      useJarvisStore.getState().addMessage(userMsg);
       publishChatMessage({ messageId: userMsg.id, content: userMsg.content, isUser: true, charCount: userMsg.content.length });
 
       const pendingId = uid();
@@ -1075,10 +977,10 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         createdAt: new Date().toISOString(),
         pending: true,
       };
-      setMessages((prev) => [...prev, pendingMsg]);
+      useJarvisStore.getState().addMessage(pendingMsg);
 
       const convoId = await ensureConversation(userMsg.content);
-      if (convoId && messages.filter((m) => m.role === "user").length > 0) {
+      if (convoId && currentMessages.filter((m) => m.role === "user").length > 0) {
         void persistMessage("user", userMsg.content);
       }
 
@@ -1093,36 +995,25 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
         const imageUrl = data.image as string;
         const reply = `Вот изображение по запросу: «${prompt}»`;
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === pendingId
-              ? { ...m, content: reply, pending: false, generatedImage: imageUrl, hasAudio: false }
-              : m
-          )
-        );
+        useJarvisStore.getState().updateMessage(pendingId, { content: reply, pending: false, generatedImage: imageUrl, hasAudio: false });
 
         if (convoId) void persistMessage("assistant", reply);
-        setState("idle");
+        useJarvisStore.getState().setJarvisState("idle");
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Неизвестная ошибка";
-        setError(msg);
-        setState("error");
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === pendingId
-              ? { ...m, content: `» Ошибка: ${msg}`, pending: false }
-              : m
-          )
-        );
+        useJarvisStore.getState().setError(msg);
+        useJarvisStore.getState().setJarvisState("error");
+        useJarvisStore.getState().updateMessage(pendingId, { content: `» Ошибка: ${msg}`, pending: false });
       }
     },
-    [state, messages, activeConvoId, ensureConversation, persistMessage, stopSpeaking]
+    [ensureConversation, persistMessage, stopSpeaking]
   );
 
+  // ── Public API (same shape as before) ────────────────────
   return {
     // state
     messages,
-    state,
+    state: jarvisState,
     error,
     audioLevel,
     isRecording,
@@ -1140,13 +1031,13 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     toggleListening,
     speak,
     stopSpeaking,
-    setAutoSpeakOn,
+    setAutoSpeakOn: (v: boolean) => useJarvisStore.getState().setAutoSpeakOn(v),
     updateTTSSettings: (rate: number, pitch: number, vol: number) => {
       ttsRateRef.current = rate;
       ttsPitchRef.current = pitch;
       volumeRef.current = vol;
     },
-    clearMessages,
+    clearMessages: () => useJarvisStore.getState().clearChat(),
     newConversation,
     selectConversation,
     deleteConversation,
@@ -1154,7 +1045,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     setCommandHandlers: (h: CommandHandlers) => { commandHandlersRef.current = h; },
     // Continuous listen mode
     continuousMode,
-    setContinuousMode,
+    setContinuousMode: (v: boolean) => useJarvisStore.getState().setContinuousMode(v),
     toggleContinuousMode,
     // Screen capture (feature-detected)
     ...(typeof navigator !== "undefined" && !!navigator.mediaDevices?.getDisplayMedia
@@ -1162,8 +1053,6 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       : {}),
   };
 }
-
-export type UseJarvisReturn = ReturnType<typeof useJarvis>;
 
 /** Parse timer seconds from natural text (for external use) */
 export function parseTimerSeconds(text: string): number | null {

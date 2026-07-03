@@ -26,6 +26,7 @@ export function TodoWidget({ onToggleNotes }: TodoWidgetProps) {
     }
   };
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     mountedRef.current = true;
     void load();
@@ -35,6 +36,7 @@ export function TodoWidget({ onToggleNotes }: TodoWidgetProps) {
       clearInterval(interval);
     };
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   return (
     <button

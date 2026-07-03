@@ -55,7 +55,7 @@ const DEFAULT_RULES: Omit<NotificationRule, "id">[] = [
 // ── In-memory stores ─────────────────────────────────────────────────────
 
 const notifications: Notification[] = [];
-const subscribers = new Set<(notifications: Notification[]) => void>();
+const subscribers = new Set<(_notifications: Notification[]) => void>();
 const ruleCooldowns = new Map<string, number>(); // ruleId → lastTriggered timestamp
 
 function loadRules(): NotificationRule[] {
@@ -215,10 +215,12 @@ export function evaluateRules(metrics: {
 
     if (cond.startsWith("disk") && metrics.diskUsagePercent !== undefined) {
       const threshold = parseFloat(cond.replace(/[^0-9.]/g, ""));
-      if (cond.includes(">") && metrics.diskUsagePercent > threshold)
+      if (cond.includes(">") && metrics.diskUsagePercent > threshold) {
         match = true;
-      if (cond.includes("<") && metrics.diskUsagePercent < threshold)
+      }
+      if (cond.includes("<") && metrics.diskUsagePercent < threshold) {
         match = true;
+      }
     }
 
     if (match) {
@@ -245,7 +247,7 @@ export function evaluateRules(metrics: {
 // ── Pub/Sub ──────────────────────────────────────────────────────────────
 
 export function subscribe(
-  callback: (notifications: Notification[]) => void
+  callback: (_notifications: Notification[]) => void
 ): () => void {
   subscribers.add(callback);
   return () => {

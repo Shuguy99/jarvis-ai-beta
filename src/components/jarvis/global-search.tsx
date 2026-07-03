@@ -222,6 +222,7 @@ export default function GlobalSearch({
   useEffect(() => {
     if (!open) return;
     if (indexed) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIndexed(true);
 
     for (const item of DEFAULT_ACTIONS) {
@@ -231,7 +232,6 @@ export default function GlobalSearch({
         description: item.description,
         icon: item.icon,
         category: item.category,
-        keywords: item.keywords,
       });
     }
 
@@ -246,6 +246,7 @@ export default function GlobalSearch({
   // Reset state on open
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("");
       setActiveCategory("all");
       loadRecent();

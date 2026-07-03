@@ -29,7 +29,7 @@ export function showNotification(
     ...opts,
     id: crypto.randomUUID(),
     timestamp: Date.now(),
-    duration: opts.duration ?? 4000,
+    duration: 4000,
   };
   toastListeners.forEach((fn) => fn(full));
   // Also push to Activity Feed
@@ -104,6 +104,8 @@ function ToastCard({
 }) {
   const [progress, setProgress] = useState(100);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Date.now() for animation timing; ref ensures it's set once
+  // eslint-disable-next-line react-hooks/purity
   const startTimeRef = useRef<number>(Date.now());
   const config = TYPE_CONFIG[t.type];
   const Icon = config.icon;
@@ -111,7 +113,6 @@ function ToastCard({
   // Progress bar animation
   useEffect(() => {
     startTimeRef.current = Date.now();
-    setProgress(100);
     const step = 50; // ms per tick
     intervalRef.current = setInterval(() => {
       const elapsed = Date.now() - startTimeRef.current;

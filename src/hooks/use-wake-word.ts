@@ -20,9 +20,9 @@ const WAKE_PHRASES = [
   "Джарвис",
 ];
 
-function getSpeechRecognition(): (typeof window.SpeechRecognition) | null {
+function getSpeechRecognition(): SpeechRecognitionConstructor | null {
   if (typeof window === "undefined") return null;
-  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
+  return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
 }
 
 function isWakePhrase(transcript: string): boolean {

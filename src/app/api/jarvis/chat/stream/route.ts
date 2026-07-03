@@ -1,8 +1,9 @@
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { ai } from "@/lib/ai-provider";
 import { buildChatMessages } from "@/lib/jarvis";
 import type { BehaviorSettings } from "@/lib/jarvis";
 import type { ChatMessage } from "@/lib/types";
+import { parseJsonBody, MAX_BODY_BYTES_CHAT, BodyLimitError } from "@/lib/body-limit";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ interface StreamRequestBody {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as StreamRequestBody;
+    const body = await parseJsonBody<StreamRequestBody>(req, MAX_BODY_BYTES_CHAT);
     const { messages = [], query, behavior } = body;
 
     if (!query || !query.trim()) {
@@ -67,6 +68,11 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof BodyLimitError) {
+      return new Response(JSON.stringify({ error: error.message }), {
+        status: 413, headers: { "Content-Type": "application/json" },
+      });
+    }
     const msg = error instanceof Error ? error.message : "Stream error";
 
     if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed") || msg.includes("connect")) {

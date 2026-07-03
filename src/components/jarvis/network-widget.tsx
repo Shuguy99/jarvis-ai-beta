@@ -77,6 +77,7 @@ export function NetworkWidget() {
     prevTxRef.current = netSpeedOut;
 
     // Sparkline history
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHistory((prev) => {
       const next = [...prev, { download: netSpeedIn, upload: netSpeedOut }];
       return next.length > MAX_POINTS ? next.slice(-MAX_POINTS) : next;

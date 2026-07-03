@@ -324,32 +324,44 @@ const SOUND_GENERATORS: Record<
   wind: startWind,
 };
 
+function loadPersistedSound(): AmbientSound {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as { sound: AmbientSound; volume: number };
+      if (parsed.sound && AMBIENT_OPTIONS.some((o) => o.id === parsed.sound)) {
+        return parsed.sound;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return "silence";
+}
+
+function loadPersistedVolume(): number {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as { sound: AmbientSound; volume: number };
+      if (typeof parsed.volume === "number" && parsed.volume >= 0 && parsed.volume <= 100) {
+        return parsed.volume;
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return 50;
+}
+
 // ── Component ─────────────────────────────────────────────────
 export function AmbientSoundWidget() {
-  const [activeSound, setActiveSound] = useState<AmbientSound>("silence");
-  const [volume, setVolume] = useState(50);
+  const [activeSound, setActiveSound] = useState<AmbientSound>(loadPersistedSound);
+  const [volume, setVolume] = useState(loadPersistedVolume);
 
   // Refs for audio nodes
   const activeNodesRef = useRef<ActiveNodes>(createSilentNodes());
   const masterGainRef = useRef<GainNode | null>(null);
-
-  // Load persisted state
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored) as { sound: AmbientSound; volume: number };
-        if (parsed.sound && AMBIENT_OPTIONS.some((o) => o.id === parsed.sound)) {
-          setActiveSound(parsed.sound);
-        }
-        if (typeof parsed.volume === "number" && parsed.volume >= 0 && parsed.volume <= 100) {
-          setVolume(parsed.volume);
-        }
-      }
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   // Persist state
   useEffect(() => {
@@ -513,6 +525,7 @@ export function AmbientSoundWidget() {
             value={volume}
             onChange={(e) => setVolume(Number(e.target.value))}
             className="h-1 w-full cursor-pointer appearance-none rounded-full bg-primary/20 accent-primary"
+            aria-label="Громкость"
           />
           <span className="w-7 flex-shrink-0 text-right font-mono text-[10px] tabular-nums text-muted-foreground">
             {volume}%

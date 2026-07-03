@@ -84,6 +84,7 @@ export function ConversationList({
                   onClick={() => onDelete(c.id)}
                   className="flex-shrink-0 rounded p-1 text-muted-foreground/40 opacity-0 transition hover:text-destructive group-hover:opacity-100"
                   title="Удалить"
+                  aria-label="Удалить беседу"
                 >
                   <Trash2 className="h-3 w-3" />
                 </button>

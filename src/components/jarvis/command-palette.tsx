@@ -106,6 +106,7 @@ export function CommandPalette({
     isSearching,
     search: doSearch,
     recentSearches,
+    clearRecent,
     loadRecent,
   } = useGlobalSearch();
 
@@ -139,6 +140,7 @@ export function CommandPalette({
   // Reset on open
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("");
       setSelectedIndex(0);
       setActiveCategory("all");
@@ -316,7 +318,7 @@ export function CommandPalette({
                     </span>
                     <button
                       onClick={() => {
-                        clearRecentSearches();
+                        clearRecent();
                         playSound("click", 0.1);
                       }}
                       className="flex items-center gap-1 font-mono text-[9px] text-muted-foreground/40 transition hover:text-destructive"

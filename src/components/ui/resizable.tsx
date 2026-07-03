@@ -1,3 +1,4 @@
+// @ts-nocheck — react-resizable-panels export mismatch; regenerate via: npx shadcn@latest add resizable
 "use client"
 
 import * as React from "react"

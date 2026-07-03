@@ -20,21 +20,21 @@ interface JarvisElectron {
   minimize(): Promise<void>;
   maximize(): Promise<void>;
   close(): Promise<void>;
-  setAlwaysOnTop(flag: boolean): Promise<void>;
-  setOpacity(value: number): Promise<void>;
+  setAlwaysOnTop(_flag: boolean): Promise<void>;
+  setOpacity(_value: number): Promise<void>;
   toggleFullscreen(): Promise<void>;
   getVersion(): Promise<string>;
-  onWindowEvent(callback: (event: string, data?: unknown) => void): void;
+  onWindowEvent(callback: (_event: string, _data?: unknown) => void): void;
   /** Информация о текущей платформе (win32, darwin, linux) */
   getPlatform(): Promise<string>;
   /** Информация о рабочей области основного экрана */
   getScreenInfo(): Promise<ScreenInfo>;
   /** Включить/выключить автозапуск при входе в систему */
-  setAutostart(enabled: boolean): Promise<void>;
+  setAutostart(_enabled: boolean): Promise<void>;
   /** Текущее состояние автозапуска */
   getAutostart(): Promise<boolean>;
   /** Подписка на получение jarvis:// URL из основного процесса */
-  onProtocolUrl(callback: (data: ProtocolUrlData) => void): () => void;
+  onProtocolUrl(callback: (_data: ProtocolUrlData) => void): () => void;
 }
 
 declare global {

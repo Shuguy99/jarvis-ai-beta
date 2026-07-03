@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { stat, readdir } from "fs/promises";
 import path from "path";
 
 export const runtime = "nodejs";
@@ -35,8 +36,8 @@ export async function GET(request: NextRequest) {
 
   // Check path exists and is a directory
   try {
-    const stat = fs.statSync(resolved);
-    if (!stat.isDirectory()) {
+    const dirStat = await stat(resolved);
+    if (!dirStat.isDirectory()) {
       return NextResponse.json(
         { error: "Указанный путь не является директорией" },
         { status: 400 }
@@ -52,29 +53,31 @@ export async function GET(request: NextRequest) {
   // Read directory entries
   let entries: FileEntry[];
   try {
-    const items = fs.readdirSync(resolved, { withFileTypes: true });
+    const items = await readdir(resolved, { withFileTypes: true });
 
-    entries = items.map((item) => {
-      const fullPath = path.join(resolved, item.name);
-      let size = 0;
-      let modified = "";
+    entries = await Promise.all(
+      items.map(async (item) => {
+        const fullPath = path.join(resolved, item.name);
+        let size = 0;
+        let modified = "";
 
-      try {
-        const s = fs.statSync(fullPath);
-        size = s.size;
-        modified = s.mtime.toISOString();
-      } catch {
-        // skip stat errors
-      }
+        try {
+          const s = await stat(fullPath);
+          size = s.size;
+          modified = s.mtime.toISOString();
+        } catch {
+          // skip stat errors
+        }
 
-      return {
-        name: item.name,
-        type: item.isDirectory() ? "dir" as const : "file" as const,
-        size,
-        modified,
-        ext: item.isDirectory() ? "" : path.extname(item.name).toLowerCase(),
-      };
-    });
+        return {
+          name: item.name,
+          type: item.isDirectory() ? "dir" as const : "file" as const,
+          size,
+          modified,
+          ext: item.isDirectory() ? "" : path.extname(item.name).toLowerCase(),
+        };
+      })
+    );
 
     // Sort: directories first, then files, both alphabetically
     entries.sort((a, b) => {

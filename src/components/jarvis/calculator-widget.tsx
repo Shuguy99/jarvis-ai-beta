@@ -158,6 +158,7 @@ export function CalculatorWidget({ onClose }: CalculatorWidgetProps) {
         <button
           onClick={() => { playSound("click"); onClose(); }}
           className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded border jarvis-border-cyan/50 bg-muted/20 text-foreground/60 hover:text-primary transition text-xs"
+          aria-label="Закрыть"
         >
           ✕
         </button>

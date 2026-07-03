@@ -1,8 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { ai } from "@/lib/ai-provider";
 import { buildChatMessages, buildSystemPrompt } from "@/lib/jarvis";
 import type { BehaviorSettings } from "@/lib/jarvis";
 import type { ChatMessage } from "@/lib/types";
+import { parseJsonBody, MAX_BODY_BYTES_CHAT, BodyLimitError } from "@/lib/body-limit";
 
 export const runtime = "nodejs";
 
@@ -15,7 +17,7 @@ interface ChatRequestBody {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as ChatRequestBody;
+    const body = await parseJsonBody<ChatRequestBody>(req, MAX_BODY_BYTES_CHAT);
     const { messages = [], query, behavior } = body;
 
     if (!query || !query.trim()) {
@@ -44,6 +46,9 @@ export async function POST(req: NextRequest) {
       promptPreview: buildSystemPrompt(behavior ?? {}).slice(0, 80) + "...",
     });
   } catch (error) {
+    if (error instanceof BodyLimitError) {
+      return NextResponse.json({ error: error.message }, { status: 413 });
+    }
     console.error("JARVIS chat error:", error);
 
     const msg = error instanceof Error ? error.message : "Внутренняя ошибка J.A.R.V.I.S.";

@@ -107,16 +107,17 @@ export function CalendarWidget() {
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [events, setEvents] = useState<CalendarEvents>({});
+  const [events, setEvents] = useState<CalendarEvents>(() => loadEvents());
   const [newEventText, setNewEventText] = useState("");
   const [mounted, setMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Load events from localStorage on mount
+  // Mark as mounted (for hydration-aware rendering)
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    setEvents(loadEvents());
     setMounted(true);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const todayStr = dateKey(now.getFullYear(), now.getMonth(), now.getDate());
   const cells = buildCells(viewYear, viewMonth);
@@ -204,6 +205,7 @@ export function CalendarWidget() {
           <button
             onClick={goToPrev}
             className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/60 hover:text-primary transition"
+            aria-label="Предыдущий месяц"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
@@ -215,6 +217,7 @@ export function CalendarWidget() {
           <button
             onClick={goToNext}
             className="flex h-6 w-6 items-center justify-center rounded text-muted-foreground/60 hover:text-primary transition"
+            aria-label="Следующий месяц"
           >
             <ChevronRight className="h-3.5 w-3.5" />
           </button>
@@ -290,6 +293,7 @@ export function CalendarWidget() {
                       onClick={() => handleRemoveEvent(selectedDate, idx)}
                       className="jarvis-chip cursor-pointer font-mono text-[9px] text-primary/90 hover:text-red-400 hover:border-red-400/40 transition"
                       title="Click to remove"
+                      aria-label={`Удалить: ${evt}`}
                     >
                       {evt}
                     </button>
@@ -312,6 +316,7 @@ export function CalendarWidget() {
                   onClick={handleAddEvent}
                   disabled={!newEventText.trim()}
                   className="rounded border border-primary/30 bg-primary/10 px-2 py-1 font-mono text-[10px] text-primary transition hover:bg-primary/20 disabled:opacity-30 disabled:cursor-default"
+                  aria-label="Добавить событие"
                 >
                   +
                 </button>

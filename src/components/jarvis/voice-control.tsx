@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import { Mic, MicOff, Square, Repeat } from "lucide-react";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
 import { playSound } from "@/lib/sounds";
@@ -10,17 +11,17 @@ interface VoiceControlProps {
 }
 
 export function VoiceControl({ jarvis }: VoiceControlProps) {
+  const reduced = useReducedMotion();
   const { isRecording, toggleListening, stopSpeaking, state, audioLevel, continuousMode, toggleContinuousMode } = jarvis;
   const speaking = state === "speaking";
 
   return (
     <div className="flex flex-col items-center gap-3">
-      {/* Equalizer visualizer */}
+      {/* Equalizer visualizer — Date.now() drives sine-wave animation */}
+      {/* eslint-disable react-hooks/purity -- intentional animation via Date.now() */}
       <div className="flex h-10 items-end justify-center gap-1">
         {Array.from({ length: 24 }).map((_, i) => {
-          const base = isRecording ? audioLevel : speaking ? 0.3 + Math.sin(Date.now() / 120 + i) * 0.25 + 0.2 : 0.06;
-          const variance = isRecording ? Math.abs(Math.sin(Date.now() / 90 + i * 0.6)) * 0.5 : 0;
-          const h = Math.max(0.08, Math.min(1, base + variance));
+          const h = reduced ? 0.06 : (isRecording ? Math.max(0.08, Math.min(1, audioLevel + Math.abs(Math.sin(Date.now() / 90 + i * 0.6)) * 0.5)) : speaking ? Math.max(0.08, Math.min(1, 0.3 + Math.sin(Date.now() / 120 + i) * 0.25 + 0.2)) : 0.06);
           return (
             <motion.div
               key={i}
@@ -33,7 +34,7 @@ export function VoiceControl({ jarvis }: VoiceControlProps) {
                   : "oklch(0.82 0.17 193 / 40%)",
               }}
               animate={{ height: `${h * 100}%` }}
-              transition={{ duration: 0.08 }}
+              transition={reduced ? { duration: 0 } : { duration: 0.08 }}
             />
           );
         })}
@@ -102,7 +103,7 @@ export function VoiceControl({ jarvis }: VoiceControlProps) {
         <span>{continuousMode ? "Continuous" : "Auto-Listen"}</span>
         {continuousMode && (
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+            <span className={`absolute inline-flex h-full w-full rounded-full bg-primary opacity-75 ${reduced ? "" : "animate-ping"}`} />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
           </span>
         )}

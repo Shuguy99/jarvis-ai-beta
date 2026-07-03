@@ -56,10 +56,12 @@ function timeAgo(iso: string): string {
 
 function getFileIcon(ext: string) {
   if ([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"].includes(ext)) return Code;
-  if ([".md", ".txt", ".log", ".csv", ".json", ".yaml", ".yml", ".toml"].includes(ext))
+  if ([".md", ".txt", ".log", ".csv", ".json", ".yaml", ".yml", ".toml"].includes(ext)) {
     return FileText;
-  if ([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico", ".bmp"].includes(ext))
+  }
+  if ([".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico", ".bmp"].includes(ext)) {
     return Image;
+  }
   return File;
 }
 
@@ -92,9 +94,32 @@ export function FileExplorerWidget() {
     }
   }, []);
 
+  // Initial fetch on mount
   useEffect(() => {
-    void fetchFiles(DEFAULT_PATH);
-  }, [fetchFiles]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/jarvis/files?path=${encodeURIComponent(DEFAULT_PATH)}`,
+          { cache: "no-store" }
+        );
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error ?? `Ошибка ${res.status}`);
+        }
+        const json: FilesResponse = await res.json();
+        if (!cancelled) {
+          setData(json);
+          setCurrentPath(json.path);
+        }
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Неизвестная ошибка");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const navigateTo = (targetPath: string) => {
     playSound("click", 0.2);

@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import fs from "fs";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { readdir, stat } from "fs/promises";
 import path from "path";
 
 export const runtime = "nodejs";
@@ -8,12 +9,12 @@ const BASE_DIR = "/home/z/";
 const MAX_DEPTH = 3;
 const MAX_RESULTS = 20;
 
-function searchDir(dir: string, query: string, depth: number, results: Array<{ path: string; name: string; size: number; modified: string }>): void {
+async function searchDir(dir: string, query: string, depth: number, results: Array<{ path: string; name: string; size: number; modified: string }>): Promise<void> {
   if (depth > MAX_DEPTH || results.length >= MAX_RESULTS) return;
 
-  let entries: fs.Dirent[];
+  let entries;
   try {
-    entries = fs.readdirSync(dir, { withFileTypes: true });
+    entries = await readdir(dir, { withFileTypes: true });
   } catch {
     return;
   }
@@ -26,15 +27,15 @@ function searchDir(dir: string, query: string, depth: number, results: Array<{ p
 
     try {
       if (entry.isDirectory()) {
-        searchDir(fullPath, query, depth + 1, results);
+        await searchDir(fullPath, query, depth + 1, results);
       } else {
         if (entry.name.toLowerCase().includes(query.toLowerCase())) {
-          const stat = fs.statSync(fullPath);
+          const s = await stat(fullPath);
           results.push({
             path: fullPath,
             name: entry.name,
-            size: stat.size,
-            modified: stat.mtime.toISOString(),
+            size: s.size,
+            modified: s.mtime.toISOString(),
           });
         }
       }
@@ -52,16 +53,16 @@ export async function GET(req: NextRequest) {
   }
 
   // Basic path traversal protection
-  if (q.includes("..") || q.includes("/")) {
+  if (q.includes("..") || q.includes("/") || q.includes("\\")) {
     return NextResponse.json({ files: [], query: q });
   }
 
   const results: Array<{ path: string; name: string; size: number; modified: string }> = [];
 
   try {
-    searchDir(BASE_DIR, q, 0, results);
-  } catch (err: any) {
-    console.error("[File Search Error]", err?.message);
+    await searchDir(BASE_DIR, q, 0, results);
+  } catch (err: unknown) {
+    console.error("[File Search Error]", err instanceof Error ? err.message : err);
   }
 
   return NextResponse.json({ files: results, query: q });

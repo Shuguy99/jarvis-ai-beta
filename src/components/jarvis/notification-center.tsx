@@ -136,17 +136,13 @@ function groupByTime(notifs: Notification[]) {
 // ── Rule Editor ─────────────────────────────────────────────────────
 
 function RulesSection() {
-  const [rules, setRules] = useState<NotificationRule[]>([]);
+  const [rules, setRules] = useState<NotificationRule[]>(() => getRules());
   const [showForm, setShowForm] = useState(false);
   const [formCondition, setFormCondition] = useState("");
   const [formType, setFormType] = useState<NotificationRule["type"]>("warning");
   const [formMessage, setFormMessage] = useState("");
 
   const refresh = useCallback(() => setRules(getRules()), []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
 
   const handleToggle = (id: string, enabled: boolean) => {
     playSound("click");
@@ -378,14 +374,11 @@ function EmptyState() {
 // ── Main Panel ──────────────────────────────────────────────────────
 
 export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [version, setVersion] = useState(0);
+  const [notifications, setNotifications] = useState<Notification[]>(() => getNotifications());
 
   // Subscribe to changes
   useEffect(() => {
     if (!open) return;
-    setNotifications(getNotifications());
-    setVersion((v) => v + 1);
     const unsub = subscribe((list) => {
       setNotifications([...list]);
     });
@@ -393,9 +386,8 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
   }, [open]);
 
   const unreadCount = useMemo(() => {
-    void version; // reactivity trigger
     return notifications.filter((n) => !n.read).length;
-  }, [notifications, version]);
+  }, [notifications]);
 
   const groups = useMemo(() => groupByTime(notifications), [notifications]);
 
@@ -456,6 +448,7 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
                 onClick={handleMarkAllRead}
                 className="rounded p-1.5 text-muted-foreground/50 transition-colors hover:bg-primary/10 hover:text-primary"
                 title="Прочитать все"
+                aria-label="Пометить все прочитанными"
               >
                 <CheckCheck className="h-4 w-4" />
               </button>
@@ -463,6 +456,7 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
                 onClick={handleClearAll}
                 className="rounded p-1.5 text-muted-foreground/50 transition-colors hover:bg-rose-500/10 hover:text-rose-400"
                 title="Очистить все"
+                aria-label="Очистить все уведомления"
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -472,6 +466,7 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
                   onClose();
                 }}
                 className="rounded p-1.5 text-muted-foreground/50 transition-colors hover:bg-primary/10 hover:text-primary"
+                aria-label="Закрыть"
               >
                 <X className="h-4 w-4" />
               </button>

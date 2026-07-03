@@ -139,8 +139,8 @@ export function SystemInsightsWidget() {
   useEffect(() => {
     const interval = setInterval(() => {
       if (system) {
-        setCpuHistory((h) => [...h.slice(-19), system.cpuUsage ?? 0]);
-        setRamHistory((h) => [...h.slice(-19), system.memUsagePercent ?? 0]);
+        setCpuHistory((h) => [...h.slice(-19), system.cpuLoad ?? 0]);
+        setRamHistory((h) => [...h.slice(-19), system.memPct ?? 0]);
       }
     }, 30000);
     return () => clearInterval(interval);
@@ -149,8 +149,9 @@ export function SystemInsightsWidget() {
   // Update on first system data
   useEffect(() => {
     if (system) {
-      setCpuHistory((h) => [...h.slice(-19), system.cpuUsage ?? 0]);
-      setRamHistory((h) => [...h.slice(-19), system.memUsagePercent ?? 0]);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setCpuHistory((h) => [...h.slice(-19), system.cpuLoad ?? 0]);
+      setRamHistory((h) => [...h.slice(-19), system.memPct ?? 0]);
     }
   }, [system]);
 
@@ -185,8 +186,8 @@ export function SystemInsightsWidget() {
           });
         }
       }
-    } catch (e: any) {
-      if (e.name !== "AbortError") {
+    } catch (e: unknown) {
+      if (e instanceof Error && e.name !== "AbortError") {
         setError("Ошибка анализа");
       }
     } finally {
@@ -196,6 +197,7 @@ export function SystemInsightsWidget() {
 
   // Auto-fetch on mount + every 5 min
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchInsights();
     const interval = setInterval(() => fetchInsights(), 5 * 60 * 1000);
     return () => {
@@ -295,7 +297,7 @@ export function SystemInsightsWidget() {
                 <div className="mb-1 flex items-center justify-between font-mono text-[9px] text-muted-foreground/50">
                   <span>CPU</span>
                   <span className="text-primary/60">
-                    {system?.cpuUsage?.toFixed(1) ?? "—"}%
+                    {system?.cpuLoad?.toFixed(1) ?? "—"}%
                   </span>
                 </div>
                 <Sparkline data={cpuHistory} color="oklch(0.7 0.18 193)" />
@@ -304,7 +306,7 @@ export function SystemInsightsWidget() {
                 <div className="mb-1 flex items-center justify-between font-mono text-[9px] text-muted-foreground/50">
                   <span>RAM</span>
                   <span className="text-primary/60">
-                    {system?.memUsagePercent?.toFixed(1) ?? "—"}%
+                    {system?.memPct?.toFixed(1) ?? "—"}%
                   </span>
                 </div>
                 <Sparkline data={ramHistory} color="oklch(0.7 0.2 150)" />

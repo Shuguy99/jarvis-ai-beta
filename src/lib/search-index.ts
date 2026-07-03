@@ -30,7 +30,7 @@ export const SEARCH_CATEGORIES: SearchCategory[] = [
 
 // ── In-memory index ──────────────────────────────────────────────
 
-let index: Map<string, SearchResult> = new Map();
+const index: Map<string, SearchResult> = new Map();
 let nextId = 0;
 
 function genId(): string {

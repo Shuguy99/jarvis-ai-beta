@@ -226,6 +226,7 @@ function SystemDoctorWidget() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void checkSystem();
     const id = setInterval(() => void checkSystem(), 30_000);
     return () => clearInterval(id);

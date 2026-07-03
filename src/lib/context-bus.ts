@@ -217,7 +217,9 @@ class ContextBus {
    * Returns an unsubscribe function.
    */
   onAny(listener: EventListener): () => void {
-    return this.on("*" as any, listener);
+    // The wildcard "*" is a valid member of the ContextEvent discriminated union
+    // via the fallback BaseEvent<string>, but TypeScript can't narrow it here.
+    return this.on("*" as ContextEvent["type"], listener);
   }
 
   /**
@@ -303,7 +305,8 @@ export const contextBus = new ContextBus();
 
 // Dynamic import guard — this must be at module level so bundlers
 // can tree-shake it out of server bundles.
-const _useEffect: typeof import("react").useEffect | null = (() => {
+type UseEffectType = (effect: () => void | (() => void), deps?: readonly unknown[]) => void;
+const _useEffect: UseEffectType | null = (() => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     return require("react").useEffect;

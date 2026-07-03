@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Cpu, MemoryStick, Wifi, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { useSystemData } from "@/hooks/use-system-poller";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -17,7 +18,6 @@ interface MetricPoint {
 // ── Constants ──────────────────────────────────────────────────
 
 const BUFFER_SIZE = 60;
-const POLL_INTERVAL = 5000;
 const CHART_WIDTH = 600;
 const CHART_HEIGHT = 160;
 const CHART_PADDING = { top: 4, right: 44, bottom: 4, left: 0 };
@@ -279,40 +279,23 @@ export default function MetricsHistoryChart() {
     net: true,
   });
 
-  // ── Polling ───────────────────────────────────────────────
+  const { system } = useSystemData();
+
+  // ── Drive buffer from shared system data ──────────────────────
   useEffect(() => {
-    let active = true;
-
-    const poll = async () => {
-      try {
-        const res = await fetch("/api/jarvis/system", { cache: "no-store" });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (!active) return;
-
-        const buf = bufferRef.current;
-        const idx = writeIndexRef.current;
-        buf[idx] = {
-          timestamp: Date.now(),
-          cpu: json.cpuLoad ?? 0,
-          memory: json.memPct ?? 0,
-          netIn: json.netSpeedIn ?? 0,
-          netOut: json.netSpeedOut ?? 0,
-        };
-        writeIndexRef.current = (idx + 1) % BUFFER_SIZE;
-        setData([...buf.slice(writeIndexRef.current), ...buf.slice(0, writeIndexRef.current)]);
-      } catch {
-        /* ignore fetch errors */
-      }
+    if (!system) return;
+    const buf = bufferRef.current;
+    const idx = writeIndexRef.current;
+    buf[idx] = {
+      timestamp: Date.now(),
+      cpu: system.cpuLoad ?? 0,
+      memory: system.memPct ?? 0,
+      netIn: system.netSpeedIn ?? 0,
+      netOut: system.netSpeedOut ?? 0,
     };
-
-    void poll();
-    const id = setInterval(poll, POLL_INTERVAL);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, []);
+    writeIndexRef.current = (idx + 1) % BUFFER_SIZE;
+    setData([...buf.slice(writeIndexRef.current), ...buf.slice(0, writeIndexRef.current)]);
+  }, [system]);
 
   // ── Derive values from state data ─────────────────────────
   const cpuValues = data.map((d) => d.cpu);

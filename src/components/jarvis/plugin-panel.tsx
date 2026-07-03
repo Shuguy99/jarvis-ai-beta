@@ -84,6 +84,7 @@ function PluginSettings({
               onClose();
             }}
             className="rounded p-0.5 text-muted-foreground/40 hover:text-foreground/60 transition-colors"
+            aria-label="Закрыть настройки"
           >
             <ChevronUp className="h-3 w-3" />
           </button>
@@ -106,7 +107,7 @@ function SettingRow({
   const [value, setValue] = useState(setting.defaultValue);
 
   const handleChange = useCallback(
-    (newValue: unknown) => {
+    (newValue: string | number | boolean) => {
       setValue(newValue);
       // We'll import updatePluginSetting lazily to avoid circular dependency issues
       // at the module level — the registry already exports it.
@@ -355,7 +356,7 @@ export function PluginPanel({ open, onClose }: PluginPanelProps) {
     [activeCategory, plugins]
   );
 
-  const enabledCount = plugins.filter((p) => p.enabled).length;
+  const enabledCount = plugins.plugins.filter((p) => p.enabled).length;
 
   const handleCategoryChange = useCallback((catId: string) => {
     setActiveCategory(catId);
@@ -393,12 +394,13 @@ export function PluginPanel({ open, onClose }: PluginPanelProps) {
                 Расширения
               </h2>
               <p className="font-mono text-[9px] text-muted-foreground/50">
-                {plugins.length} плагинов · {enabledCount} активно
+                {plugins.plugins.length} плагинов · {enabledCount} активно
               </p>
             </div>
             <button
               onClick={handleClose}
               className="flex h-7 w-7 items-center justify-center rounded-md border border-border/30 bg-background/30 text-muted-foreground/50 transition-colors hover:border-rose-500/30 hover:bg-rose-500/10 hover:text-rose-400"
+              aria-label="Закрыть"
             >
               <X className="h-4 w-4" />
             </button>

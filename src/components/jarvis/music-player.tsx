@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import {
   Play, Pause, Square, SkipBack, SkipForward, Volume2,
   Plus, ChevronDown, ChevronUp, Music, X
@@ -23,6 +24,7 @@ function fmtTime(s: number) {
 }
 
 export function MusicPlayer() {
+  const reduced = useReducedMotion();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -340,12 +342,14 @@ export function MusicPlayer() {
                 onClick={() => { playSound("click"); skipPrev(); }}
                 className="flex h-8 w-8 items-center justify-center rounded-lg border jarvis-border-cyan bg-card/60 text-primary/80 transition hover:bg-primary/15 hover:text-primary"
                 disabled={tracks.length < 2}
+                aria-label="Назад"
               >
                 <SkipBack className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() => { playSound("click"); togglePlay(); }}
                 className="flex h-10 w-10 items-center justify-center rounded-lg border jarvis-border-cyan bg-primary/15 text-primary transition hover:bg-primary/25 hover:jarvis-box-glow"
+                aria-label={isPlaying ? "Пауза" : "Воспроизвести"}
               >
                 {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
               </button>
@@ -353,12 +357,14 @@ export function MusicPlayer() {
                 onClick={() => { playSound("click"); skipNext(); }}
                 className="flex h-8 w-8 items-center justify-center rounded-lg border jarvis-border-cyan bg-card/60 text-primary/80 transition hover:bg-primary/15 hover:text-primary"
                 disabled={tracks.length < 2}
+                aria-label="Вперёд"
               >
                 <SkipForward className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() => { playSound("click"); stopPlayback(); }}
                 className="flex h-8 w-8 items-center justify-center rounded-lg border jarvis-border-cyan bg-card/60 text-primary/80 transition hover:bg-primary/15 hover:text-primary"
+                aria-label="Стоп"
               >
                 <Square className="h-3 w-3" />
               </button>
@@ -380,7 +386,7 @@ export function MusicPlayer() {
             {isPlaying && (
               <div className="mt-3 flex h-8 items-end justify-center gap-[2px]">
                 {Array.from(vizData).map((v, i) => {
-                  const h = Math.max(4, (v / maxViz) * 100);
+                  const h = reduced ? 10 : Math.max(4, (v / maxViz) * 100);
                   return (
                     <motion.div
                       key={i}
@@ -388,10 +394,10 @@ export function MusicPlayer() {
                       style={{
                         height: `${h}%`,
                         boxShadow: `0 0 4px oklch(0.85 0.19 193 / 50%)`,
-                        opacity: 0.4 + (v / maxViz) * 0.6,
+                        opacity: reduced ? 0.5 : 0.4 + (v / maxViz) * 0.6,
                       }}
                       animate={{ height: `${h}%` }}
-                      transition={{ duration: 0.05 }}
+                      transition={reduced ? { duration: 0 } : { duration: 0.05 }}
                     />
                   );
                 })}
@@ -436,6 +442,7 @@ export function MusicPlayer() {
                         <button
                           onClick={(e) => { e.stopPropagation(); playSound("click"); removeTrack(i); }}
                           className="h-4 w-4 flex-shrink-0 opacity-0 transition group-hover:opacity-60 hover:!opacity-100"
+                          aria-label="Удалить трек"
                         >
                           <X className="h-3 w-3" />
                         </button>

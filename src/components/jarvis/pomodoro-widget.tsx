@@ -89,21 +89,14 @@ export function PomodoroWidget() {
   const [mode, setMode] = useState<PomodoroMode>("focus");
   const [timeLeft, setTimeLeft] = useState(DURATIONS.focus);
   const [isRunning, setIsRunning] = useState(false);
-  const [sessionCount, setSessionCount] = useState(0);
-  const [totalFocusTime, setTotalFocusTime] = useState(0);
+  const [sessionCount, setSessionCount] = useState(() => loadStats().sessionCount);
+  const [totalFocusTime, setTotalFocusTime] = useState(() => loadStats().totalFocusTime);
   const [notification, setNotification] = useState<string | null>(null);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(0);
   const elapsedAtPauseRef = useRef<number>(0);
   const notificationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Load stats on mount
-  useEffect(() => {
-    const stats = loadStats();
-    setSessionCount(stats.sessionCount);
-    setTotalFocusTime(stats.totalFocusTime);
-  }, []);
 
   // Persist stats whenever they change
   useEffect(() => {
@@ -165,6 +158,7 @@ export function PomodoroWidget() {
       // Count focus session
       const newSessionCount = sessionCount + 1;
       const newTotalFocus = totalFocusTime + DURATIONS.focus;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSessionCount(newSessionCount);
       setTotalFocusTime(newTotalFocus);
 

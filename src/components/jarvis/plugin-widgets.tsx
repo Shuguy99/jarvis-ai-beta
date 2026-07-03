@@ -1,56 +1,50 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useSystemData } from "@/hooks/use-system-poller";
 
 // ── System Doctor Widget ────────────────────────────────────────────
 
 export function SystemDoctorWidget() {
-  const [checks, setChecks] = useState<
-    { label: string; status: "loading" | "ok" | "fail"; value: string }[]
-  >([
-    { label: "CPU", status: "loading", value: "" },
-    { label: "RAM", status: "loading", value: "" },
-    { label: "Disk", status: "loading", value: "" },
-    { label: "Network", status: "loading", value: "" },
-  ]);
+  const { system } = useSystemData();
 
-  useEffect(() => {
-    const fetch_ = async () => {
-      try {
-        const res = await fetch("/api/jarvis/system");
-        const data = await res.json();
-        setChecks([
-          {
-            label: "CPU",
-            status: (data.cpuUsage ?? 0) < 90 ? "ok" : "fail",
-            value: `${data.cpuUsage?.toFixed(1) ?? "?"}%`,
-          },
-          {
-            label: "RAM",
-            status: (data.memUsagePercent ?? 0) < 90 ? "ok" : "fail",
-            value: `${data.memUsagePercent?.toFixed(1) ?? "?"}%`,
-          },
-          {
-            label: "Disk",
-            status: (data.diskUsagePercent ?? 0) < 95 ? "ok" : "fail",
-            value: `${data.diskUsagePercent?.toFixed(1) ?? "?"}%`,
-          },
-          {
-            label: "Network",
-            status: "ok",
-            value: "Online",
-          },
-        ]);
-      } catch {
-        setChecks((c) =>
-          c.map((x) => ({ ...x, status: "fail" as const, value: "Error" }))
-        );
-      }
-    };
-    fetch_();
-    const interval = setInterval(fetch_, 30000);
-    return () => clearInterval(interval);
-  }, []);
+  const checks = system
+    ? [
+        {
+          label: "CPU",
+          status: ("ok" as const),
+          value: `${system.cpuLoad.toFixed(1)}%`,
+        },
+        {
+          label: "RAM",
+          status: ("ok" as const),
+          value: `${system.memPct.toFixed(1)}%`,
+        },
+        {
+          label: "Disk",
+          status: ("ok" as const),
+          value: `${system.diskPct.toFixed(1)}%`,
+        },
+        {
+          label: "Network",
+          status: ("ok" as const),
+          value: "Online",
+        },
+      ].map((c) =>
+        c.label === "CPU" && system.cpuLoad >= 90
+          ? { ...c, status: "fail" as const }
+          : c.label === "RAM" && system.memPct >= 90
+            ? { ...c, status: "fail" as const }
+            : c.label === "Disk" && system.diskPct >= 95
+              ? { ...c, status: "fail" as const }
+              : c
+      )
+    : [
+        { label: "CPU", status: "loading" as const, value: "" },
+        { label: "RAM", status: "loading" as const, value: "" },
+        { label: "Disk", status: "loading" as const, value: "" },
+        { label: "Network", status: "loading" as const, value: "" },
+      ];
 
   return (
     <div className="space-y-2">
@@ -89,29 +83,21 @@ export function SystemDoctorWidget() {
 // ── Network Scanner Widget ──────────────────────────────────────────
 
 export function NetworkScannerWidget() {
-  const [info, setInfo] = useState<string[]>(["Загрузка..."]);
+  const { system } = useSystemData();
 
-  useEffect(() => {
-    const fetch_ = async () => {
-      try {
-        const res = await fetch("/api/jarvis/system");
-        const data = await res.json();
+  const info = system
+    ? (() => {
         const lines: string[] = [];
-        if (data.hostname) lines.push(`Host: ${data.hostname}`);
-        if (data.ip) lines.push(`IP: ${data.ip}`);
-        if (data.network) {
-          if (data.network.rx) lines.push(`↓ ${data.network.rx}`);
-          if (data.network.tx) lines.push(`↑ ${data.network.tx}`);
-        }
-        setInfo(lines.length > 0 ? lines : ["Нет данных"]);
-      } catch {
-        setInfo(["Ошибка подключения"]);
-      }
-    };
-    fetch_();
-    const interval = setInterval(fetch_, 10000);
-    return () => clearInterval(interval);
-  }, []);
+        if (system.hostname) lines.push(`Host: ${system.hostname}`);
+        const ip = system.networkInterfaces?.find(
+          (i) => !i.internal && i.family === "IPv4"
+        );
+        if (ip) lines.push(`IP: ${ip.address}`);
+        if (system.netSpeedIn > 0) lines.push(`↓ ${system.netSpeedIn.toFixed(1)} Mbps`);
+        if (system.netSpeedOut > 0) lines.push(`↑ ${system.netSpeedOut.toFixed(1)} Mbps`);
+        return lines.length > 0 ? lines : ["Нет данных"];
+      })()
+    : ["Загрузка..."];
 
   return (
     <div className="space-y-1">
@@ -128,12 +114,13 @@ export function NetworkScannerWidget() {
 
 export function QuickMemoWidget() {
   const STORAGE = "jarvis-plugin-quick-memo";
-  const [text, setText] = useState("");
-
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE);
-    if (saved) setText(saved);
-  }, []);
+  const [text, setText] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE) || "";
+    } catch {
+      return "";
+    }
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;

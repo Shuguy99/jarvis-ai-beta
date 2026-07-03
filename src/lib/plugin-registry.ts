@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, type ComponentType } from "react";
+import { useState, useCallback, type ComponentType } from "react";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -8,7 +8,7 @@ export interface PluginSetting {
   key: string;
   label: string;
   type: "toggle" | "select" | "number" | "text";
-  defaultValue: any;
+  defaultValue: string | number | boolean;
   options?: string[];
 }
 
@@ -22,7 +22,7 @@ export interface JarvisPlugin {
   category: "system" | "productivity" | "analysis" | "fun" | "network";
   enabled: boolean;
   settings?: PluginSetting[];
-  widget?: ComponentType<any>;
+  widget?: ComponentType<Record<string, unknown>>;
 }
 
 // ── Storage ─────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ export interface JarvisPlugin {
 const STORAGE_KEY = "jarvis-plugins";
 
 interface PluginState {
-  [pluginId: string]: { enabled: boolean; settings?: Record<string, any> };
+  [pluginId: string]: { enabled: boolean; settings?: Record<string, string | number | boolean> };
 }
 
 function loadState(): PluginState {
@@ -54,7 +54,7 @@ function saveState(state: PluginState): void {
 
 // ── Registry (module-level singleton) ──────────────────────────────
 
-let plugins: Map<string, JarvisPlugin> = new Map();
+const plugins: Map<string, JarvisPlugin> = new Map();
 let initialized = false;
 
 export function registerPlugin(plugin: JarvisPlugin): void {
@@ -65,7 +65,7 @@ export function registerPlugin(plugin: JarvisPlugin): void {
     if (saved.settings && plugin.settings) {
       for (const s of plugin.settings) {
         if (s.key in saved.settings) {
-          (s as any).defaultValue = saved.settings[s.key];
+          s.defaultValue = saved.settings[s.key];
         }
       }
     }
@@ -95,7 +95,7 @@ export function enablePlugin(id: string, enabled: boolean): void {
   saveState(state);
 }
 
-export function updatePluginSetting(id: string, key: string, value: any): void {
+export function updatePluginSetting(id: string, key: string, value: string | number | boolean): void {
   const p = plugins.get(id);
   if (!p) return;
   const state = loadState();
@@ -116,16 +116,14 @@ export function getEnabledPlugins(): JarvisPlugin[] {
 // ── React Hook ──────────────────────────────────────────────────────
 
 export function usePlugins() {
-  const [, forceUpdate] = useState(0);
-  const refresh = useCallback(() => forceUpdate((n) => n + 1), []);
-
-  useEffect(() => {
+  const [revision, setRevision] = useState(() => {
     if (!initialized) {
       initBuiltinPlugins();
       initialized = true;
     }
-    refresh();
-  }, [refresh]);
+    return 1;
+  });
+  const refresh = useCallback(() => setRevision((n) => n + 1), []);
 
   return { plugins: getAllPlugins(), refresh };
 }

@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from "next/server";
-import { ai } from "@/lib/ai-provider";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 

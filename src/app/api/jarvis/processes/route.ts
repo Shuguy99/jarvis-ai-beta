@@ -1,5 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
-import { execSync } from "child_process";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { execFile as cpExecFile } from "child_process";
+import { promisify } from "util";
+const execFile = promisify(cpExecFile);
+import { parseJsonBody, BodyLimitError } from "@/lib/body-limit";
 
 export const runtime = "nodejs";
 
@@ -13,36 +17,31 @@ interface ProcessInfo {
   status: string;
 }
 
-// ── Parse `ps aux --sort=-%cpu` output ─────────────────────────
-function parsePsAux(sort: string): ProcessInfo[] {
-  let sortFlag: string;
+// ── Parse `ps -o pid,comm,%cpu,%mem,etime,args --sort=…` output ──
+async function parsePsAux(sort: string): Promise<ProcessInfo[]> {
+  let sortArg: string;
   switch (sort) {
     case "mem":
-      sortFlag = "--sort=-%mem";
+      sortArg = "--sort=-%mem";
       break;
     case "name":
-      sortFlag = "--sort=comm";
+      sortArg = "--sort=comm";
       break;
     default:
-      sortFlag = "--sort=-%cpu";
+      sortArg = "--sort=-%cpu";
   }
 
   let raw: string;
   try {
-    raw = execSync(`LC_ALL=C ps aux ${sortFlag}`, {
-      encoding: "buffer",
+    const args = ["-o", "pid,comm,%cpu,%mem", sortArg];
+    const { stdout } = await execFile("ps", args, {
       timeout: 5000,
-    }).toString("utf-8");
+      env: { ...process.env, LC_ALL: "C" },
+      maxBuffer: 1024 * 1024,
+    });
+    raw = stdout;
   } catch {
-    // Fallback: try with default encoding
-    try {
-      raw = execSync(`ps aux ${sortFlag}`, {
-        encoding: "utf-8",
-        timeout: 5000,
-      });
-    } catch (innerErr) {
-      throw new Error(`ps command failed: ${innerErr instanceof Error ? innerErr.message : "unknown"}`);
-    }
+    return [];
   }
 
   const lines = raw.trim().split("\n");
@@ -51,21 +50,19 @@ function parsePsAux(sort: string): ProcessInfo[] {
 
   const processes: ProcessInfo[] = [];
   for (const line of rows) {
-    // ps aux columns: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
-    const match = line.match(
-      /^(\S+)\s+(\d+)\s+([\d.]+)\s+([\d.]+)\s+\d+\s+\d+\s+\S+\s+(\S+)\s+\S+\s+(.+)$/
-    );
+    // ps -o pid,comm,%cpu,%mem columns:
+    //   PID COMMAND         %CPU %MEM
+    // Groups: 1=PID, 2=COMMAND, 3=%CPU, 4=%MEM
+    const match = line.match(/^\s*(\d+)\s+(\S+)\s+([\d.]+)\s+([\d.]+)$/);
     if (!match) continue;
 
-    const user = match[1];
-    const pid = parseInt(match[2], 10);
+    const pid = parseInt(match[1], 10);
     const cpu = parseFloat(match[3]);
     const mem = parseFloat(match[4]);
-    const status = match[5];
-    const command = match[6].trim();
+    const rawName = match[2].trim();
 
     // Extract base name from full command path
-    const name = command.split("/").pop()?.split(" ")[0] ?? command;
+    const name = rawName.split("/").pop()?.split(" ")[0] ?? rawName;
     // Sanitize: replace non-printable chars
     const sanitized = name.replace(/[\x00-\x1F\x7F]/g, "").trim();
     // Truncate long names
@@ -76,8 +73,8 @@ function parsePsAux(sort: string): ProcessInfo[] {
       name: displayName,
       cpu: Math.round(cpu * 10) / 10,
       mem: Math.round(mem * 10) / 10,
-      user,
-      status,
+      user: "",
+      status: "",
     });
 
     if (processes.length >= 20) break;
@@ -94,7 +91,7 @@ export async function GET(request: NextRequest) {
   const filter = searchParams.get("filter")?.toLowerCase() ?? "";
 
   try {
-    let processes = parsePsAux(sort);
+    let processes = await parsePsAux(sort);
 
     // Apply text filter
     if (filter) {
@@ -124,8 +121,8 @@ export async function GET(request: NextRequest) {
 // ── POST: Kill a process ──────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { action, pid } = body as { action?: string; pid?: number };
+    const body = await parseJsonBody<{ action?: string; pid?: number }>(request);
+    const { action, pid } = body;
 
     if (action !== "kill" || typeof pid !== "number" || pid <= 0) {
       return NextResponse.json(
@@ -134,11 +131,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Block killing critical system processes
+    const FORBIDDEN_PIDS = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    if (pid <= 10 || FORBIDDEN_PIDS.has(pid)) {
+      return NextResponse.json(
+        { error: `Permission denied — cannot kill PID ${pid} (protected system process)` },
+        { status: 403 }
+      );
+    }
+
     // Kill the process
     process.kill(pid, "SIGTERM");
 
     return NextResponse.json({ success: true, message: `Process ${pid} terminated` });
   } catch (err) {
+    if (err instanceof BodyLimitError) {
+      return NextResponse.json({ error: err.message }, { status: 413 });
+    }
     if (err && typeof err === "object" && "code" in err && err.code === "ESRCH") {
       return NextResponse.json(
         { error: `Process not found: PID does not exist` },

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
-import { useJarvis, type CommandHandlers } from "@/hooks/use-jarvis";
+import { useCallback, useRef, useEffect } from "react";
+import { useJarvis } from "@/hooks/use-jarvis";
+import type { CommandHandlers } from "@/lib/jarvis-store";
 import { useWakeWord } from "@/hooks/use-wake-word";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useSystemAlerts } from "@/hooks/use-system-alerts";
 import { useProactiveEngine } from "@/hooks/use-proactive-engine";
-import { contextBus, publishSystemMetrics } from "@/lib/context-bus";
+import { publishSystemMetrics } from "@/lib/context-bus";
 import { ArcReactor } from "@/components/jarvis/arc-reactor";
 import { ChatPanel } from "@/components/jarvis/chat-panel";
 import { QuickCommands } from "@/components/jarvis/quick-commands";
@@ -25,74 +26,81 @@ import { CalculatorWidget } from "@/components/jarvis/calculator-widget";
 import { WindowControls } from "@/components/jarvis/window-controls";
 import { VoiceCommandOverlay } from "@/components/jarvis/voice-command-overlay";
 import { useVoiceCommands } from "@/hooks/use-voice-commands";
-import { SystemInsightsWidget } from "@/components/jarvis/system-insights-widget";
 // Lazy-loaded overlays (code-split)
 import { LazyAgentPanel, LazyPluginPanel, LazyLayoutCustomizer, LazyNotificationCenter, LazySettingsPanel, LazyMarkdownWidget, LazyMetricsHistoryChart, JarvisSuspense } from "@/lib/lazy-components";
 // Memoized sidebar widgets (prevent re-renders)
 import { MemoizedSystemMonitor, MemoizedWeatherWidget, MemoizedWorldClockWidget, MemoizedMusicPlayer, MemoizedClipboardWidget, MemoizedNetworkWidget, MemoizedProcessManagerWidget, MemoizedAmbientSoundWidget, MemoizedPomodoroWidget, MemoizedSessionStatsWidget, MemoizedSystemAlertsWidget, MemoizedShortcutsWidget, MemoizedFileExplorerWidget, MemoizedCalendarWidget, MemoizedActivityFeed, MemoizedQuickLaunchWidget, MemoizedTodoWidget, MemoizedHoloGlobe, MemoizedGitHubWidget } from "@/components/jarvis/memoized-widgets";
+import { WidgetErrorBoundary } from "@/components/jarvis/widget-error-boundary";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
 import { DndWidgetList } from "@/components/jarvis/dnd-widget-list";
-import type { JarvisSettingsData } from "@/components/jarvis/settings-panel";
 import { NotesPanel } from "@/components/jarvis/notes-panel";
-import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3, Terminal, Headphones, FolderOpen, CalendarDays, FileCode, Bot, Puzzle, LayoutGrid, Command, Sparkles, TrendingUp } from "lucide-react";
+import { AlertTriangle, Volume2, VolumeX, Radar, Brain, Ear, EarOff, FileText, Keyboard, Settings, Monitor, Bell, Mic, Search, FileCode, Bot, Puzzle, LayoutGrid, Command } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { playSound } from "@/lib/sounds";
 import { showNotification, NotificationToastContainer } from "@/components/jarvis/notification-toast";
 import { QuickActionsBar, type QuickAction } from "@/components/jarvis/quick-actions-bar";
+import { useUIStore } from "@/lib/ui-store";
+import { CAPABILITIES, DIRECTIVES } from "@/lib/capabilities";
 
-
-const CAPABILITIES = [
-  { icon: Brain, label: "Reasoning", desc: "LLM-диалог и анализ" },
-  { icon: Volume2, label: "Voice I/O", desc: "Распознавание + синтез" },
-  { icon: Eye, label: "Vision", desc: "Анализ изображений" },
-  { icon: Monitor, label: "Screen", desc: "Захват экрана + VLM" },
-  { icon: Rocket, label: "Launch", desc: "Быстрый доступ" },
-  { icon: Target, label: "Focus", desc: "Pomodoro таймер" },
-  { icon: CloudSun, label: "Weather", desc: "Погода в реальном" },
-  { icon: Activity, label: "Events", desc: "Лог активности" },
-  { icon: Network, label: "Network", desc: "Мониторинг трафика" },
-  { icon: ShieldAlert, label: "Health", desc: "Мониторинг систем" },
-  { icon: Bell, label: "Alerts", desc: "Уведомления HUD" },
-  { icon: Terminal, label: "Processes", desc: "Монитор процессов" },
-  { icon: Headphones, label: "Ambient", desc: "Фоновые звуки" },
-  { icon: FolderOpen, label: "Files", desc: "Проводник файлов" },
-  { icon: CalendarDays, label: "Calendar", desc: "Календарь + события" },
-  { icon: FileCode, label: "Markdown", desc: "Редактор Markdown" },
-  { icon: Command, label: "Voice CMD", desc: "Голосовые команды" },
-  { icon: Bot, label: "Agent", desc: "Автономный ИИ-агент" },
-  { icon: Puzzle, label: "Plugins", desc: "Система расширений" },
-  { icon: LayoutGrid, label: "Layout", desc: "Настройка раскладки" },
-  { icon: Search, label: "Search++", desc: "Глобальный поиск" },
-  { icon: Bell, label: "Notif Center", desc: "Центр уведомлений" },
-  { icon: Sparkles, label: "Insights", desc: "AI-анализ системы" },
-  { icon: TrendingUp, label: "Metrics", desc: "История метрик" },
-  { icon: Command, label: "DnD", desc: "Перетаскивание" },
-];
+function DirectivesSection() {
+  return (
+    <motion.div className="jarvis-holo-glitch jarvis-crt-noise jarvis-box-glow jarvis-corner-brackets relative flex-1 overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm"
+      initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.5, duration: 0.6 }}>
+      <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
+      <div className="relative">
+        <div className="mb-3 flex items-center gap-2">
+          <Brain className="h-4 w-4 text-primary anim-data-pulse" style={{ animationDelay: "1.5s" }} />
+          <span className="font-mono text-xs uppercase tracking-widest text-primary jarvis-glow">Directives</span>
+        </div>
+        <div className="space-y-2 font-mono text-[10px] leading-relaxed text-muted-foreground">
+          {DIRECTIVES.map((d) => (
+            <div key={d.num} className="flex gap-2">
+              <span className="text-primary/60">{d.num}</span>
+              <span>{d.text}</span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 border-t jarvis-border-cyan pt-3">
+          <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">Build</div>
+          <div className="mt-1 font-mono text-[10px] text-foreground/70">JARVIS v14.0.0 · Stark Industries</div>
+          <div className="font-mono text-[9px] text-muted-foreground/50">Powered by Ollama local neural core</div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
 
 export default function Home() {
-  const [booted, setBooted] = useState(false);
-  const [wakeWordEnabled, setWakeWordEnabled] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(false);
-  const [timerVisible, setTimerVisible] = useState(true);
-  const [calcVisible, setCalcVisible] = useState(false);
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [markdownOpen, setMarkdownOpen] = useState(false);
-  const [agentOpen, setAgentOpen] = useState(false);
-  const [pluginOpen, setPluginOpen] = useState(false);
-  const [layoutOpen, setLayoutOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [jarvisSettings, setJarvisSettings] = useState<JarvisSettingsData | null>(null);
-  const [dndMode, setDndMode] = useState(false);
-  const [leftWidgetIds, setLeftWidgetIds] = useState([
-    "quick-launch", "system-monitor", "metrics-history", "activity-feed",
-    "system-alerts", "holo-globe", "session-stats", "shortcuts", "file-explorer", "calendar"
-  ]);
-  const [rightWidgetIds, setRightWidgetIds] = useState([
-    "weather", "world-clock", "music-player", "clipboard", "network",
-    "process-manager", "ambient-sound", "pomodoro", "todo"
-  ]);
+  // ── Zustand state selectors (individual for fine-grained reactivity) ──
+  const booted = useUIStore(s => s.booted);
+  const wakeWordEnabled = useUIStore(s => s.wakeWordEnabled);
+  const notesOpen = useUIStore(s => s.notesOpen);
+  const timerVisible = useUIStore(s => s.timerVisible);
+  const calcVisible = useUIStore(s => s.calcVisible);
+  const paletteOpen = useUIStore(s => s.paletteOpen);
+  const settingsOpen = useUIStore(s => s.settingsOpen);
+  const markdownOpen = useUIStore(s => s.markdownOpen);
+  const agentOpen = useUIStore(s => s.agentOpen);
+  const pluginOpen = useUIStore(s => s.pluginOpen);
+  const layoutOpen = useUIStore(s => s.layoutOpen);
+  const notifOpen = useUIStore(s => s.notifOpen);
+  const searchOpen = useUIStore(s => s.searchOpen);
+  const dndMode = useUIStore(s => s.dndMode);
+  const jarvisSettings = useUIStore(s => s.jarvisSettings);
+  const leftWidgetIds = useUIStore(s => s.leftWidgetIds);
+  const rightWidgetIds = useUIStore(s => s.rightWidgetIds);
+
+  // ── Zustand actions (stable references, safe to destructure together) ──
+  const {
+    setBooted, setWakeWordEnabled, toggleNotes, setNotesOpen,
+    setTimerVisible, toggleTimer, setCalcVisible, toggleCalc,
+    setPaletteOpen, setSettingsOpen, setMarkdownOpen,
+    setAgentOpen, setPluginOpen, setLayoutOpen,
+    setNotifOpen, toggleNotif, setSearchOpen,
+    setDndMode, toggleDnd, setJarvisSettings,
+    setLeftWidgetIds, setRightWidgetIds, closeAllPanels,
+  } = useUIStore();
+
   const timerRef = useRef<TimerHandle>(null);
 
   // Load behavior settings from DB on mount
@@ -121,15 +129,15 @@ export default function Home() {
         }
       })
       .catch(() => { /* use defaults */ });
-  }, []);
+  }, [setJarvisSettings]);
 
   const jarvis = useJarvis({ autoSpeak: true, ttsRate: 1.05, ttsPitch: 0.92, settings: jarvisSettings ?? undefined });
 
   // Voice command NLP parser
-  const { lastCommand, processText: processVoiceCommand } = useVoiceCommands({
+  const { lastCommand, processText: _processVoiceCommand } = useVoiceCommands({
     toggle_fullscreen: () => { void toggleFullscreen(); },
     new_chat: () => jarvis.newConversation(),
-    toggle_notes: () => setNotesOpen((v) => !v),
+    toggle_notes: () => toggleNotes(),
     capture_screen: () => { if (jarvis.captureScreen) void jarvis.captureScreen(); },
     toggle_voice: (params: Record<string, string>) => {
       const dir = params.direction;
@@ -146,8 +154,8 @@ export default function Home() {
       else if (w === "плагины" || w === "plugins") setPluginOpen(true);
       else if (w === "раскладка" || w === "layout") setLayoutOpen(true);
       else if (w === "markdown") setMarkdownOpen(true);
-      else if (w === "файлы" || w === "files") {} // scroll to file explorer
-      else if (w === "календарь" || w === "calendar") {} // scroll to calendar
+      else if (w === "файлы" || w === "files") { /* scroll to widget */ }
+      else if (w === "календарь" || w === "calendar") { /* scroll to widget */ }
     },
     set_timer: (params: Record<string, string>) => {
       setTimerVisible(true);
@@ -155,13 +163,13 @@ export default function Home() {
       if (secs > 0) timerRef.current?.startTimer(secs);
     },
     start_pomodoro: () => { /* TODO: trigger pomodoro */ },
-    calculator: () => setCalcVisible((v) => !v),
+    calculator: () => toggleCalc(),
   }, { speak: (text: string) => jarvis.speak(text) });
 
   const handleBootComplete = useCallback(() => {
     setBooted(true);
-    showNotification({ title: "J.A.R.V.I.S. Online", message: "Все системы в норме. Ожидаю ваших указаний, сэр.", type: "success", duration: 5000 });
-  }, []);
+    showNotification({ title: "J.A.R.V.I.S. Online", message: "Все системы в норме. Ожидаю ваших указаний, сэр.", type: "success" });
+  }, [setBooted]);
 
   // Set up command handlers for the hook
   useEffect(() => {
@@ -172,7 +180,7 @@ export default function Home() {
       },
       stopTimer: () => timerRef.current?.stop(),
       resetTimer: () => timerRef.current?.reset(),
-      toggleNotes: () => setNotesOpen((v) => !v),
+      toggleNotes: () => toggleNotes(),
       openNotes: () => setNotesOpen(true),
       toggleFullscreen: async () => {
         try {
@@ -184,14 +192,15 @@ export default function Home() {
         document.documentElement.setAttribute("data-theme", id);
         localStorage.setItem("jarvis-theme", id);
       },
-      toggleCalculator: () => setCalcVisible((v) => !v),
+      toggleCalculator: () => toggleCalc(),
       captureScreen: () => {
         if (jarvis.captureScreen) void jarvis.captureScreen();
       },
       openSettings: () => setSettingsOpen(true),
     };
     jarvis.setCommandHandlers(handlers);
-  }, [jarvis.setCommandHandlers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- jarvis methods (captureScreen, setCommandHandlers) change every render; setCommandHandlers is already tracked
+  }, [jarvis.setCommandHandlers, jarvis.captureScreen, setNotesOpen, setSettingsOpen, setTimerVisible, toggleCalc, toggleNotes]);
 
   // System alerts → Activity Feed
   useSystemAlerts();
@@ -221,12 +230,12 @@ export default function Home() {
 
   // Global hotkeys
   useHotkeys({
-    onToggleTimer: () => setTimerVisible((v) => !v),
-    onToggleCalc: () => setCalcVisible((v) => !v),
-    onToggleNotes: () => setNotesOpen((v) => !v),
+    onToggleTimer: () => toggleTimer(),
+    onToggleCalc: () => toggleCalc(),
+    onToggleNotes: () => toggleNotes(),
     onOpenSettings: () => setSettingsOpen(true),
-    onNewChat: () => jarvis.newChat(),
-    onToggleVoice: () => jarvis.toggleRecording(),
+    onNewChat: () => jarvis.newConversation(),
+    onToggleVoice: () => jarvis.toggleListening(),
     onToggleFullscreen: async () => {
       try {
         if (document.fullscreenElement) await document.exitFullscreen();
@@ -279,38 +288,10 @@ export default function Home() {
         jarvis.newConversation();
         return;
       }
-      // Escape → stop speaking / close dialogs
+      // Escape → close panels / stop speaking
       if (e.key === "Escape") {
-        if (paletteOpen) {
-          setPaletteOpen(false);
-          return;
-        }
-        if (settingsOpen) {
-          setSettingsOpen(false);
-          return;
-        }
-        if (notesOpen) {
-          setNotesOpen(false);
-          return;
-        }
-        if (markdownOpen) {
-          setMarkdownOpen(false);
-          return;
-        }
-        if (agentOpen) {
-          setAgentOpen(false);
-          return;
-        }
-        if (pluginOpen) {
-          setPluginOpen(false);
-          return;
-        }
-        if (layoutOpen) {
-          setLayoutOpen(false);
-          return;
-        }
-        if (notifOpen) {
-          setNotifOpen(false);
+        if (paletteOpen || settingsOpen || notesOpen || markdownOpen || agentOpen || pluginOpen || layoutOpen || notifOpen) {
+          closeAllPanels();
           return;
         }
         if (jarvis.state === "speaking") {
@@ -328,7 +309,7 @@ export default function Home() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [jarvis, paletteOpen, settingsOpen, notesOpen, markdownOpen, agentOpen, pluginOpen, layoutOpen, notifOpen, searchOpen, toggleFullscreen]);
+  }, [jarvis, closeAllPanels, paletteOpen, settingsOpen, notesOpen, markdownOpen, agentOpen, pluginOpen, layoutOpen, notifOpen, toggleFullscreen, setPaletteOpen]);
 
   // Build commands for palette
   const commands = buildDefaultCommands({
@@ -339,13 +320,13 @@ export default function Home() {
       playSound("click");
       setSettingsOpen(true);
     },
-    toggleNotes: () => setNotesOpen((v) => !v),
-    toggleTimer: () => setTimerVisible((v) => !v),
+    toggleNotes: () => toggleNotes(),
+    toggleTimer: () => toggleTimer(),
     setTheme: (id: string) => {
       document.documentElement.setAttribute("data-theme", id);
       localStorage.setItem("jarvis-theme", id);
     },
-    toggleCalculator: () => setCalcVisible((v) => !v),
+    toggleCalculator: () => toggleCalc(),
     captureScreen: () => {
       if (jarvis.captureScreen) void jarvis.captureScreen();
     },
@@ -356,22 +337,22 @@ export default function Home() {
   const renderLeftWidget = useCallback((widgetId: string) => {
     const base = "transition-all duration-300";
     switch (widgetId) {
-      case "quick-launch": return <div className={base}><MemoizedQuickLaunchWidget /></div>;
-      case "system-monitor": return <div className={`jarvis-holo-glitch jarvis-crt-noise flex-shrink-0 ${base}`}><MemoizedSystemMonitor /></div>;
+      case "quick-launch": return <div className={base}><WidgetErrorBoundary name="Quick Launch"><MemoizedQuickLaunchWidget /></WidgetErrorBoundary></div>;
+      case "system-monitor": return <div className={`jarvis-holo-glitch jarvis-crt-noise flex-shrink-0 ${base}`}><WidgetErrorBoundary name="System Diagnostics"><MemoizedSystemMonitor /></WidgetErrorBoundary></div>;
       case "metrics-history": return <div className={base}><JarvisSuspense><LazyMetricsHistoryChart /></JarvisSuspense></div>;
-      case "activity-feed": return <div className={base}><MemoizedActivityFeed /></div>;
-      case "system-alerts": return <div className={base}><MemoizedSystemAlertsWidget /></div>;
+      case "activity-feed": return <div className={base}><WidgetErrorBoundary name="Activity Feed"><MemoizedActivityFeed /></WidgetErrorBoundary></div>;
+      case "system-alerts": return <div className={base}><WidgetErrorBoundary name="System Alerts"><MemoizedSystemAlertsWidget /></WidgetErrorBoundary></div>;
       case "holo-globe": return (
         <div className={`jarvis-box-glow jarvis-corner-brackets relative flex items-center justify-center overflow-hidden rounded-xl border jarvis-border-cyan bg-card/20 p-2 backdrop-blur-sm ${base}`}>
           <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
-          <MemoizedHoloGlobe size={220} />
+          <WidgetErrorBoundary name="Holo Globe"><MemoizedHoloGlobe size={220} /></WidgetErrorBoundary>
         </div>
       );
-      case "session-stats": return <div className={base}><MemoizedSessionStatsWidget /></div>;
-      case "shortcuts": return <div className={base}><MemoizedShortcutsWidget /></div>;
-      case "file-explorer": return <div className={base}><MemoizedFileExplorerWidget /></div>;
-      case "calendar": return <div className={base}><MemoizedCalendarWidget /></div>;
-      case "github": return <div className={base}><MemoizedGitHubWidget /></div>;
+      case "session-stats": return <div className={base}><WidgetErrorBoundary name="Session Stats"><MemoizedSessionStatsWidget /></WidgetErrorBoundary></div>;
+      case "shortcuts": return <div className={base}><WidgetErrorBoundary name="Shortcuts"><MemoizedShortcutsWidget /></WidgetErrorBoundary></div>;
+      case "file-explorer": return <div className={base}><WidgetErrorBoundary name="File Explorer"><MemoizedFileExplorerWidget /></WidgetErrorBoundary></div>;
+      case "calendar": return <div className={base}><WidgetErrorBoundary name="Calendar"><MemoizedCalendarWidget /></WidgetErrorBoundary></div>;
+      case "github": return <div className={base}><WidgetErrorBoundary name="GitHub"><MemoizedGitHubWidget /></WidgetErrorBoundary></div>;
       default: return null;
     }
   }, []);
@@ -379,18 +360,18 @@ export default function Home() {
   const renderRightWidget = useCallback((widgetId: string) => {
     const base = "transition-all duration-300";
     switch (widgetId) {
-      case "weather": return <div className={base}><MemoizedWeatherWidget /></div>;
-      case "world-clock": return <div className={base}><MemoizedWorldClockWidget /></div>;
-      case "music-player": return <div className={base}><MemoizedMusicPlayer /></div>;
-      case "clipboard": return <div className={base}><MemoizedClipboardWidget /></div>;
-      case "network": return <div className={base}><MemoizedNetworkWidget /></div>;
-      case "process-manager": return <div className={base}><MemoizedProcessManagerWidget /></div>;
-      case "ambient-sound": return <div className={base}><MemoizedAmbientSoundWidget /></div>;
-      case "pomodoro": return <div className={base}><MemoizedPomodoroWidget /></div>;
-      case "todo": return <div className={base}><MemoizedTodoWidget onToggleNotes={() => setNotesOpen((v) => !v)} /></div>;
+      case "weather": return <div className={base}><WidgetErrorBoundary name="Weather"><MemoizedWeatherWidget /></WidgetErrorBoundary></div>;
+      case "world-clock": return <div className={base}><WidgetErrorBoundary name="World Clock"><MemoizedWorldClockWidget /></WidgetErrorBoundary></div>;
+      case "music-player": return <div className={base}><WidgetErrorBoundary name="Music Player"><MemoizedMusicPlayer /></WidgetErrorBoundary></div>;
+      case "clipboard": return <div className={base}><WidgetErrorBoundary name="Clipboard"><MemoizedClipboardWidget /></WidgetErrorBoundary></div>;
+      case "network": return <div className={base}><WidgetErrorBoundary name="Network"><MemoizedNetworkWidget /></WidgetErrorBoundary></div>;
+      case "process-manager": return <div className={base}><WidgetErrorBoundary name="Process Manager"><MemoizedProcessManagerWidget /></WidgetErrorBoundary></div>;
+      case "ambient-sound": return <div className={base}><WidgetErrorBoundary name="Ambient Sound"><MemoizedAmbientSoundWidget /></WidgetErrorBoundary></div>;
+      case "pomodoro": return <div className={base}><WidgetErrorBoundary name="Pomodoro"><MemoizedPomodoroWidget /></WidgetErrorBoundary></div>;
+      case "todo": return <div className={base}><WidgetErrorBoundary name="Tasks"><MemoizedTodoWidget onToggleNotes={() => toggleNotes()} /></WidgetErrorBoundary></div>;
       default: return null;
     }
-  }, [setNotesOpen]);
+  }, [toggleNotes]);
 
   // Get active conversation title for export
   const activeTitle = jarvis.conversations.find(c => c.id === jarvis.activeConvoId)?.title;
@@ -484,7 +465,7 @@ export default function Home() {
 
                 {/* Notes toggle */}
                 <button
-                  onClick={() => setNotesOpen((v) => !v)}
+                  onClick={() => toggleNotes()}
                   className={`flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
                     notesOpen
                       ? "border-primary/50 bg-primary/15 text-primary"
@@ -530,7 +511,7 @@ export default function Home() {
                 </button>
                 {/* DnD Toggle */}
                 <button
-                  onClick={() => { playSound("click"); setDndMode((v) => !v); }}
+                  onClick={() => { playSound("click"); toggleDnd(); }}
                   className={`flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
                     dndMode
                       ? "border-primary/50 bg-primary/15 text-primary"
@@ -543,7 +524,7 @@ export default function Home() {
                 </button>
                 {/* Notification Bell */}
                 <button
-                  onClick={() => { playSound("click"); setNotifOpen((v) => !v); }}
+                  onClick={() => { playSound("click"); toggleNotif(); }}
                   className={`relative flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
                     notifOpen
                       ? "border-primary/50 bg-primary/15 text-primary"
@@ -634,7 +615,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.15, duration: 0.5 }}
                   >
-                    <MemoizedQuickLaunchWidget />
+                    <WidgetErrorBoundary name="Quick Launch"><MemoizedQuickLaunchWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   <motion.div
@@ -643,7 +624,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.2, duration: 0.6 }}
                   >
-                    <MemoizedSystemMonitor />
+                    <WidgetErrorBoundary name="System Diagnostics"><MemoizedSystemMonitor /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* Metrics History Chart */}
@@ -661,7 +642,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.32, duration: 0.5 }}
                   >
-                    <MemoizedActivityFeed />
+                    <WidgetErrorBoundary name="Activity Feed"><MemoizedActivityFeed /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* System Alerts Widget */}
@@ -670,7 +651,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.33, duration: 0.5 }}
                   >
-                    <MemoizedSystemAlertsWidget />
+                    <WidgetErrorBoundary name="System Alerts"><MemoizedSystemAlertsWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* Holographic Globe */}
@@ -681,7 +662,7 @@ export default function Home() {
                     transition={{ delay: 0.35, duration: 0.6 }}
                   >
                     <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
-                    <MemoizedHoloGlobe size={220} />
+                    <WidgetErrorBoundary name="Holo Globe"><MemoizedHoloGlobe size={220} /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* Session Stats */}
@@ -690,7 +671,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.36, duration: 0.5 }}
                   >
-                    <MemoizedSessionStatsWidget />
+                    <WidgetErrorBoundary name="Session Stats"><MemoizedSessionStatsWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* Keyboard Shortcuts */}
@@ -699,7 +680,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.37, duration: 0.5 }}
                   >
-                    <MemoizedShortcutsWidget />
+                    <WidgetErrorBoundary name="Shortcuts"><MemoizedShortcutsWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* File Explorer */}
@@ -708,7 +689,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.38, duration: 0.5 }}
                   >
-                    <MemoizedFileExplorerWidget />
+                    <WidgetErrorBoundary name="File Explorer"><MemoizedFileExplorerWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* Calendar */}
@@ -717,7 +698,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.39, duration: 0.5 }}
                   >
-                    <MemoizedCalendarWidget />
+                    <WidgetErrorBoundary name="Calendar"><MemoizedCalendarWidget /></WidgetErrorBoundary>
                   </motion.div>
                     </>
                   )}
@@ -859,7 +840,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.35, duration: 0.5 }}
                   >
-                    <MemoizedWeatherWidget />
+                    <WidgetErrorBoundary name="Weather"><MemoizedWeatherWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* World Clock */}
@@ -868,7 +849,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.37, duration: 0.5 }}
                   >
-                    <MemoizedWorldClockWidget />
+                    <WidgetErrorBoundary name="World Clock"><MemoizedWorldClockWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* Music Player */}
@@ -877,7 +858,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.38, duration: 0.5 }}
                   >
-                    <MemoizedMusicPlayer />
+                    <WidgetErrorBoundary name="Music Player"><MemoizedMusicPlayer /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* Clipboard Widget */}
@@ -886,7 +867,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.39, duration: 0.5 }}
                   >
-                    <MemoizedClipboardWidget />
+                    <WidgetErrorBoundary name="Clipboard"><MemoizedClipboardWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* Network Traffic */}
@@ -895,7 +876,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.395, duration: 0.5 }}
                   >
-                    <MemoizedNetworkWidget />
+                    <WidgetErrorBoundary name="Network"><MemoizedNetworkWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* Process Manager */}
@@ -904,7 +885,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.41, duration: 0.5 }}
                   >
-                    <MemoizedProcessManagerWidget />
+                    <WidgetErrorBoundary name="Process Manager"><MemoizedProcessManagerWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* Ambient Sound */}
@@ -913,7 +894,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.415, duration: 0.5 }}
                   >
-                    <MemoizedAmbientSoundWidget />
+                    <WidgetErrorBoundary name="Ambient Sound"><MemoizedAmbientSoundWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* Pomodoro Focus */}
@@ -922,7 +903,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.42, duration: 0.5 }}
                   >
-                    <MemoizedPomodoroWidget />
+                    <WidgetErrorBoundary name="Pomodoro"><MemoizedPomodoroWidget /></WidgetErrorBoundary>
                   </motion.div>
 
                   {/* TODO Widget */}
@@ -931,7 +912,7 @@ export default function Home() {
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.45, duration: 0.4 }}
                   >
-                    <MemoizedTodoWidget onToggleNotes={() => setNotesOpen((v) => !v)} />
+                    <WidgetErrorBoundary name="Tasks"><MemoizedTodoWidget onToggleNotes={() => toggleNotes()} /></WidgetErrorBoundary>
                   </motion.div>
                     </>
                   )}
@@ -964,217 +945,8 @@ export default function Home() {
                     )}
                   </AnimatePresence>
 
-                  {/* TODO Widget */}
-                  <motion.div
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.45, duration: 0.4 }}
-                  >
-                    <MemoizedTodoWidget onToggleNotes={() => setNotesOpen((v) => !v)} />
-                  </motion.div>
-
                   {/* Directives */}
-                  <motion.div
-                    className="jarvis-holo-glitch jarvis-crt-noise jarvis-box-glow jarvis-corner-brackets relative flex-1 overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.5, duration: 0.6 }}
-                  >
-                    <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
-                    <div className="relative">
-                      <div className="mb-3 flex items-center gap-2">
-                        <Brain className="h-4 w-4 text-primary anim-data-pulse" style={{ animationDelay: "1.5s" }} />
-                        <span className="font-mono text-xs uppercase tracking-widest text-primary jarvis-glow">
-                          Directives
-                        </span>
-                      </div>
-                      <div className="space-y-2 font-mono text-[10px] leading-relaxed text-muted-foreground">
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">01.</span>
-                          <span>Голосовой ввод — нажмите микрофон и говорите.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">02.</span>
-                          <span>Авто-озвучка + кнопка повтора для каждого ответа.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">03.</span>
-                          <span>Веб-поиск автоматически для новостей, погоды, курсов.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">04.</span>
-                          <span>Загрузите или перетащите изображение для анализа.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">05.</span>
-                          <span>Генерация изображений — кнопки «Создай картинку» / «Арт».</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">06.</span>
-                          <span>Смените костюм — переключатель тем Mark 1/42/50.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">07.</span>
-                          <span>Экспорт диалогов — кнопка EXPORT в шапке чата.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">08.</span>
-                          <span>Заметки, таймер, команды — Ctrl+K для палитры.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">09.</span>
-                          <span>Say &quot;Hey Jarvis&quot; — wake word activation.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">10.</span>
-                          <span>Screen Capture — покажите экран + задайте вопрос.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">11.</span>
-                          <span>Weather + Music + Clipboard + World Clock.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">12.</span>
-                          <span>Continuous Listen — Auto-Listen режим.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">13.</span>
-                          <span>Quick Launch — быстрые ссылки по категориям.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">14.</span>
-                          <span>Pomodoro Focus — режим концентрации 25/5.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">15.</span>
-                          <span>Network Traffic — мониторинг сети в реальном времени.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">16.</span>
-                          <span>System Health — пороговые алерты и диагностика.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">17.</span>
-                          <span>HUD Notifications — всплывающие уведомления.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">18.</span>
-                          <span>Enhanced Notes — категории, поиск, закрепление.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">19.</span>
-                          <span>Code Highlighting — подсветка + копирование блоков.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">20.</span>
-                          <span>Quick Actions Bar — быстрые действия внизу.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">21.</span>
-                          <span>Session Stats — аналитика использования.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">22.</span>
-                          <span>Keyboard Shortcuts — справка по хоткеям.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">23.</span>
-                          <span>Process Monitor — список и завершение процессов.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">24.</span>
-                          <span>Ambient Sound — атмосферные звуки (Web Audio).</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">25.</span>
-                          <span>Image Drag &amp; Drop — перетащите фото в чат.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">26.</span>
-                          <span>File Explorer — навигация по файловой системе.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">27.</span>
-                          <span>Calendar — мини-календарь с событиями.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">28.</span>
-                          <span>Markdown Editor — редактор с предпросмотром.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">29.</span>
-                          <span>Unified Poller — оптимизация системных запросов.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">30.</span>
-                          <span>Desktop Mode — Electron shell, tray, window controls.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">31.</span>
-                          <span>Voice Commands — NLP-парсер для прямых команд.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">32.</span>
-                          <span>AI Agent — автономный режим с пошаговым выполнением.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">33.</span>
-                          <span>Plugin System — расширения и модули.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">34.</span>
-                          <span>Layout Config — настройка раскладки и пресеты.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">35.</span>
-                          <span>Notification Center — история и правила алертов.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">36.</span>
-                          <span>Metrics History — график CPU/RAM/Network за 5 мин.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">37.</span>
-                          <span>Widget DnD — перетаскивание виджетов (инфраструктура).</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">38.</span>
-                          <span>Performance — React.memo + lazy loading оверлеев.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">39.</span>
-                          <span>Accessibility — ARIA utils и focus trap.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">40.</span>
-                          <span>Bugfix — Processes API locale, React key collision.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">41.</span>
-                          <span>Proactive Engine — фоновый мониторинг с контекстными уведомлениями.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">42.</span>
-                          <span>Context Bus — шина событий для корреляции между модулями.</span>
-                        </div>
-                        <div className="flex gap-2">
-                          <span className="text-primary/60">43.</span>
-                          <span>Electron+ — protocol handler, autostart, window state persistence.</span>
-                        </div>
-                      </div>
-                      <div className="mt-3 border-t jarvis-border-cyan pt-3">
-                        <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
-                          Build
-                        </div>
-                        <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v14.0.0 · Stark Industries
-                        </div>
-                        <div className="font-mono text-[9px] text-muted-foreground/50">
-                          Powered by Ollama local neural core
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
+                  <DirectivesSection />
                 </aside>
               </div>
             </main>
@@ -1185,7 +957,7 @@ export default function Home() {
                 { icon: Mic, label: "Голос", onClick: () => jarvis.toggleListening() },
                 { icon: Search, label: "Поиск", onClick: () => jarvis.sendText("Найди информацию о", "text") },
                 { icon: Monitor, label: "Экран", onClick: () => { if (jarvis.captureScreen) void jarvis.captureScreen(); } },
-                { icon: FileText, label: "Заметки", onClick: () => setNotesOpen((v: boolean) => !v) },
+                { icon: FileText, label: "Заметки", onClick: () => toggleNotes() },
                 { icon: FileCode, label: "Markdown", onClick: () => setMarkdownOpen((v: boolean) => !v) },
                 { icon: Bot, label: "Агент", onClick: () => setAgentOpen((v: boolean) => !v) },
                 { icon: Puzzle, label: "Плагины", onClick: () => setPluginOpen((v: boolean) => !v) },

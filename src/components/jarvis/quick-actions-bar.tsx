@@ -155,16 +155,14 @@ function ActionBar({
 }
 
 export function QuickActionsBar({ actions }: QuickActionsBarProps) {
-  const [collapsed, setCollapsed] = useState<boolean | null>(null);
-
-  useEffect(() => {
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      setCollapsed(stored === "true");
+      return stored === "true";
     } catch {
-      setCollapsed(false);
+      return false;
     }
-  }, []);
+  });
 
   const toggleCollapse = useCallback(() => {
     setCollapsed((prev) => {
@@ -177,11 +175,6 @@ export function QuickActionsBar({ actions }: QuickActionsBarProps) {
       return next;
     });
   }, []);
-
-  // Avoid hydration mismatch — don't render until we know the collapsed state
-  if (collapsed === null) {
-    return null;
-  }
 
   return (
     <nav

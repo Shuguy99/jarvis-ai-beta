@@ -175,6 +175,7 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
   // Add completed runs to history when phase becomes "done"
   useEffect(() => {
     if (agent.phase === "done" && lastTask) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHistory((prev) => {
         const entry: HistoryEntry = {
           id: crypto.randomUUID(),

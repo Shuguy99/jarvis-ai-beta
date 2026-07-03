@@ -143,7 +143,7 @@ function playNoiseBurst(duration: number, volume = 0.03) {
   source.start();
 }
 
-const SOUND_MAP: Record<SoundName, (vol?: number) => void> = {
+const SOUND_MAP: Record<SoundName, (_vol?: number) => void> = {
   /** Короткий клик по кнопке — резкий, высокий */
   click(vol) {
     playTone(1800, 0.04, "square", 0.04 * (vol ?? 1));

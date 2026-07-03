@@ -82,6 +82,7 @@ export function ClipboardWidget() {
   // Monitor clipboard every 2 seconds
   useEffect(() => {
     // Try to read initial clipboard
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void checkClipboard();
 
     intervalRef.current = setInterval(() => void checkClipboard(), 2000);

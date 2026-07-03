@@ -197,19 +197,11 @@ const PRESETS = buildPresets(DEFAULT_WIDGETS);
 
 export function useLayout() {
 
-  const [widgets, setWidgets] = useState<WidgetLayout[]>(DEFAULT_WIDGETS);
-  const [activePresetId, setActivePresetId] = useState("full-hud");
-  const [initialized, setInitialized] = useState(false);
+  const [widgets, setWidgets] = useState<WidgetLayout[]>(() => loadFromStorage(DEFAULT_WIDGETS).widgets);
+  const [activePresetId, setActivePresetId] = useState(() => loadFromStorage(DEFAULT_WIDGETS).activePresetId);
+  const [initialized] = useState(true);
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    const stored = loadFromStorage(DEFAULT_WIDGETS);
-    setWidgets(stored.widgets);
-    setActivePresetId(stored.activePresetId);
-    setInitialized(true);
-  }, []);
-
-  // Auto-save on change (after initial load)
+  // Auto-save on change
   useEffect(() => {
     if (!initialized) return;
     saveToStorage(widgets, activePresetId);

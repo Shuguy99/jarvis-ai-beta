@@ -31,18 +31,14 @@ interface MarkdownWidgetProps {
 
 export function MarkdownWidget({ onClose }: MarkdownWidgetProps) {
   const [mode, setMode] = useState<Mode>("edit");
-  const [content, setContent] = useState("");
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  // Load from localStorage on mount
-  useEffect(() => {
+  const [content, setContent] = useState(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setContent(saved);
+      return localStorage.getItem(STORAGE_KEY) || "";
     } catch {
-      /* ignore */
+      return "";
     }
-  }, []);
+  });
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-save to localStorage
   useEffect(() => {
@@ -122,7 +118,7 @@ export function MarkdownWidget({ onClose }: MarkdownWidgetProps) {
             </button>
           ))}
           {onClose && (
-            <button onClick={() => { playSound("click", 0.2); onClose(); }} className="ml-1 flex h-6 w-6 items-center justify-center rounded-md border border-muted-foreground/20 text-muted-foreground transition hover:border-destructive/40 hover:text-destructive">
+            <button onClick={() => { playSound("click", 0.2); onClose(); }} className="ml-1 flex h-6 w-6 items-center justify-center rounded-md border border-muted-foreground/20 text-muted-foreground transition hover:border-destructive/40 hover:text-destructive" aria-label="Закрыть">
               <X className="h-3 w-3" />
             </button>
           )}
@@ -140,6 +136,7 @@ export function MarkdownWidget({ onClose }: MarkdownWidgetProps) {
                 onClick={() => insertSyntax(btn.before, btn.after, btn.placeholder)}
                 className="flex items-center justify-center h-7 w-7 rounded-md border border-primary/10 bg-muted/20 text-muted-foreground transition-colors hover:border-primary/30 hover:text-primary hover:bg-primary/10"
                 title={btn.label}
+                aria-label={btn.label}
               >
                 <Icon className="h-3 w-3" />
               </button>

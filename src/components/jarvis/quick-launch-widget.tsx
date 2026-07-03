@@ -98,18 +98,13 @@ function saveLinks(links: QuickLink[]) {
 }
 
 export function QuickLaunchWidget() {
-  const [links, setLinks] = useState<QuickLink[]>(DEFAULT_LINKS);
+  const [links, setLinks] = useState<QuickLink[]>(() => loadLinks());
   const [filter, setFilter] = useState<CategoryFilter>("all");
   const [showAddForm, setShowAddForm] = useState(false);
   const [newUrl, setNewUrl] = useState("");
   const [newLabel, setNewLabel] = useState("");
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-
-  // Load from localStorage on mount
-  useEffect(() => {
-    setLinks(loadLinks());
-  }, []);
 
   // Persist whenever links change (after initial load)
   const isInitial = useRef(true);

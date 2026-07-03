@@ -2,7 +2,8 @@
 
 import { motion } from "framer-motion";
 import { useMemo } from "react";
-import type { JarvisState } from "@/hooks/use-jarvis";
+import type { JarvisState } from "@/lib/jarvis-store";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 
 interface ArcReactorProps {
   state: JarvisState;
@@ -100,6 +101,7 @@ const EMISSION_ANGLES = Array.from({ length: 16 }, (_, i) => ({
 
 /* ─── Component ─── */
 export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
+  const reduced = useReducedMotion();
   const c = STATE_COLORS[state];
   const sp = SPEED[state];
   const corePx = size * 0.45;
@@ -162,11 +164,11 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
           left: `calc(50% - ${(size * 1.35) / 2}px)`,
           background: `radial-gradient(circle, ${c.glow} 0%, ${c.glow.replace(" / 45%", " / 12%").replace(" / 55%", " / 18%")} 45%, transparent 72%)`,
         }}
-        animate={{
+        animate={reduced ? { scale: 1, opacity: isThinking ? 0.9 : 0.75 } : {
           scale: isThinking ? [1, 1.08, 1] : [1, 1.02, 1],
           opacity: isThinking ? [0.85, 1, 0.85] : [0.55, 1, 0.55],
         }}
-        transition={{
+        transition={reduced ? { duration: 0 } : {
           duration: isThinking ? 1.2 : 3,
           repeat: Infinity,
           ease: "easeInOut",
@@ -375,11 +377,11 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
             ? `0 0 50px ${c.glow}, 0 0 100px ${c.glow.replace(" / 55%", " / 25%")}, inset 0 0 25px ${c.ring}88`
             : `0 0 30px ${c.glow}, inset 0 0 18px ${c.ring}66`,
         }}
-        animate={{
+        animate={reduced ? { scale: 1, opacity: 0.92 } : {
           scale: pulseScale,
           opacity: [0.85, 1, 0.85],
         }}
-        transition={{
+        transition={reduced ? { duration: 0 } : {
           duration: pulseDur,
           repeat: Infinity,
           ease: "easeInOut",

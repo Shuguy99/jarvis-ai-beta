@@ -150,10 +150,12 @@ const BEHAVIOR_DEFAULTS = {
 const DEFAULTS: JarvisSettingsData = { ...VOICE_DEFAULTS, ...BEHAVIOR_DEFAULTS };
 
 function parseSetting(key: string, val: string): unknown {
-  if (["ttsRate", "ttsPitch", "volume", "formality", "humor", "temperature"].includes(key))
+  if (["ttsRate", "ttsPitch", "volume", "formality", "humor", "temperature"].includes(key)) {
     return parseFloat(val) || DEFAULTS[key as keyof JarvisSettingsData];
-  if (["maxTokens", "contextWindow"].includes(key))
+  }
+  if (["maxTokens", "contextWindow"].includes(key)) {
     return parseInt(val, 10) || DEFAULTS[key as keyof JarvisSettingsData];
+  }
   if (key === "autoSpeak") return val !== "false";
   return val || DEFAULTS[key as keyof JarvisSettingsData];
 }

@@ -1,20 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Cpu, ArrowUp, ArrowDown, Search, X, Skull } from "lucide-react";
 import { playSound } from "@/lib/sounds";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";
-
-// ── Types ─────────────────────────────────────────────────────
-interface ProcessInfo {
-  pid: number;
-  name: string;
-  cpu: number;
-  mem: number;
-  user: string;
-  status: string;
-}
+import { useSystemData, refreshSystemData } from "@/hooks/use-system-poller";
 
 type SortKey = "cpu" | "mem" | "name";
 type SortOrder = "desc" | "asc";
@@ -58,41 +49,30 @@ function SortArrow({
 
 // ── Main component ────────────────────────────────────────────
 export function ProcessManagerWidget() {
-  const [processes, setProcesses] = useState<ProcessInfo[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const { processes: rawProcesses } = useSystemData();
   const [sortKey, setSortKey] = useState<SortKey>("cpu");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [filter, setFilter] = useState("");
   const [killingPid, setKillingPid] = useState<number | null>(null);
 
-  // ── Fetch processes ────────────────────────────────────────
-  const fetchProcesses = useCallback(async () => {
-    try {
-      const params = new URLSearchParams({
-        sort: sortKey,
-        order: sortOrder,
-      });
-      if (filter.trim()) params.set("filter", filter.trim());
+  const loading = rawProcesses === null;
 
-      const res = await fetch(`/api/jarvis/processes?${params}`);
-      if (!res.ok) throw new Error();
-      const json = await res.json();
-      setProcesses(json.processes ?? []);
-      setError(false);
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
+  const processes = useMemo(() => {
+    if (!rawProcesses) return [];
+    let list = [...rawProcesses];
+    if (filter.trim()) {
+      const q = filter.trim().toLowerCase();
+      list = list.filter((p) => p.name.toLowerCase().includes(q));
     }
-  }, [sortKey, sortOrder, filter]);
-
-  // Initial fetch + auto-refresh every 5 seconds
-  useEffect(() => {
-    void fetchProcesses();
-    const id = setInterval(() => void fetchProcesses(), 5000);
-    return () => clearInterval(id);
-  }, [fetchProcesses]);
+    list.sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "cpu") cmp = a.cpu - b.cpu;
+      else if (sortKey === "mem") cmp = a.mem - b.mem;
+      else cmp = a.name.localeCompare(b.name);
+      return sortOrder === "desc" ? -cmp : cmp;
+    });
+    return list;
+  }, [rawProcesses, sortKey, sortOrder, filter]);
 
   // ── Column sort toggle ─────────────────────────────────────
   const handleSort = (key: SortKey) => {
@@ -124,8 +104,7 @@ export function ProcessManagerWidget() {
         category: "system",
       });
       playSound("warning", 0.2);
-      // Refresh immediately
-      void fetchProcesses();
+      void refreshSystemData();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Kill failed";
       addActivityEvent({
@@ -154,27 +133,6 @@ export function ProcessManagerWidget() {
           </div>
           <div className="flex h-20 items-center justify-center font-mono text-xs text-muted-foreground">
             <span className="anim-pulse-glow">Сканирование процессов...</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Error state ────────────────────────────────────────────
-  if (error) {
-    return (
-      <div className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm">
-        <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
-        <div className="pointer-events-none absolute inset-0 jarvis-grid-bg opacity-30" />
-        <div className="relative flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <Cpu className="h-4 w-4 text-primary anim-data-pulse" />
-            <span className="font-mono text-xs uppercase tracking-widest text-primary jarvis-glow">
-              Process Monitor
-            </span>
-          </div>
-          <div className="flex h-20 items-center justify-center font-mono text-xs text-rose-400">
-            НЕДОСТУПНО
           </div>
         </div>
       </div>
@@ -217,6 +175,7 @@ export function ProcessManagerWidget() {
             <button
               onClick={() => setFilter("")}
               className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/40 transition-colors hover:text-rose-400"
+              aria-label="Очистить фильтр"
             >
               <X className="h-2.5 w-2.5" />
             </button>

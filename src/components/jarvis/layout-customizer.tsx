@@ -70,6 +70,7 @@ export function LayoutCustomizer({ open, onClose }: LayoutCustomizerProps) {
 
   // Show auto-save flash on change
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSavedIndicator(true);
     const t = setTimeout(() => setSavedIndicator(false), 1500);
     return () => clearTimeout(t);
@@ -182,6 +183,7 @@ export function LayoutCustomizer({ open, onClose }: LayoutCustomizerProps) {
                 <button
                   onClick={handleClose}
                   className="flex h-8 w-8 items-center justify-center rounded-lg border border-muted-foreground/20 bg-muted/10 text-muted-foreground transition hover:border-primary/50 hover:text-primary hover:bg-primary/10"
+                  aria-label="Закрыть"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -396,6 +398,7 @@ function WidgetItem({
             onClick={() => onMove("up")}
             disabled={isFirst}
             className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition hover:bg-primary/10 hover:text-primary disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-muted-foreground/40"
+            aria-label="Переместить вверх"
           >
             <ChevronUp className="h-3 w-3" />
           </button>
@@ -403,6 +406,7 @@ function WidgetItem({
             onClick={() => onMove("down")}
             disabled={isLast}
             className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/40 transition hover:bg-primary/10 hover:text-primary disabled:opacity-20 disabled:hover:bg-transparent disabled:hover:text-muted-foreground/40"
+            aria-label="Переместить вниз"
           >
             <ChevronDown className="h-3 w-3" />
           </button>

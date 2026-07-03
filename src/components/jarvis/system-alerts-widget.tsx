@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
+import { useReducedMotion } from "@/hooks/use-reduced-motion";
 import {
   ShieldAlert,
   Cpu,
@@ -111,6 +112,7 @@ function MetricBar({
 
 // ── Status banner ─────────────────────────────────────────────
 function StatusBanner({ status }: { status: "nominal" | "warning" | "critical" }) {
+  const reduced = useReducedMotion();
   const config = {
     nominal: {
       text: "ALL SYSTEMS NOMINAL",
@@ -136,16 +138,18 @@ function StatusBanner({ status }: { status: "nominal" | "warning" | "critical" }
     <motion.div
       className={`flex items-center justify-center rounded-md border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.2em] ${config.color} ${config.bg} ${config.pulse}`}
       animate={
-        status === "critical"
-          ? { opacity: [1, 0.5, 1] }
-          : status === "warning"
-            ? { opacity: [1, 0.7, 1] }
-            : { opacity: 1 }
+        reduced
+          ? { opacity: 1 }
+          : status === "critical"
+            ? { opacity: [1, 0.5, 1] }
+            : status === "warning"
+              ? { opacity: [1, 0.7, 1] }
+              : { opacity: 1 }
       }
       transition={
-        status !== "nominal"
-          ? { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
-          : { duration: 0 }
+        reduced || status === "nominal"
+          ? { duration: 0 }
+          : { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
       }
     >
       {status === "nominal" && (
@@ -155,7 +159,7 @@ function StatusBanner({ status }: { status: "nominal" | "warning" | "critical" }
         <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
       )}
       {status === "critical" && (
-        <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-rose-400 animate-ping" />
+        <span className={`mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-rose-400 ${reduced ? "" : "animate-ping"}`} />
       )}
       {config.text}
     </motion.div>

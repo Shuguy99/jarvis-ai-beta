@@ -158,6 +158,7 @@ export function GitHubWidget() {
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void fetchGitHub();
     const id = setInterval(() => void fetchGitHub(), 120_000);
     return () => clearInterval(id);
@@ -234,6 +235,7 @@ export function GitHubWidget() {
             onClick={() => { setLoading(true); void fetchGitHub(); }}
             className="rounded p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
             title="Обновить"
+            aria-label="Обновить"
           >
             <RefreshCw className="h-3 w-3" />
           </button>

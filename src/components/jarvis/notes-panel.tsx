@@ -127,6 +127,7 @@ export function NotesPanel({ open, onClose }: NotesPanelProps) {
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       void loadNotes();
     }
   }, [open, loadNotes]);

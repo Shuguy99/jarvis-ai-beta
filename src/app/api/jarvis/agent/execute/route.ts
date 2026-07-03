@@ -1,6 +1,7 @@
-import { NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
 import { ai } from "@/lib/ai-provider";
 import { executeTool, getToolDefinitions } from "@/lib/agent-tools";
+import { BodyLimitError } from "@/lib/body-limit";
 
 export const runtime = "nodejs";
 
@@ -65,8 +66,35 @@ export async function POST(req: NextRequest) {
 
   let body: ExecuteRequestBody;
   try {
-    body = (await req.json()) as ExecuteRequestBody;
-  } catch {
+    const raw = await req.text();
+    if (Buffer.byteLength(raw, "utf-8") > 1 * 1024 * 1024) {
+      return new Response(
+        sseEvent("error", { message: "Request body exceeds 1 MB limit" }),
+        {
+          status: 413,
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        }
+      );
+    }
+    body = JSON.parse(raw) as ExecuteRequestBody;
+  } catch (jsonErr) {
+    if (jsonErr instanceof BodyLimitError) {
+      return new Response(
+        sseEvent("error", { message: jsonErr.message }),
+        {
+          status: 413,
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
+        }
+      );
+    }
     return new Response(
       sseEvent("error", { message: "Invalid JSON in request body." }),
       {
@@ -185,10 +213,10 @@ IMPORTANT: When calling a tool, your ENTIRE response must be the JSON object onl
 
           send("step_start", { stepId: step.id, description: step.description });
 
-          const stepMessages = [
-            { role: "system" as const, content: stepSystemPrompt },
+          const stepMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
+            { role: "system", content: stepSystemPrompt },
             {
-              role: "user" as const,
+              role: "user",
               content: `Execute this step: ${step.description}`,
             },
           ];

@@ -6,13 +6,203 @@
  * and an async execute function.
  */
 
-import fs from "fs";
+import { readFile, mkdir, writeFile, unlink, access } from "fs/promises";
+
+// ─── Safe Math Parser (recursive descent) ────────────────────
+// Replaces the former `new Function()` calculator to eliminate
+// arbitrary code execution vectors.
+
+const MATH_FUNCTIONS: Record<string, (..._args: number[]) => number> = {
+  sin: Math.sin, cos: Math.cos, tan: Math.tan,
+  sqrt: Math.sqrt, abs: Math.abs,
+  log: Math.log, log2: Math.log2, log10: Math.log10,
+  exp: Math.exp, pow: Math.pow,
+  ceil: Math.ceil, floor: Math.floor, round: Math.round,
+  min: Math.min, max: Math.max,
+};
+const MATH_CONSTANTS: Record<string, number> = { PI: Math.PI, E: Math.E, pi: Math.PI, e: Math.E };
+
+function safeEvalMath(input: string): number {
+  // Tokenize
+  const tokens = tokenize(input);
+  let pos = 0;
+
+  function tokenize(src: string): Array<{ t: "num" | "op" | "ident" | "lparen" | "rparen" | "comma"; v: string }> {
+    const result: Array<{ t: "num" | "op" | "ident" | "lparen" | "rparen" | "comma"; v: string }> = [];
+    let i = 0;
+    while (i < src.length) {
+      if (/\s/.test(src[i])) { i++; continue; }
+      if ("+-*/%(),".includes(src[i])) {
+        if (src[i] === "(") { result.push({ t: "lparen", v: "(" }); }
+        else if (src[i] === ")") { result.push({ t: "rparen", v: ")" }); }
+        else if (src[i] === ",") { result.push({ t: "comma", v: "," }); }
+        else { result.push({ t: "op", v: src[i] }); }
+        i++; continue;
+      }
+      // Numbers: digits and one dot
+      if (/[0-9.]/.test(src[i])) {
+        let num = "";
+        let dots = 0;
+        while (i < src.length && (/[0-9]/.test(src[i]) || (src[i] === "." && dots === 0))) {
+          if (src[i] === ".") dots++;
+          num += src[i]; i++;
+        }
+        result.push({ t: "num", v: num });
+        continue;
+      }
+      // Identifiers: function names, constants
+      if (/[a-zA-Z_]/.test(src[i])) {
+        let ident = "";
+        while (i < src.length && /[a-zA-Z0-9_]/.test(src[i])) {
+          ident += src[i]; i++;
+        }
+        result.push({ t: "ident", v: ident });
+        continue;
+      }
+      throw new Error(`Unexpected character: '${src[i]}'`);
+    }
+    return result;
+  }
+
+  function peek() { return tokens[pos] ?? null; }
+  function consume() { return tokens[pos++]; }
+
+  function parseExpr(): number {
+    let left = parseTerm();
+    while (peek()?.t === "op" && (peek()?.v === "+" || peek()?.v === "-")) {
+      const op = consume()!.v;
+      const right = parseTerm();
+      left = op === "+" ? left + right : left - right;
+    }
+    return left;
+  }
+
+  function parseTerm(): number {
+    let left = parseUnary();
+    while (peek()?.t === "op" && ("*/%".includes(peek()?.v ?? ""))) {
+      const op = consume()!.v;
+      const right = parseUnary();
+      if (op === "*") left *= right;
+      else if (op === "/") {
+        if (right === 0) throw new Error("Division by zero");
+        left /= right;
+      } else left %= right;
+    }
+    return left;
+  }
+
+  function parseUnary(): number {
+    if (peek()?.t === "op" && peek()?.v === "-") {
+      consume();
+      return -parsePower();
+    }
+    if (peek()?.t === "op" && peek()?.v === "+") {
+      consume();
+      return parsePower();
+    }
+    return parsePower();
+  }
+
+  function parsePower(): number {
+    const base = parsePrimary();
+    // Right-associative: 2^3^2 = 2^(3^2) — but we don't support ^ in the grammar,
+    // users use pow() instead. Skip for safety.
+    return base;
+  }
+
+  function parsePrimary(): number {
+    const tok = peek();
+    if (!tok) throw new Error("Unexpected end of expression");
+
+    // Parenthesized sub-expression
+    if (tok.t === "lparen") {
+      consume(); // (
+      const val = parseExpr();
+      if (!peek() || peek()!.t !== "rparen") throw new Error("Missing closing ')'");
+      consume(); // )
+      return val;
+    }
+
+    // Number literal
+    if (tok.t === "num") {
+      consume();
+      const n = Number(tok.v);
+      if (!Number.isFinite(n)) throw new Error(`Invalid number: ${tok.v}`);
+      return n;
+    }
+
+    // Identifier: function call or constant
+    if (tok.t === "ident") {
+      const name = tok.v;
+      consume();
+
+      // Constant
+      if (name in MATH_CONSTANTS && peek()?.t !== "lparen") {
+        return MATH_CONSTANTS[name];
+      }
+
+      // Function call
+      if (name in MATH_FUNCTIONS && peek()?.t === "lparen") {
+        consume(); // (
+        const args: number[] = [];
+        if (peek()?.t !== "rparen") {
+          args.push(parseExpr());
+          while (peek()?.t === "comma") {
+            consume(); // ,
+            args.push(parseExpr());
+          }
+        }
+        if (!peek() || peek()!.t !== "rparen") throw new Error(`Missing ')' after ${name}() arguments`);
+        consume(); // )
+        const fn = MATH_FUNCTIONS[name];
+        return fn(...args);
+      }
+
+      // Unknown identifier
+      if (name in MATH_CONSTANTS) return MATH_CONSTANTS[name];
+      throw new Error(`Unknown identifier: ${name}`);
+    }
+
+    throw new Error(`Unexpected token: ${tok.t} '${tok.v}'`);
+  }
+
+  const result = parseExpr();
+  if (pos < tokens.length) throw new Error(`Unexpected trailing input after position ${pos}`);
+  if (!Number.isFinite(result)) throw new Error("Result is not a finite number");
+  return result;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────
 
-function validateFilePath(path: string): string | null {
-  if (!path.startsWith("/home/z/") || path.includes("..")) {
+// Sensitive paths that the agent must never touch
+const FORBIDDEN_PATHS = [
+  "/home/z/.ssh",
+  "/home/z/.bashrc",
+  "/home/z/.bash_profile",
+  "/home/z/.profile",
+  "/home/z/.zshrc",
+  "/home/z/.zprofile",
+  "/home/z/.env",
+  "/home/z/.gitconfig",
+  "/home/z/.npmrc",
+  "/home/z/.gnupg",
+  "/home/z/.aws",
+  "/home/z/.docker",
+  "/home/z/.config/credentials",
+  "/etc/passwd",
+  "/etc/shadow",
+  "/etc/sudoers",
+];
+
+function validateFilePath(filePath: string): string | null {
+  if (!filePath.startsWith("/home/z/") || filePath.includes("..")) {
     return "Access denied: path must start with /home/z/ and must not contain '..'";
+  }
+  const resolved = filePath.replace(/\\/g, "/");
+  for (const forbidden of FORBIDDEN_PATHS) {
+    if (resolved === forbidden || resolved.startsWith(forbidden + "/")) {
+      return `Access denied: protected path (${forbidden})`;
+    }
   }
   return null;
 }
@@ -30,7 +220,7 @@ export interface AgentTool {
     required: boolean;
     description: string;
   }[];
-  execute: (params: Record<string, string>) => Promise<ToolResult>;
+  execute: (_params: Record<string, string>) => Promise<ToolResult>;
 }
 
 export interface ToolResult {
@@ -329,62 +519,8 @@ const tools: AgentTool[] = [
 
       const expr = params.expression.trim();
 
-      // Security: only allow numbers, operators, parentheses, whitespace,
-      // commas, dots, and known function names / constants
-      const allowed = /^[0-9+\-*/%.() \t,]*$|^(sin|cos|tan|sqrt|abs|log|log2|log10|exp|pow|ceil|floor|round|min|max|PI|E|\d|[\s+\-*/%.(),])+$/.test(
-        expr
-      );
-
-      if (!allowed) {
-        return {
-          success: false,
-          data: null,
-          display: `Error: unsafe expression rejected: "${expr}"`,
-          error: "Expression contains disallowed characters",
-        };
-      }
-
       try {
-        // Safe evaluation using Function constructor with only Math available
-        const fn = new Function(
-          "sin",
-          "cos",
-          "tan",
-          "sqrt",
-          "abs",
-          "log",
-          "log2",
-          "log10",
-          "exp",
-          "pow",
-          "ceil",
-          "floor",
-          "round",
-          "min",
-          "max",
-          "PI",
-          "E",
-          `"use strict"; return (${expr});`
-        );
-        const result = fn(
-          Math.sin,
-          Math.cos,
-          Math.tan,
-          Math.sqrt,
-          Math.abs,
-          Math.log,
-          Math.log2,
-          Math.log10,
-          Math.exp,
-          Math.pow,
-          Math.ceil,
-          Math.floor,
-          Math.round,
-          Math.min,
-          Math.max,
-          Math.PI,
-          Math.E
-        );
+        const result = safeEvalMath(expr);
         const displayVal = typeof result === "number"
           ? Number.isInteger(result) ? String(result) : result.toFixed(6).replace(/\.?0+$/, "")
           : String(result);
@@ -479,7 +615,7 @@ const tools: AgentTool[] = [
         return { success: false, data: null, display: secErr, error: secErr };
       }
       try {
-        let content = fs.readFileSync(path, "utf-8");
+        let content = await readFile(path, "utf-8");
         if (content.length > 2000) {
           content = content.slice(0, 2000) + "[...truncated]";
         }
@@ -543,9 +679,9 @@ const tools: AgentTool[] = [
       }
       try {
         if (createDirs === "true") {
-          fs.mkdirSync(path.substring(0, path.lastIndexOf("/")), { recursive: true });
+          await mkdir(path.substring(0, path.lastIndexOf("/")), { recursive: true });
         }
-        fs.writeFileSync(path, content, "utf-8");
+        await writeFile(path, content, "utf-8");
         return {
           success: true,
           data: { path, bytesWritten: content.length },
@@ -600,7 +736,9 @@ const tools: AgentTool[] = [
         };
       }
       try {
-        if (!fs.existsSync(path)) {
+        try {
+          await access(path);
+        } catch {
           return {
             success: false,
             data: null,
@@ -608,7 +746,7 @@ const tools: AgentTool[] = [
             error: "File not found",
           };
         }
-        fs.unlinkSync(path);
+        await unlink(path);
         return {
           success: true,
           data: { path },
@@ -632,10 +770,12 @@ const tools: AgentTool[] = [
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024)
+  if (bytes < 1024 * 1024 * 1024) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  if (bytes < 1024 * 1024 * 1024 * 1024)
+  }
+  if (bytes < 1024 * 1024 * 1024 * 1024) {
     return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+  }
   return `${(bytes / (1024 * 1024 * 1024 * 1024)).toFixed(1)} TB`;
 }
 

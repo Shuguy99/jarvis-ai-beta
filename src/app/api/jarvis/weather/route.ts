@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
-// ── In-memory cache (10 min TTL) ──────────────────────────────
+// ── In-memory cache keyed by location (10 min TTL) ─────────
 interface CacheEntry {
   data: unknown;
   ts: number;
 }
-let cache: CacheEntry | null = null;
+const cacheMap = new Map<string, CacheEntry>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 const DEFAULT_LAT = 55.75;
@@ -13,12 +14,17 @@ const DEFAULT_LON = 37.62;
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
-  const lat = Number(searchParams.get("lat")) || DEFAULT_LAT;
-  const lon = Number(searchParams.get("lon")) || DEFAULT_LON;
+
+  // Fix: use null check instead of falsy || to handle lat/lon of 0
+  const rawLat = searchParams.get("lat");
+  const rawLon = searchParams.get("lon");
+  const lat = rawLat !== null ? Number(rawLat) : DEFAULT_LAT;
+  const lon = rawLon !== null ? Number(rawLon) : DEFAULT_LON;
 
   const cacheKey = `${lat}:${lon}`;
-  if (cache && cache.ts + CACHE_TTL > Date.now() && (cache.data as Record<string, unknown>)?._ck === cacheKey) {
-    return NextResponse.json(cache.data);
+  const cached = cacheMap.get(cacheKey);
+  if (cached && cached.ts + CACHE_TTL > Date.now()) {
+    return NextResponse.json(cached.data);
   }
 
   const params = new URLSearchParams({
@@ -45,10 +51,14 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await res.json();
-    // Stamp with cache key so we don't serve stale data for different coords
-    (data as Record<string, unknown>)._ck = cacheKey;
+    cacheMap.set(cacheKey, { data, ts: Date.now() });
 
-    cache = { data, ts: Date.now() };
+    // Evict stale entries to prevent unbounded growth
+    const now = Date.now();
+    for (const [key, entry] of cacheMap) {
+      if (entry.ts + CACHE_TTL < now) cacheMap.delete(key);
+    }
+
     return NextResponse.json(data);
   } catch {
     return NextResponse.json(

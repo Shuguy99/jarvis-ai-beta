@@ -2,36 +2,8 @@
 
 import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
+import { useSystemData } from "@/hooks/use-system-poller";
 import { Cpu, MemoryStick, Wifi, Thermometer, Activity, Server, TrendingUp, HardDrive, Cable } from "lucide-react";
-
-interface NetworkInterfaceInfo {
-  name: string;
-  family: "IPv4" | "IPv6";
-  address: string;
-  internal: boolean;
-}
-
-interface SystemData {
-  hostname: string;
-  platform: string;
-  arch: string;
-  cpus: number;
-  cpuModel: string;
-  cpuLoad: number;
-  memPct: number;
-  memUsed: number;
-  memTotal: number;
-  netThroughput: number;
-  processes: number;
-  temp: number;
-  uptime: number;
-  cores: { id: number; load: number }[];
-  diskTotal: number;
-  diskUsed: number;
-  diskPct: number;
-  networkInterfaces: NetworkInterfaceInfo[];
-  processMemory: { rss: number; heapUsed: number; heapTotal: number };
-}
 
 function fmtBytes(bytes: number) {
   const gb = bytes / 1024 / 1024 / 1024;
@@ -109,7 +81,7 @@ function Gauge({
   max?: number;
   unit?: string;
   color: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>;
   history?: number[];
 }) {
   const pct = Math.min(100, (value / max) * 100);
@@ -156,7 +128,7 @@ function Gauge({
 const HISTORY_LEN = 30;
 
 export function SystemMonitor() {
-  const [data, setData] = useState<SystemData | null>(null);
+  const { system: data } = useSystemData();
   const [netHistory, setNetHistory] = useState<number[]>(Array(24).fill(0));
   const cpuHistoryRef = useRef<number[]>(Array(HISTORY_LEN).fill(0));
   const ramHistoryRef = useRef<number[]>(Array(HISTORY_LEN).fill(0));
@@ -165,34 +137,16 @@ export function SystemMonitor() {
   const tickRef = useRef(0);
 
   useEffect(() => {
-    let active = true;
-    const poll = async () => {
-      try {
-        const res = await fetch("/api/jarvis/system", { cache: "no-store" });
-        const json = await res.json();
-        if (!active) return;
-        setData(json);
-        setNetHistory((prev) => [...prev.slice(1), json.netThroughput]);
-
-        // Track CPU/RAM history
-        tickRef.current++;
-        cpuHistoryRef.current = [...cpuHistoryRef.current.slice(1), json.cpuLoad];
-        ramHistoryRef.current = [...ramHistoryRef.current.slice(1), json.memPct];
-        if (tickRef.current % 2 === 0) {
-          setCpuHistory([...cpuHistoryRef.current]);
-          setRamHistory([...ramHistoryRef.current]);
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-    void poll();
-    const id = setInterval(poll, 2500);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, []);
+    if (!data) return;
+    setNetHistory((prev) => [...prev.slice(1), data.netThroughput]);
+    tickRef.current++;
+    cpuHistoryRef.current = [...cpuHistoryRef.current.slice(1), data.cpuLoad];
+    ramHistoryRef.current = [...ramHistoryRef.current.slice(1), data.memPct];
+    if (tickRef.current % 2 === 0) {
+      setCpuHistory([...cpuHistoryRef.current]);
+      setRamHistory([...ramHistoryRef.current]);
+    }
+  }, [data]);
 
   const cyan = "oklch(0.85 0.19 193)";
   const teal = "oklch(0.78 0.16 165)";

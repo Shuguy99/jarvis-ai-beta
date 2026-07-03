@@ -218,7 +218,6 @@ export function useProactiveEngine(partialConfig?: Partial<ProactiveEngineConfig
           title: "Сэр, высокая нагрузка на процессор.",
           message: processMsg || undefined,
           type: "warning",
-          duration: 6000,
         });
         publishProactiveAlert({
           message: "Сэр, высокая нагрузка на процессор.",
@@ -240,7 +239,6 @@ export function useProactiveEngine(partialConfig?: Partial<ProactiveEngineConfig
           title: `Сэр, оперативная память почти заполнена (${pct}%).`,
           message: "Рекомендуется закрыть неиспользуемые приложения.",
           type: "warning",
-          duration: 6000,
         });
         publishProactiveAlert({
           message: `Сэр, оперативная память почти заполнена (${pct}%).`,
@@ -262,7 +260,6 @@ export function useProactiveEngine(partialConfig?: Partial<ProactiveEngineConfig
           title: `КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ: Диск заполнен на ${pct}%.`,
           message: "Немедленная очистка рекомендуется.",
           type: "error",
-          duration: 8000,
         });
         publishProactiveAlert({
           message: `КРИТИЧЕСКОЕ ПРЕДУПРЕЖДЕНИЕ: Диск заполнен на ${pct}%.`,
@@ -303,7 +300,6 @@ export function useProactiveEngine(partialConfig?: Partial<ProactiveEngineConfig
           title: `На улице ${condition.label}, сэр.`,
           message: `Советую взять ${condition.item}.`,
           type: "info",
-          duration: 6000,
         });
         publishProactiveAlert({
           message: `На улице ${condition.label}, сэр.`,
@@ -324,7 +320,6 @@ export function useProactiveEngine(partialConfig?: Partial<ProactiveEngineConfig
           title: `Температура на улице ${Math.round(temp)}°C.`,
           message: "Рекомендуется гидратация.",
           type: "info",
-          duration: 5000,
         });
         publishProactiveAlert({
           message: `Температура на улице ${Math.round(temp)}°C.`,
@@ -345,7 +340,6 @@ export function useProactiveEngine(partialConfig?: Partial<ProactiveEngineConfig
           title: `Температура ${Math.round(temp)}°C.`,
           message: "Одевайтесь теплее, сэр.",
           type: "warning",
-          duration: 5000,
         });
         publishProactiveAlert({
           message: `Температура ${Math.round(temp)}°C.`,
@@ -370,7 +364,6 @@ export function useProactiveEngine(partialConfig?: Partial<ProactiveEngineConfig
             title: `Через ${timeUntil} у вас «${eventName}»`,
             message: `На улице ${condition.label || "непогода"} — советую взять зонт и выйти заранее.`,
             type: "warning",
-            duration: 8000,
           });
           publishProactiveAlert({
             message: `Через ${timeUntil} у вас «${eventName}»`,
