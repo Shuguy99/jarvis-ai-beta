@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useFocusTrap, getOverlayProps } from "@/lib/a11y-utils"
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutGrid,
@@ -56,7 +55,6 @@ interface LayoutCustomizerProps {
 }
 
 export function LayoutCustomizer({ open, onClose }: LayoutCustomizerProps) {
-  const trapRef = useFocusTrap(open);
   const {
     widgets,
     setWidgetVisible,
@@ -111,7 +109,6 @@ export function LayoutCustomizer({ open, onClose }: LayoutCustomizerProps) {
 
   const handleReset = () => {
     playSound("shutdown");
-    if (!confirm("Сбросить раскладку виджетов по умолчанию?")) return;
     resetToDefault();
   };
 

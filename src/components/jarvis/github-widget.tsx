@@ -167,7 +167,8 @@ export function GitHubWidget() {
   // ── Loading state ──────────────────────────────────────────
   if (loading) {
     return (
-      <div className="rounded-xl border jarvis-border-cyan bg-card/20 backdrop-blur-sm p-4">
+      <div className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/60 backdrop-blur-sm p-4">
+        <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Github className="h-4 w-4 text-primary anim-data-pulse" />
@@ -184,7 +185,8 @@ export function GitHubWidget() {
   // ── Error state ────────────────────────────────────────────
   if (error) {
     return (
-      <div className="rounded-xl border jarvis-border-cyan bg-card/20 backdrop-blur-sm p-4">
+      <div className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/60 backdrop-blur-sm p-4">
+        <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <Github className="h-4 w-4 text-primary anim-data-pulse" />
@@ -217,11 +219,12 @@ export function GitHubWidget() {
 
   return (
     <motion.div
-      className="rounded-xl border jarvis-border-cyan bg-card/20 backdrop-blur-sm p-4"
+      className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/60 backdrop-blur-sm p-4"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
+      <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
       <div className="relative flex flex-col gap-3">
         {/* ── Header ───────────────────────────────────────── */}
         <div className="flex items-center justify-between">

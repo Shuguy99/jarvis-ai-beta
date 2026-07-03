@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useFocusTrap, getOverlayProps } from "@/lib/a11y-utils"
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Bell,
@@ -375,7 +374,6 @@ function EmptyState() {
 // ── Main Panel ──────────────────────────────────────────────────────
 
 export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
-  const trapRef = useFocusTrap(open);
   const [notifications, setNotifications] = useState<Notification[]>(() => getNotifications());
 
   // Subscribe to changes
@@ -401,7 +399,6 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
 
   const handleClearAll = () => {
     playSound("click");
-    if (!confirm("Очистить все уведомления?")) return;
     clearAll();
   };
 
@@ -432,7 +429,6 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: "100%", opacity: 0 }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            ref={trapRef} {...getOverlayProps("Notifications", open)}
             className="fixed right-0 top-0 bottom-0 z-50 w-full max-w-md border-l jarvis-border-cyan jarvis-glass-strong bg-background/90 shadow-2xl shadow-primary/5"
           >
             {/* Header */}

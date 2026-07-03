@@ -315,6 +315,7 @@ export function NotesPanel({ open, onClose }: NotesPanelProps) {
 
   // ── Delete note ──────────────────────────────────
   const deleteNote = useCallback(async (id: string) => {
+    if (!confirm("Удалить заметку?")) return;
     playSound("deactivate");
     try {
       await fetch("/api/jarvis/notes", {

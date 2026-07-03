@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Cpu, ArrowUp, ArrowDown, Search, X, Skull } from "lucide-react";
 import { playSound } from "@/lib/sounds";
@@ -53,6 +53,8 @@ export function ProcessManagerWidget() {
   const [sortKey, setSortKey] = useState<SortKey>("cpu");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [filter, setFilter] = useState("");
+  const [filterInput, setFilterInput] = useState("");
+  useEffect(() => { const t = setTimeout(() => setFilter(filterInput), 300); return () => clearTimeout(t); }, [filterInput]);
   const [killingPid, setKillingPid] = useState<number | null>(null);
 
   const loading = rawProcesses === null;
@@ -86,6 +88,7 @@ export function ProcessManagerWidget() {
 
   // ── Kill process ───────────────────────────────────────────
   const handleKill = async (pid: number, name: string) => {
+    if (!confirm("Убить процесс " + pid + " (" + name + ")?")) return;
     playSound("click", 0.3);
     setKillingPid(pid);
     try {
@@ -166,14 +169,14 @@ export function ProcessManagerWidget() {
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground/50" />
           <input
             type="text"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            value={filterInput}
+            onChange={(e) => setFilterInput(e.target.value)}
             placeholder="Фильтр..."
             className="w-full rounded-md border border-primary/10 bg-primary/5 py-1 pl-7 pr-7 font-mono text-[10px] text-foreground placeholder:text-muted-foreground/40 focus:border-primary/30 focus:outline-none"
           />
           {filter && (
             <button
-              onClick={() => setFilter("")}
+              onClick={() => { setFilter(""); setFilterInput(""); }}
               className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground/40 transition-colors hover:text-rose-400"
               aria-label="Очистить фильтр"
             >

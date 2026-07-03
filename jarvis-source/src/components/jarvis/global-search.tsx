@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useFocusTrap, getOverlayProps } from "@/lib/a11y-utils"
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -206,7 +205,6 @@ export default function GlobalSearch({
   messages,
   conversations,
 }: GlobalSearchProps) {
-  const trapRef = useFocusTrap(open);
   const [query, setQuery] = useState("");
   const [activeCategory, setActiveCategory] = useState("all");
   const [indexed, setIndexed] = useState(false);

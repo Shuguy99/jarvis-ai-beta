@@ -388,16 +388,14 @@ export function MusicPlayer() {
                 {Array.from(vizData).map((v, i) => {
                   const h = reduced ? 10 : Math.max(4, (v / maxViz) * 100);
                   return (
-                    <motion.div
+                    <div
                       key={i}
-                      className="w-[3px] flex-shrink-0 rounded-t-sm bg-primary"
+                      className="w-[3px] flex-shrink-0 rounded-t-sm bg-primary transition-all duration-75 ease-out"
                       style={{
                         height: `${h}%`,
                         boxShadow: `0 0 4px oklch(0.85 0.19 193 / 50%)`,
                         opacity: reduced ? 0.5 : 0.4 + (v / maxViz) * 0.6,
                       }}
-                      animate={{ height: `${h}%` }}
-                      transition={reduced ? { duration: 0 } : { duration: 0.05 }}
                     />
                   );
                 })}

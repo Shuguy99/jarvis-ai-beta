@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { useFocusTrap, getOverlayProps } from "@/lib/a11y-utils"
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Puzzle,
@@ -344,7 +343,6 @@ function PluginCard({ plugin }: { plugin: JarvisPlugin }) {
 // ── Main Panel ────────────────────────────────────────────────────
 
 export function PluginPanel({ open, onClose }: PluginPanelProps) {
-  const trapRef = useFocusTrap(open);
   const [activeCategory, setActiveCategory] = useState("all");
   const plugins = usePlugins();
 
