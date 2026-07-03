@@ -1,6 +1,7 @@
-import { app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, ipcMain, globalShortcut, Tray, Menu, nativeImage, screen } from 'electron';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 import http from 'http';
 
 console.log('JARVIS Electron starting...');
@@ -16,6 +17,91 @@ let isOnline = false;
 const isDev = !app.isPackaged;
 const NEXT_PORT = 3000;
 const NEXT_URL = `http://localhost:${NEXT_PORT}`;
+
+// ─── Window State Persistence ─────────────────────────────────────────────
+// Сохранение позиции и размера окна между запусками
+
+interface WindowState {
+  x?: number;
+  y?: number;
+  width: number;
+  height: number;
+  isMaximized: boolean;
+}
+
+const DEFAULT_WINDOW_STATE: WindowState = {
+  width: 1600,
+  height: 900,
+  isMaximized: false,
+};
+
+function getWindowStateFilePath(): string {
+  return path.join(app.getPath('userData'), 'jarvis-window-state.json');
+}
+
+function loadWindowState(): WindowState {
+  try {
+    const filePath = getWindowStateFilePath();
+    if (fs.existsSync(filePath)) {
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      const parsed = JSON.parse(raw) as Partial<WindowState>;
+      // Валидация: проверяем, что размеры в разумных пределах
+      if (
+        typeof parsed.width === 'number' && parsed.width >= 1200 &&
+        typeof parsed.height === 'number' && parsed.height >= 700
+      ) {
+        return {
+          x: typeof parsed.x === 'number' ? parsed.x : undefined,
+          y: typeof parsed.y === 'number' ? parsed.y : undefined,
+          width: parsed.width,
+          height: parsed.height,
+          isMaximized: typeof parsed.isMaximized === 'boolean' ? parsed.isMaximized : false,
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[JARVIS] Не удалось загрузить состояние окна:', (err as Error).message);
+  }
+  return { ...DEFAULT_WINDOW_STATE };
+}
+
+// Debounce-обёртка для сохранения состояния
+let saveStateTimer: ReturnType<typeof setTimeout> | null = null;
+
+function saveWindowStateDebounced(): void {
+  if (saveStateTimer) clearTimeout(saveStateTimer);
+  saveStateTimer = setTimeout(() => {
+    saveWindowState();
+  }, 500);
+}
+
+function saveWindowState(): void {
+  if (!mainWindow) return;
+  try {
+    // Не сохраняем позицию если окно максимизировано или свернуто
+    if (mainWindow.isMaximized() || mainWindow.isMinimized()) {
+      const state: WindowState = {
+        width: mainWindow.getNormalBounds().width,
+        height: mainWindow.getNormalBounds().height,
+        isMaximized: mainWindow.isMaximized(),
+      };
+      fs.writeFileSync(getWindowStateFilePath(), JSON.stringify(state, null, 2));
+      return;
+    }
+
+    const bounds = mainWindow.getBounds();
+    const state: WindowState = {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      isMaximized: false,
+    };
+    fs.writeFileSync(getWindowStateFilePath(), JSON.stringify(state, null, 2));
+  } catch (err) {
+    console.warn('[JARVIS] Не удалось сохранить состояние окна:', (err as Error).message);
+  }
+}
 
 // ─── Tray Icon (inline SVG → data URL) ──────────────────────────────────────
 
@@ -128,12 +214,49 @@ function checkOnlineStatus(): void {
     .finally(() => clearTimeout(timeout));
 }
 
+// ─── Protocol Handler (jarvis://) ─────────────────────────────────────────
+// Обработка кастомного протокола jarvis:// для глубоких ссылок
+
+function registerProtocolHandler(): void {
+  // Регистрируем jarvis:// как протокол по умолчанию
+  if (app.isPackaged) {
+    app.setAsDefaultProtocolClient('jarvis');
+  }
+}
+
+function handleProtocolUrl(url: string): void {
+  if (!url.startsWith('jarvis://')) return;
+
+  try {
+    const parsedUrl = new URL(url);
+    console.log(`[JARVIS] Получен jarvis:// URL: ${url}`);
+
+    // Если окно уже создано — отправляем URL в рендерер
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
+      mainWindow.focus();
+      mainWindow.webContents.send('protocol-url', {
+        href: parsedUrl.href,
+        hostname: parsedUrl.hostname,
+        pathname: parsedUrl.pathname,
+        search: parsedUrl.search,
+        hash: parsedUrl.hash,
+        searchParams: Object.fromEntries(parsedUrl.searchParams),
+      });
+    }
+  } catch (err) {
+    console.error('[JARVIS] Ошибка разбора jarvis:// URL:', (err as Error).message);
+  }
+}
+
 // ─── Window Creation ────────────────────────────────────────────────────────
 
 function createWindow(): BrowserWindow {
-  const win = new BrowserWindow({
-    width: 1600,
-    height: 900,
+  const savedState = loadWindowState();
+
+  const windowOptions: Electron.BrowserWindowConstructorOptions = {
+    width: savedState.width,
+    height: savedState.height,
     minWidth: 1200,
     minHeight: 700,
     backgroundColor: '#0a0a0a',
@@ -146,30 +269,71 @@ function createWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
     },
-  });
+  };
 
-  win.center();
+  // Восстанавливаем позицию окна, если она была сохранена
+  if (savedState.x !== undefined && savedState.y !== undefined) {
+    windowOptions.x = savedState.x;
+    windowOptions.y = savedState.y;
+  }
 
-  // Show window when ready to prevent visual flash
-  win.once('ready-to-show', () => {
-    win.show();
-    // Windows balloon notification
-    if (process.platform === 'win32') {
-      tray?.displayBalloon({ title: 'J.A.R.V.I.S.', content: 'Online. Все системы в норме, сэр.' });
-    }
-  });
+  const win = new BrowserWindow(windowOptions);
+
+  // Центрируем только если нет сохранённой позиции
+  if (savedState.x === undefined || savedState.y === undefined) {
+    win.center();
+  }
+
+  // Восстанавливаем состояние «максимизировано» после показа
+  if (savedState.isMaximized) {
+    win.once('ready-to-show', () => {
+      win.maximize();
+      win.show();
+      // Windows balloon notification
+      if (process.platform === 'win32') {
+        tray?.displayBalloon({ title: 'J.A.R.V.I.S.', content: 'Online. Все системы в норме, сэр.' });
+      }
+    });
+  } else {
+    // Show window when ready to prevent visual flash
+    win.once('ready-to-show', () => {
+      win.show();
+      // Windows balloon notification
+      if (process.platform === 'win32') {
+        tray?.displayBalloon({ title: 'J.A.R.V.I.S.', content: 'Online. Все системы в норме, сэр.' });
+      }
+    });
+  }
 
   // Forward state changes to renderer
-  win.on('maximize', () => win.webContents.send('maximize-change', true));
-  win.on('unmaximize', () => win.webContents.send('maximize-change', false));
+  win.on('maximize', () => {
+    win.webContents.send('maximize-change', true);
+    saveWindowStateDebounced();
+  });
+  win.on('unmaximize', () => {
+    win.webContents.send('maximize-change', false);
+    saveWindowStateDebounced();
+  });
   win.on('enter-full-screen', () => win.webContents.send('fullscreen-change', true));
   win.on('leave-full-screen', () => win.webContents.send('fullscreen-change', false));
+
+  // Сохранение позиции и размера при перемещении/ресайзе (с дебаунсом)
+  win.on('move', () => saveWindowStateDebounced());
+  win.on('resize', () => saveWindowStateDebounced());
+
+  // Обработка jarvis:// URL из рендерера (если он запросит навигацию)
+  ipcMain.on('window:jarvis-url', (_event, url: string) => {
+    handleProtocolUrl(url);
+  });
 
   // Hide to tray instead of closing
   win.on('close', (event) => {
     if (!isQuitting) {
       event.preventDefault();
       win.hide();
+    } else {
+      // Сохраняем состояние при финальном закрытии
+      saveWindowState();
     }
   });
 
@@ -262,7 +426,64 @@ ipcMain.handle('app:quit', () => {
   app.quit();
 });
 
+// ─── Новые IPC-обработчики ─────────────────────────────────────────────────
+
+// Информация о платформе (win32, darwin, linux)
+ipcMain.handle('app:get-platform', () => process.platform);
+
+// Информация об экране (рабочая область)
+ipcMain.handle('app:get-screen-info', () => {
+  const display = screen.getPrimaryDisplay();
+  const workArea = display.workAreaSize;
+  return {
+    width: workArea.width,
+    height: workArea.height,
+    scaleFactor: display.scaleFactor,
+    isPrimary: true,
+  };
+});
+
+// Автозапуск при входе в систему
+ipcMain.handle('app:set-autostart', (_event, enabled: boolean) => {
+  app.setLoginItemSettings({
+    openAtLogin: enabled,
+    path: process.execPath,
+  });
+});
+
+ipcMain.handle('app:get-autostart', () => {
+  const settings = app.getLoginItemSettings();
+  return settings.openAtLogin;
+});
+
 // ─── App Lifecycle ──────────────────────────────────────────────────────────
+
+// Регистрация протокола jarvis://
+registerProtocolHandler();
+
+// Если приложение уже запущено и открыт jarvis:// — фокусируем окно и передаём URL
+app.on('second-instance', (_event, commandLine) => {
+  // commandLine — массив, ищем jarvis:// URL
+  const jarvisUrl = commandLine.find((arg) => arg.startsWith('jarvis://'));
+  if (mainWindow) {
+    mainWindow.show();
+    mainWindow.focus();
+    if (jarvisUrl) {
+      handleProtocolUrl(jarvisUrl);
+    }
+  }
+});
+
+// macOS: обработка jarvis:// URL когда приложение уже запущено
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  if (url.startsWith('jarvis://')) {
+    handleProtocolUrl(url);
+  }
+});
+
+// Если получили аргумент jarvis:// при холодном старте — сохраним для рендерера
+const cliJarvisUrl = process.argv.find((arg) => arg.startsWith('jarvis://'));
 
 app.whenReady().then(() => {
   if (!isDev) spawnNextServer();
@@ -271,6 +492,13 @@ app.whenReady().then(() => {
   createTray();
 
   setTimeout(() => loadApp(win), isDev ? 100 : 1000);
+
+  // Если при старте передан jarvis:// URL — отправляем в рендерер после загрузки
+  if (cliJarvisUrl) {
+    win.webContents.once('did-finish-load', () => {
+      handleProtocolUrl(cliJarvisUrl);
+    });
+  }
 
   // Global shortcut: Ctrl+Shift+J to toggle window
   globalShortcut.register('Ctrl+Shift+J', () => {
@@ -305,4 +533,7 @@ app.on('will-quit', () => {
     nextProcess.kill('SIGTERM');
     nextProcess = null;
   }
+
+  // Финальное сохранение состояния окна
+  saveWindowState();
 });

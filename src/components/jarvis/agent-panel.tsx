@@ -21,9 +21,17 @@ import {
   ChevronRight,
   MessageSquare,
   RotateCcw,
+  Circle,
+  Ban,
 } from "lucide-react";
 import { playSound } from "@/lib/sounds";
-import { addActivityEvent } from "@/components/jarvis/activity-feed";
+import {
+  useAgentEngine,
+  type AgentPhase,
+  type PlanStep,
+  type ProgressEvent,
+  type StepResult,
+} from "@/hooks/use-agent-engine";
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -32,35 +40,13 @@ interface AgentPanelProps {
   onClose: () => void;
 }
 
-interface Step {
-  id: number;
-  type: "thinking" | "tool_call" | "tool_result" | "final_answer";
-  content: string;
-  toolName?: string;
-  timestamp: string;
-}
-
-interface ToolCallRecord {
-  tool: string;
-  params: Record<string, unknown>;
-  result: string;
-}
-
-interface AgentResponse {
-  reply: string;
-  toolCalls: ToolCallRecord[];
-  steps: Step[];
-  timestamp: string;
-  error?: string;
-  ollamaNotRunning?: boolean;
-}
-
 interface HistoryEntry {
   id: string;
   task: string;
-  reply: string;
-  steps: Step[];
-  toolCalls: ToolCallRecord[];
+  report: string;
+  plan: PlanStep[];
+  stepResults: StepResult[];
+  progress: ProgressEvent[];
   timestamp: string;
 }
 
@@ -82,37 +68,59 @@ const TOOL_META: {
 
 const MAX_HISTORY = 5;
 
-// ─── Step icon helper ──────────────────────────────────────────
+// ─── Step status helpers ───────────────────────────────────────
 
-function StepIcon({
+function StepStatusIcon({
+  stepId,
+  currentStepId,
+  stepResults,
+}: {
+  stepId: number;
+  currentStepId: number | null;
+  stepResults: StepResult[];
+}) {
+  const isDone = stepResults.some((r) => r.stepId === stepId);
+  const isCurrent = currentStepId === stepId;
+
+  if (isDone) {
+    return <CheckCircle className="h-4 w-4 text-emerald-400 flex-shrink-0" />;
+  }
+  if (isCurrent) {
+    return (
+      <span className="relative flex h-4 w-4 flex-shrink-0 items-center justify-center">
+        <span className="absolute inline-flex h-full w-full animate-spin rounded-full border-2 border-cyan-400/30 border-t-cyan-400" />
+        <Circle className="h-2.5 w-2.5 fill-cyan-400/40 text-cyan-400/40" />
+      </span>
+    );
+  }
+  return <Circle className="h-4 w-4 text-muted-foreground/20 flex-shrink-0" />;
+}
+
+function ProgressIcon({
   type,
   className,
 }: {
-  type: Step["type"];
+  type: ProgressEvent["type"];
   className?: string;
 }) {
   switch (type) {
     case "thinking":
-      return <Loader2 className={`h-3.5 w-3.5 animate-spin text-cyan-400 ${className ?? ""}`} />;
+      return <Loader2 className={`h-3 w-3 text-cyan-400 ${className ?? ""}`} />;
     case "tool_call":
-      return <Wrench className={`h-3.5 w-3.5 text-amber-400 ${className ?? ""}`} />;
+      return <Wrench className={`h-3 w-3 text-amber-400 ${className ?? ""}`} />;
     case "tool_result":
-      return <CheckCircle className={`h-3.5 w-3.5 text-emerald-400 ${className ?? ""}`} />;
-    case "final_answer":
-      return <MessageSquare className={`h-3.5 w-3.5 text-primary ${className ?? ""}`} />;
+      return <CheckCircle className={`h-3 w-3 text-emerald-400 ${className ?? ""}`} />;
   }
 }
 
-function stepColor(type: Step["type"]): string {
+function progressColor(type: ProgressEvent["type"]): string {
   switch (type) {
     case "thinking":
-      return "border-cyan-400/30 bg-cyan-400/5";
+      return "border-cyan-400/20 bg-cyan-400/5";
     case "tool_call":
-      return "border-amber-400/30 bg-amber-400/5";
+      return "border-amber-400/20 bg-amber-400/5";
     case "tool_result":
-      return "border-emerald-400/30 bg-emerald-400/5";
-    case "final_answer":
-      return "border-primary/30 bg-primary/5";
+      return "border-emerald-400/20 bg-emerald-400/5";
   }
 }
 
@@ -130,23 +138,58 @@ function timeLabel(ts: string): string {
   }
 }
 
+function phaseLabel(phase: AgentPhase): string {
+  switch (phase) {
+    case "planning":
+      return "Планирование...";
+    case "executing":
+      return "Выполнение...";
+    case "reporting":
+      return "Формирование отчёта...";
+    case "done":
+      return "Завершено";
+    case "error":
+      return "Ошибка";
+    default:
+      return "";
+  }
+}
+
 // ─── Main component ────────────────────────────────────────────
 
 export function AgentPanel({ open, onClose }: AgentPanelProps) {
+  const agent = useAgentEngine();
+
   const [task, setTask] = useState("");
   const [enabledTools, setEnabledTools] = useState<Set<string>>(
     new Set(TOOL_META.map((t) => t.name))
   );
-  const [running, setRunning] = useState(false);
-  const [steps, setSteps] = useState<Step[]>([]);
-  const [reply, setReply] = useState("");
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [showTools, setShowTools] = useState(false);
-  const [error, setError] = useState("");
+  const [lastTask, setLastTask] = useState("");
 
   const taskRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Add completed runs to history when phase becomes "done"
+  useEffect(() => {
+    if (agent.phase === "done" && lastTask) {
+      setHistory((prev) => {
+        const entry: HistoryEntry = {
+          id: crypto.randomUUID(),
+          task: lastTask,
+          report: agent.report,
+          plan: agent.plan,
+          stepResults: agent.stepResults,
+          progress: agent.progress,
+          timestamp: new Date().toISOString(),
+        };
+        const next = [entry, ...prev];
+        return next.slice(0, MAX_HISTORY);
+      });
+    }
+    }, [agent.phase, agent.report, agent.plan, agent.stepResults, agent.progress, lastTask]);
 
   // Close on Escape
   useEffect(() => {
@@ -161,12 +204,12 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
     return () => document.removeEventListener("keydown", handler, true);
   }, [open, onClose]);
 
-  // Auto-scroll steps
+  // Auto-scroll progress
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [steps, reply]);
+  }, [agent.progress, agent.report]);
 
   const toggleTool = useCallback((name: string) => {
     setEnabledTools((prev) => {
@@ -180,91 +223,12 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
     });
   }, []);
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(() => {
     const trimmed = task.trim();
-    if (!trimmed || running) return;
-
-    setRunning(true);
-    setSteps([]);
-    setReply("");
-    setError("");
-    playSound("activate");
-
-    addActivityEvent({
-      message: `Agent task started: "${trimmed.slice(0, 60)}${trimmed.length > 60 ? "…" : ""}"`,
-      severity: "info",
-      category: "system",
-    });
-
-    try {
-      const res = await fetch("/api/jarvis/agent", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          task: trimmed,
-          tools: Array.from(enabledTools),
-        }),
-      });
-
-      const data = (await res.json()) as AgentResponse;
-
-      if (!res.ok) {
-        setError(data.error ?? `HTTP ${res.status}`);
-        playSound("error");
-        addActivityEvent({
-          message: `Agent task failed: ${data.error ?? "Unknown error"}`,
-          severity: "error",
-          category: "system",
-        });
-        setRunning(false);
-        return;
-      }
-
-      // Animate steps in one by one
-      for (let i = 0; i < data.steps.length; i++) {
-        const step = data.steps[i];
-        setSteps((prev) => [...prev, step]);
-        // Small delay for visual effect
-        if (i < data.steps.length - 1) {
-          await new Promise((r) => setTimeout(r, 150));
-        }
-      }
-
-      setReply(data.reply);
-      playSound("success");
-
-      // Add to history
-      setHistory((prev) => {
-        const entry: HistoryEntry = {
-          id: crypto.randomUUID(),
-          task: trimmed,
-          reply: data.reply,
-          steps: data.steps,
-          toolCalls: data.toolCalls,
-          timestamp: data.timestamp,
-        };
-        const next = [entry, ...prev];
-        return next.slice(0, MAX_HISTORY);
-      });
-
-      addActivityEvent({
-        message: `Agent task completed successfully (${data.toolCalls.length} tool calls)`,
-        severity: "success",
-        category: "system",
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Network error";
-      setError(msg);
-      playSound("error");
-      addActivityEvent({
-        message: `Agent error: ${msg}`,
-        severity: "error",
-        category: "system",
-      });
-    } finally {
-      setRunning(false);
-    }
-  }, [task, running, enabledTools]);
+    if (!trimmed || agent.isRunning) return;
+    setLastTask(trimmed);
+    agent.executeTask(trimmed, Array.from(enabledTools));
+  }, [task, agent, enabledTools]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -278,21 +242,22 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
 
   const loadFromHistory = useCallback((entry: HistoryEntry) => {
     setTask(entry.task);
-    setSteps(entry.steps);
-    setReply(entry.reply);
-    setError("");
     playSound("click");
   }, []);
 
   const handleReset = useCallback(() => {
+    agent.reset();
     setTask("");
-    setSteps([]);
-    setReply("");
-    setError("");
-    playSound("deactivate");
-  }, []);
+    setLastTask("");
+  }, [agent]);
 
   if (!open) return null;
+
+  const hasContent =
+    agent.plan.length > 0 ||
+    agent.progress.length > 0 ||
+    agent.report ||
+    agent.isRunning;
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end">
@@ -351,26 +316,35 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
                 onChange={(e) => setTask(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Describe what you want the agent to do..."
-                disabled={running}
+                disabled={agent.isRunning}
                 rows={3}
                 className="w-full resize-none rounded-lg border border-primary/20 bg-card/60 p-3 font-mono text-xs text-foreground placeholder:text-muted-foreground/40 outline-none transition-colors focus:border-primary/50 focus:ring-1 focus:ring-primary/20 disabled:opacity-50"
               />
               <div className="mt-2 flex items-center gap-2">
                 <button
                   onClick={handleSubmit}
-                  disabled={running || !task.trim()}
+                  disabled={agent.isRunning || !task.trim()}
                   className="flex items-center gap-1.5 rounded-md bg-primary/20 px-3 py-1.5 font-mono text-[10px] uppercase tracking-widest text-primary transition-all hover:bg-primary/30 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  {running ? (
+                  {agent.isRunning ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
                   ) : (
                     <Send className="h-3 w-3" />
                   )}
-                  {running ? "Executing..." : "Execute"}
+                  {agent.isRunning ? phaseLabel(agent.phase) : "Execute"}
                 </button>
+                {agent.isRunning && (
+                  <button
+                    onClick={agent.abort}
+                    className="flex items-center gap-1 rounded-md border border-rose-400/30 bg-rose-400/10 px-2.5 py-1.5 font-mono text-[10px] uppercase tracking-widest text-rose-400 transition-all hover:bg-rose-400/20"
+                  >
+                    <Ban className="h-3 w-3" />
+                    Отменить
+                  </button>
+                )}
                 <button
                   onClick={handleReset}
-                  disabled={running}
+                  disabled={agent.isRunning}
                   className="flex items-center gap-1 rounded-md px-2 py-1.5 font-mono text-[10px] text-muted-foreground/60 transition-colors hover:text-rose-400 disabled:opacity-40"
                 >
                   <RotateCcw className="h-3 w-3" />
@@ -421,7 +395,7 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
                               type="checkbox"
                               checked={checked}
                               onChange={() => toggleTool(tool.name)}
-                              disabled={running}
+                              disabled={agent.isRunning}
                               className="h-3 w-3 rounded border-primary/30 bg-background accent-primary"
                             />
                             <Icon
@@ -444,57 +418,138 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
               </AnimatePresence>
             </div>
 
-            {/* Execution Progress */}
-            {(steps.length > 0 || running) && (
+            {/* Execution Progress — Phase-based rendering */}
+            {hasContent && (
               <div className="mb-4">
                 <label className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                   <Loader2
-                    className={`h-3 w-3 text-primary ${running ? "animate-spin" : ""}`}
+                    className={`h-3 w-3 text-primary ${agent.isRunning ? "animate-spin" : ""}`}
                   />
                   Execution Progress
+                  {agent.phase !== "idle" && (
+                    <span className="ml-1 text-primary/60">
+                      — {phaseLabel(agent.phase)}
+                    </span>
+                  )}
                 </label>
 
                 <div
                   ref={scrollRef}
                   className="jarvis-scroll max-h-[300px] space-y-2 overflow-y-auto rounded-lg border border-primary/10 bg-card/40 p-2"
                 >
-                  <AnimatePresence initial={false}>
-                    {steps.map((step) => (
-                      <motion.div
-                        key={step.id}
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className={`rounded-md border px-2.5 py-2 ${stepColor(step.type)}`}
-                      >
-                        <div className="flex items-start gap-2">
-                          <StepIcon type={step.type} />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-[9px] font-bold uppercase tracking-wider text-muted-foreground/70">
-                                {step.type.replace("_", " ")}
-                              </span>
-                              {step.toolName && (
-                                <span className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[8px] text-primary">
-                                  {step.toolName}
-                                </span>
-                              )}
-                              <span className="ml-auto font-mono text-[8px] tabular-nums text-muted-foreground/40">
-                                {timeLabel(step.timestamp)}
+                  {/* Planning state */}
+                  {agent.phase === "planning" && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex items-center gap-2 px-2.5 py-3"
+                    >
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                      <span className="font-mono text-xs text-primary animate-pulse">
+                        Планирование...
+                      </span>
+                    </motion.div>
+                  )}
+
+                  {/* Plan steps timeline */}
+                  {agent.plan.length > 0 && (
+                    <div className="space-y-1.5">
+                      {agent.plan.map((step) => {
+                        const stepProgress = agent.progress.filter(
+                          (p) => p.stepId === step.id
+                        );
+                        const stepResult = agent.stepResults.find(
+                          (r) => r.stepId === step.id
+                        );
+                        const isCurrent = agent.currentStepId === step.id;
+
+                        return (
+                          <motion.div
+                            key={step.id}
+                            initial={{ opacity: 0, x: 10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.2 }}
+                          >
+                            {/* Step header */}
+                            <div
+                              className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${
+                                isCurrent
+                                  ? "bg-primary/5 border border-primary/15"
+                                  : ""
+                              }`}
+                            >
+                              <StepStatusIcon
+                                stepId={step.id}
+                                currentStepId={agent.currentStepId}
+                                stepResults={agent.stepResults}
+                              />
+                              <span
+                                className={`font-mono text-[10px] ${
+                                  isCurrent
+                                    ? "text-foreground"
+                                    : stepResult
+                                      ? "text-foreground/70"
+                                      : "text-muted-foreground/50"
+                                }`}
+                              >
+                                {step.description}
                               </span>
                             </div>
-                            <p className="mt-1 font-mono text-[10px] leading-relaxed text-foreground/80 break-all whitespace-pre-wrap">
-                              {step.content.length > 300
-                                ? step.content.slice(0, 300) + "…"
-                                : step.content}
-                            </p>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </AnimatePresence>
 
-                  {running && (
+                            {/* Step progress events */}
+                            {stepProgress.length > 0 && (
+                              <div className="ml-6 mt-1 space-y-1">
+                                {stepProgress.map((pe, idx) => (
+                                  <motion.div
+                                    key={`${step.id}-${pe.type}-${idx}`}
+                                    initial={{ opacity: 0, x: 8 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                    className={`rounded border px-2 py-1.5 ${progressColor(pe.type)}`}
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <ProgressIcon type={pe.type} />
+                                      {pe.toolName && (
+                                        <span className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[8px] text-primary">
+                                          {pe.toolName}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="mt-1 font-mono text-[10px] leading-relaxed text-foreground/80 break-all whitespace-pre-wrap">
+                                      {pe.content.length > 300
+                                        ? pe.content.slice(0, 300) + "…"
+                                        : pe.content}
+                                    </p>
+                                  </motion.div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Step result summary */}
+                            {stepResult && (
+                              <div className="ml-6 mt-1">
+                                <p
+                                  className={`font-mono text-[10px] ${
+                                    stepResult.success
+                                      ? "text-emerald-400/70"
+                                      : "text-rose-400/70"
+                                  }`}
+                                >
+                                  {stepResult.success ? "✓" : "✗"}{" "}
+                                  {stepResult.summary.length > 200
+                                    ? stepResult.summary.slice(0, 200) + "…"
+                                    : stepResult.summary}
+                                </p>
+                              </div>
+                            )}
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Reporting state */}
+                  {agent.phase === "reporting" && (
                     <motion.div
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -502,25 +557,41 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
                     >
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                       <span className="font-mono text-[10px] text-muted-foreground animate-pulse">
-                        Processing...
+                        Формирование отчёта...
                       </span>
                     </motion.div>
                   )}
+
+                  {/* Still processing indicator */}
+                  {agent.phase === "executing" &&
+                    agent.plan.length > 0 &&
+                    !agent.currentStepId && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="flex items-center gap-2 px-2.5 py-2"
+                      >
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                        <span className="font-mono text-[10px] text-muted-foreground animate-pulse">
+                          Processing...
+                        </span>
+                      </motion.div>
+                    )}
                 </div>
               </div>
             )}
 
             {/* Error */}
-            {error && (
+            {agent.phase === "error" && agent.error && (
               <div className="mb-4 rounded-lg border border-rose-400/30 bg-rose-400/5 px-3 py-2">
                 <span className="font-mono text-[10px] text-rose-400">
-                  {error}
+                  {agent.error}
                 </span>
               </div>
             )}
 
-            {/* Final Answer */}
-            {reply && (
+            {/* Report */}
+            {agent.phase === "done" && agent.report && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -528,11 +599,11 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
               >
                 <label className="mb-1.5 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                   <MessageSquare className="h-3 w-3 text-primary" />
-                  Result
+                  Report
                 </label>
                 <div className="jarvis-box-glow rounded-lg border border-primary/20 bg-card/60 p-3">
                   <p className="font-mono text-xs leading-relaxed text-foreground/90 whitespace-pre-wrap break-words">
-                    {reply}
+                    {agent.report}
                   </p>
                 </div>
               </motion.div>
@@ -580,9 +651,9 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
                               <span className="font-mono text-[8px] text-muted-foreground/50">
                                 {timeLabel(entry.timestamp)}
                               </span>
-                              {entry.toolCalls.length > 0 && (
-                                <span className="rounded bg-amber-400/10 px-1 py-0.5 font-mono text-[8px] text-amber-400">
-                                  {entry.toolCalls.length} tool{entry.toolCalls.length > 1 ? "s" : ""}
+                              {entry.stepResults.length > 0 && (
+                                <span className="rounded bg-emerald-400/10 px-1 py-0.5 font-mono text-[8px] text-emerald-400">
+                                  {entry.stepResults.length} step{entry.stepResults.length > 1 ? "s" : ""}
                                 </span>
                               )}
                             </div>
@@ -601,7 +672,7 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
         <div className="border-t border-primary/10 px-4 py-2">
           <div className="flex items-center justify-between">
             <span className="font-mono text-[8px] text-muted-foreground/40">
-              JARVIS AGENT v1.0
+              JARVIS AGENT v2.0
             </span>
             <span className="font-mono text-[8px] text-muted-foreground/40">
               MAX {MAX_HISTORY} HISTORY

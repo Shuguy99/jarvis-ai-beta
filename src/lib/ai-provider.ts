@@ -71,11 +71,20 @@ async function ollamaChat(messages: LLMMessage[], opts?: LLMOptions): Promise<LL
     stream: false,
   };
 
-  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed")) {
+      throw new Error("OLLAMA_UNAVAILABLE: Сервер Ollama не запущен. Запустите Ollama и загрузите модель: ollama pull llama3.1");
+    }
+    throw new Error(`Ошибка подключения к Ollama: ${msg}`);
+  }
 
   if (!res.ok) {
     const err = await res.text();
@@ -111,11 +120,20 @@ async function ollamaVision(imageBase64: string, prompt: string): Promise<LLMRes
     stream: false,
   };
 
-  const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed")) {
+      throw new Error("OLLAMA_UNAVAILABLE: Сервер Ollama не запущен.");
+    }
+    throw new Error(`Ошибка подключения к Ollama: ${msg}`);
+  }
 
   if (!res.ok) {
     const err = await res.text();
@@ -150,11 +168,20 @@ export const ai = {
       stream: true,
     };
 
-    const res = await fetch(`${cfg.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "";
+      if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed")) {
+        throw new Error("OLLAMA_UNAVAILABLE: Сервер Ollama не запущен. Запустите Ollama и загрузите модель: ollama pull llama3.1");
+      }
+      throw new Error(`Ошибка подключения к Ollama: ${msg}`);
+    }
 
     if (!res.ok) {
       const err = await res.text();
@@ -176,9 +203,17 @@ export const ai = {
       buffer = lines.pop() || "";
 
       for (const line of lines) {
-        if (!line.trim()) continue;
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === "data: [DONE]") continue;
+
+        // Strip SSE "data: " prefix (Ollama /v1 returns SSE format)
+        let jsonStr = trimmed;
+        if (jsonStr.startsWith("data: ")) {
+          jsonStr = jsonStr.slice(6);
+        }
+
         try {
-          const parsed = JSON.parse(line);
+          const parsed = JSON.parse(jsonStr);
           const chunk = parsed.choices?.[0]?.delta?.content;
           if (chunk) yield chunk;
         } catch {

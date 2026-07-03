@@ -5,6 +5,8 @@ import { useJarvis, type CommandHandlers } from "@/hooks/use-jarvis";
 import { useWakeWord } from "@/hooks/use-wake-word";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { useSystemAlerts } from "@/hooks/use-system-alerts";
+import { useProactiveEngine } from "@/hooks/use-proactive-engine";
+import { contextBus, publishSystemMetrics } from "@/lib/context-bus";
 import { ArcReactor } from "@/components/jarvis/arc-reactor";
 import { ChatPanel } from "@/components/jarvis/chat-panel";
 import { QuickCommands } from "@/components/jarvis/quick-commands";
@@ -29,6 +31,7 @@ import { LazyAgentPanel, LazyPluginPanel, LazyLayoutCustomizer, LazyNotification
 // Memoized sidebar widgets (prevent re-renders)
 import { MemoizedSystemMonitor, MemoizedWeatherWidget, MemoizedWorldClockWidget, MemoizedMusicPlayer, MemoizedClipboardWidget, MemoizedNetworkWidget, MemoizedProcessManagerWidget, MemoizedAmbientSoundWidget, MemoizedPomodoroWidget, MemoizedSessionStatsWidget, MemoizedSystemAlertsWidget, MemoizedShortcutsWidget, MemoizedFileExplorerWidget, MemoizedCalendarWidget, MemoizedActivityFeed, MemoizedQuickLaunchWidget, MemoizedTodoWidget, MemoizedHoloGlobe } from "@/components/jarvis/memoized-widgets";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
+import { DndWidgetList } from "@/components/jarvis/dnd-widget-list";
 import type { JarvisSettingsData } from "@/components/jarvis/settings-panel";
 import { NotesPanel } from "@/components/jarvis/notes-panel";
 import { AlertTriangle, Volume2, VolumeX, Shield, Radar, Eye, Brain, Globe, ImagePlus, Cpu, Ear, EarOff, FileText, Keyboard, Settings, Monitor, CloudSun, Music, Rocket, Activity, Target, Network, Bell, ShieldAlert, Mic, Search, BarChart3, Terminal, Headphones, FolderOpen, CalendarDays, FileCode, Bot, Puzzle, LayoutGrid, Command, Sparkles, TrendingUp } from "lucide-react";
@@ -81,6 +84,15 @@ export default function Home() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [jarvisSettings, setJarvisSettings] = useState<JarvisSettingsData | null>(null);
+  const [dndMode, setDndMode] = useState(false);
+  const [leftWidgetIds, setLeftWidgetIds] = useState([
+    "quick-launch", "system-monitor", "metrics-history", "activity-feed",
+    "system-alerts", "holo-globe", "session-stats", "shortcuts", "file-explorer", "calendar"
+  ]);
+  const [rightWidgetIds, setRightWidgetIds] = useState([
+    "weather", "world-clock", "music-player", "clipboard", "network",
+    "process-manager", "ambient-sound", "pomodoro", "todo"
+  ]);
   const timerRef = useRef<TimerHandle>(null);
 
   // Load behavior settings from DB on mount
@@ -144,7 +156,7 @@ export default function Home() {
     },
     start_pomodoro: () => { /* TODO: trigger pomodoro */ },
     calculator: () => setCalcVisible((v) => !v),
-  });
+  }, { speak: (text: string) => jarvis.speak(text) });
 
   const handleBootComplete = useCallback(() => {
     setBooted(true);
@@ -183,6 +195,29 @@ export default function Home() {
 
   // System alerts → Activity Feed
   useSystemAlerts();
+
+  // Proactive Engine — JARVIS initiates actions based on system/weather/calendar context
+  useProactiveEngine({ enabled: true, voiceAlerts: true });
+
+  // Context Bus — publish system metrics for cross-module correlation
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch("/api/jarvis/system", { cache: "no-store" });
+        if (!res.ok) return;
+        const data = await res.json();
+        publishSystemMetrics({
+          cpuLoad: data.cpuLoad ?? 0,
+          memPct: data.memPct ?? 0,
+          diskPct: data.diskPct ?? 0,
+          temp: data.temp ?? 0,
+          netSpeedIn: data.netSpeedIn ?? 0,
+          netSpeedOut: data.netSpeedOut ?? 0,
+        });
+      } catch { /* ignore */ }
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Global hotkeys
   useHotkeys({
@@ -317,11 +352,50 @@ export default function Home() {
     toggleWakeWord: () => setWakeWordEnabled((v) => !v),
   });
 
+  // Widget render functions for DnD mode
+  const renderLeftWidget = useCallback((widgetId: string) => {
+    const base = "transition-all duration-300";
+    switch (widgetId) {
+      case "quick-launch": return <div className={base}><MemoizedQuickLaunchWidget /></div>;
+      case "system-monitor": return <div className={`jarvis-holo-glitch jarvis-crt-noise flex-shrink-0 ${base}`}><MemoizedSystemMonitor /></div>;
+      case "metrics-history": return <div className={base}><JarvisSuspense><LazyMetricsHistoryChart /></JarvisSuspense></div>;
+      case "activity-feed": return <div className={base}><MemoizedActivityFeed /></div>;
+      case "system-alerts": return <div className={base}><MemoizedSystemAlertsWidget /></div>;
+      case "holo-globe": return (
+        <div className={`jarvis-box-glow jarvis-corner-brackets relative flex items-center justify-center overflow-hidden rounded-xl border jarvis-border-cyan bg-card/20 p-2 backdrop-blur-sm ${base}`}>
+          <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
+          <MemoizedHoloGlobe size={220} />
+        </div>
+      );
+      case "session-stats": return <div className={base}><MemoizedSessionStatsWidget /></div>;
+      case "shortcuts": return <div className={base}><MemoizedShortcutsWidget /></div>;
+      case "file-explorer": return <div className={base}><MemoizedFileExplorerWidget /></div>;
+      case "calendar": return <div className={base}><MemoizedCalendarWidget /></div>;
+      default: return null;
+    }
+  }, []);
+
+  const renderRightWidget = useCallback((widgetId: string) => {
+    const base = "transition-all duration-300";
+    switch (widgetId) {
+      case "weather": return <div className={base}><MemoizedWeatherWidget /></div>;
+      case "world-clock": return <div className={base}><MemoizedWorldClockWidget /></div>;
+      case "music-player": return <div className={base}><MemoizedMusicPlayer /></div>;
+      case "clipboard": return <div className={base}><MemoizedClipboardWidget /></div>;
+      case "network": return <div className={base}><MemoizedNetworkWidget /></div>;
+      case "process-manager": return <div className={base}><MemoizedProcessManagerWidget /></div>;
+      case "ambient-sound": return <div className={base}><MemoizedAmbientSoundWidget /></div>;
+      case "pomodoro": return <div className={base}><MemoizedPomodoroWidget /></div>;
+      case "todo": return <div className={base}><MemoizedTodoWidget onToggleNotes={() => setNotesOpen((v) => !v)} /></div>;
+      default: return null;
+    }
+  }, [setNotesOpen]);
+
   // Get active conversation title for export
   const activeTitle = jarvis.conversations.find(c => c.id === jarvis.activeConvoId)?.title;
 
   return (
-    <div className="flex min-h-screen flex-col bg-background text-foreground">
+    <div className="jarvis-desktop-no-scroll jarvis-no-select jarvis-smooth-resize flex min-h-screen flex-col bg-background text-foreground">
       {/* ===== Error Flash Overlay ===== */}
       {jarvis.state === "error" && <ErrorFlash key={errorFlashKey} />}
 
@@ -361,7 +435,7 @@ export default function Home() {
       <AnimatePresence>
         {booted && (
           <motion.div
-            className="flex min-h-screen flex-col"
+            className="jarvis-no-select flex min-h-screen flex-col"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
@@ -453,6 +527,19 @@ export default function Home() {
                   {jarvis.autoSpeakOn ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
                   <span className="hidden sm:inline">{jarvis.autoSpeakOn ? "Voice On" : "Muted"}</span>
                 </button>
+                {/* DnD Toggle */}
+                <button
+                  onClick={() => { playSound("click"); setDndMode((v) => !v); }}
+                  className={`flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition ${
+                    dndMode
+                      ? "border-primary/50 bg-primary/15 text-primary"
+                      : "jarvis-border-cyan bg-card/40 text-muted-foreground hover:border-primary/50 hover:text-primary"
+                  }`}
+                  title="Перетаскивание виджетов (DnD)"
+                >
+                  <Command className="h-3 w-3" />
+                  <span className="hidden sm:inline">DnD</span>
+                </button>
                 {/* Notification Bell */}
                 <button
                   onClick={() => { playSound("click"); setNotifOpen((v) => !v); }}
@@ -534,6 +621,12 @@ export default function Home() {
               <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 lg:grid-cols-12 lg:gap-4 lg:p-4">
                 {/* Left sidebar */}
                 <aside className="jarvis-scroll flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
+                  {dndMode ? (
+                    <DndWidgetList widgetIds={leftWidgetIds} onReorder={setLeftWidgetIds} columnId="left">
+                      {(widgetId) => renderLeftWidget(widgetId)}
+                    </DndWidgetList>
+                  ) : (
+                    <>
                   {/* Quick Launch */}
                   <motion.div
                     initial={{ opacity: 0, x: -20 }}
@@ -625,6 +718,8 @@ export default function Home() {
                   >
                     <MemoizedCalendarWidget />
                   </motion.div>
+                    </>
+                  )}
                   <motion.div
                     className="jarvis-box-glow jarvis-corner-brackets relative min-h-[160px] flex-1 overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-3 backdrop-blur-sm lg:min-h-0"
                     initial={{ opacity: 0, x: -20 }}
@@ -751,6 +846,12 @@ export default function Home() {
                     </div>
                   </motion.div>
 
+                  {dndMode ? (
+                    <DndWidgetList widgetIds={rightWidgetIds} onReorder={setRightWidgetIds} columnId="right">
+                      {(widgetId) => renderRightWidget(widgetId)}
+                    </DndWidgetList>
+                  ) : (
+                    <>
                   {/* Weather Widget */}
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
@@ -822,6 +923,17 @@ export default function Home() {
                   >
                     <MemoizedPomodoroWidget />
                   </motion.div>
+
+                  {/* TODO Widget */}
+                  <motion.div
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.45, duration: 0.4 }}
+                  >
+                    <MemoizedTodoWidget onToggleNotes={() => setNotesOpen((v) => !v)} />
+                  </motion.div>
+                    </>
+                  )}
 
                   {/* Timer Widget */}
                   <AnimatePresence>
@@ -1036,13 +1148,25 @@ export default function Home() {
                           <span className="text-primary/60">40.</span>
                           <span>Bugfix — Processes API locale, React key collision.</span>
                         </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">41.</span>
+                          <span>Proactive Engine — фоновый мониторинг с контекстными уведомлениями.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">42.</span>
+                          <span>Context Bus — шина событий для корреляции между модулями.</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="text-primary/60">43.</span>
+                          <span>Electron+ — protocol handler, autostart, window state persistence.</span>
+                        </div>
                       </div>
                       <div className="mt-3 border-t jarvis-border-cyan pt-3">
                         <div className="font-mono text-[9px] uppercase tracking-widest text-muted-foreground/60">
                           Build
                         </div>
                         <div className="mt-1 font-mono text-[10px] text-foreground/70">
-                          JARVIS v13.0.0 · Stark Industries
+                          JARVIS v14.0.0 · Stark Industries
                         </div>
                         <div className="font-mono text-[9px] text-muted-foreground/50">
                           Powered by Ollama local neural core

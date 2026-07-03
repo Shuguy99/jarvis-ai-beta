@@ -1,5 +1,23 @@
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
+// Структура, описывающая разобранный jarvis:// URL
+export interface ProtocolUrlData {
+  href: string;
+  hostname: string;
+  pathname: string;
+  search: string;
+  hash: string;
+  searchParams: Record<string, string>;
+}
+
+// Структура с информацией об экране
+export interface ScreenInfo {
+  width: number;
+  height: number;
+  scaleFactor: number;
+  isPrimary: boolean;
+}
+
 export interface JarvisElectronAPI {
   minimize: () => Promise<void>;
   maximize: () => Promise<void>;
@@ -9,6 +27,16 @@ export interface JarvisElectronAPI {
   toggleFullscreen: () => Promise<void>;
   getVersion: () => Promise<string>;
   onWindowEvent: (callback: (event: string, value: boolean) => void) => () => void;
+  /** Информация о текущей платформе (win32, darwin, linux) */
+  getPlatform: () => Promise<string>;
+  /** Информация о рабочей области основного экрана */
+  getScreenInfo: () => Promise<ScreenInfo>;
+  /** Включить/выключить автозапуск при входе в систему */
+  setAutostart: (enabled: boolean) => Promise<void>;
+  /** Текущее состояние автозапуска */
+  getAutostart: () => Promise<boolean>;
+  /** Подписка на получение jarvis:// URL из основного процесса */
+  onProtocolUrl: (callback: (data: ProtocolUrlData) => void) => () => void;
 }
 
 const api: JarvisElectronAPI = {
@@ -35,6 +63,28 @@ const api: JarvisElectronAPI = {
     return () => {
       ipcRenderer.removeListener('maximize-change', onMaximizeChange);
       ipcRenderer.removeListener('fullscreen-change', onFullscreenChange);
+    };
+  },
+
+  // ─── Новые методы ─────────────────────────────────────────────────────
+
+  getPlatform: () => ipcRenderer.invoke('app:get-platform'),
+
+  getScreenInfo: () => ipcRenderer.invoke('app:get-screen-info'),
+
+  setAutostart: (enabled: boolean) => ipcRenderer.invoke('app:set-autostart', enabled),
+
+  getAutostart: () => ipcRenderer.invoke('app:get-autostart'),
+
+  onProtocolUrl: (callback: (data: ProtocolUrlData) => void) => {
+    const handler = (_e: IpcRendererEvent, data: ProtocolUrlData) => {
+      callback(data);
+    };
+    ipcRenderer.on('protocol-url', handler);
+
+    // Возвращаем функцию очистки
+    return () => {
+      ipcRenderer.removeListener('protocol-url', handler);
     };
   },
 };

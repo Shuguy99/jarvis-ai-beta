@@ -1430,3 +1430,30 @@ body {
   right: -1px;
   border-width: 0 1px 1px 0;
 }
+
+/* ── Desktop Mode Styles ─────────────────────────── */
+/* Hide scrollbars on main layout */
+.jarvis-desktop-no-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.jarvis-desktop-no-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Prevent text selection on UI elements */
+.jarvis-no-select {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Allow text selection in specific areas */
+.jarvis-select-text {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Smooth resize transition */
+.jarvis-smooth-resize {
+  transition: width 0.15s ease-out, height 0.15s ease-out;
+}

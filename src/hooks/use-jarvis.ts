@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ChatMessage, Conversation } from "@/lib/types";
 import { playSound } from "@/lib/sounds";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";
+import { publishChatMessage } from "@/lib/context-bus";
 
 export type JarvisState = "idle" | "listening" | "thinking" | "speaking" | "error";
 
@@ -481,6 +482,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         source,
       };
       setMessages((prev) => [...prev, userMsg]);
+      publishChatMessage({ messageId: userMsg.id, content: userMsg.content, isUser: true, charCount: userMsg.content.length });
       addActivityEvent({ severity: "info", category: "chat", message: `Сообщение отправлено: ${trunc(clean)}` });
 
       // Try local command processing first
@@ -596,6 +598,21 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         }
 
         // Finalize message
+        if (!fullContent.trim()) {
+          // Empty response — replace with user-friendly message
+          fullContent = "⚠️ Пустой ответ от модели. Попробуйте переформулировать запрос или перезапустить Ollama.";
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === pendingId
+                ? { ...m, content: fullContent, streaming: false }
+                : m
+            )
+          );
+          addActivityEvent({ severity: "warning", category: "chat", message: "Пустой ответ от модели (0 символов)" });
+          setState("idle");
+          return;
+        }
+
         setMessages((prev) =>
           prev.map((m) =>
             m.id === pendingId
@@ -603,6 +620,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
               : m
           )
         );
+        publishChatMessage({ messageId: pendingId, content: fullContent, isUser: false, charCount: fullContent.length });
 
         if (convoId) void persistMessage("assistant", fullContent);
 
@@ -614,7 +632,13 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
           setState("idle");
         }
       } catch (e) {
-        const msg = e instanceof Error ? e.message : "Неизвестная ошибка";
+        let msg = e instanceof Error ? e.message : "Неизвестная ошибка";
+        // Translate raw technical errors to user-friendly messages
+        if (msg.includes("fetch failed") || msg.includes("ECONNREFUSED")) {
+          msg = "Сервер Ollama не запущен. Запустите Ollama и загрузите модель: ollama pull llama3.1";
+        } else if (msg.includes("OLLAMA_UNAVAILABLE")) {
+          msg = msg.replace("OLLAMA_UNAVAILABLE: ", "");
+        }
         setError(msg);
         setState("error");
         addActivityEvent({ severity: "error", category: "system", message: `Ошибка: ${trunc(msg, 35)}` });
@@ -875,6 +899,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         imagePreview: URL.createObjectURL(file),
       };
       setMessages((prev) => [...prev, userMsg]);
+      publishChatMessage({ messageId: userMsg.id, content: userMsg.content, isUser: true, charCount: userMsg.content.length });
 
       const pendingId = uid();
       const pendingMsg: ChatMessage = {
@@ -1040,6 +1065,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         source: "text",
       };
       setMessages((prev) => [...prev, userMsg]);
+      publishChatMessage({ messageId: userMsg.id, content: userMsg.content, isUser: true, charCount: userMsg.content.length });
 
       const pendingId = uid();
       const pendingMsg: ChatMessage = {

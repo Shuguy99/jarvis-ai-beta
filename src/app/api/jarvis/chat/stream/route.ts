@@ -46,7 +46,13 @@ export async function POST(req: NextRequest) {
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
           controller.close();
         } catch (error) {
-          const msg = error instanceof Error ? error.message : "Stream error";
+          let msg = error instanceof Error ? error.message : "Stream error";
+          // Translate Ollama connection errors to user-friendly message
+          if (msg.includes("OLLAMA_UNAVAILABLE")) {
+            msg = "Сервер Ollama не запущен. Запустите Ollama и загрузите модель:\nollama pull llama3.1";
+          } else if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed")) {
+            msg = "Сервер Ollama не запущен. Запустите Ollama и загрузите модель:\nollama pull llama3.1";
+          }
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ error: msg })}\n\n`));
           controller.close();
         }

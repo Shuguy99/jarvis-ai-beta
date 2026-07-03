@@ -25,15 +25,21 @@ function getSpeechRecognition(): (typeof window.SpeechRecognition) | null {
   return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null;
 }
 
-function isWakePhrase(text: string): boolean {
-  const normalized = text.toLowerCase().trim();
-  return WAKE_PHRASES.some((phrase) => {
-    if (normalized.includes(phrase)) return true;
-    if (phrase.length <= 8 && normalized.length <= 12) {
-      return phrase.includes(normalized) || normalized.includes(phrase);
+function isWakePhrase(transcript: string): boolean {
+  const normalized = transcript.toLowerCase().trim();
+  if (!normalized) return false;
+
+  for (const phrase of WAKE_PHRASES) {
+    const p = phrase.toLowerCase().trim();
+    if (p.length <= 8) {
+      // Short phrase: must be at start or match exactly
+      if (normalized.startsWith(p) || normalized === p) return true;
+    } else {
+      // Longer phrase: can appear anywhere
+      if (normalized.includes(p)) return true;
     }
-    return false;
-  });
+  }
+  return false;
 }
 
 export function useWakeWord({ enabled = false, onWakeWord }: UseWakeWordOptions) {

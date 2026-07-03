@@ -346,10 +346,10 @@ export function SystemMonitor() {
                   Net Interfaces
                 </div>
                 <div className="flex flex-col gap-0.5">
-                  {data.networkInterfaces.map((iface) => {
+                  {data.networkInterfaces.map((iface, idx) => {
                     const IconComp = isWireless(iface.name) ? Wifi : Cable;
                     return (
-                      <div key={`${iface.name}-${iface.family}`} className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
+                      <div key={`${iface.name}-${iface.family}-${idx}`} className="flex items-center gap-1.5 font-mono text-[10px] text-muted-foreground">
                         <IconComp className="h-3 w-3 shrink-0 text-foreground/40" />
                         <span className="text-foreground/70">{iface.name}</span>
                         <span className="text-foreground/30">—</span>

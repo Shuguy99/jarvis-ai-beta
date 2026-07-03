@@ -301,12 +301,12 @@ function NetworkScannerWidget() {
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
-          {interfaces.map((iface) => {
+          {interfaces.map((iface, idx) => {
             const isWifi = /wlan|wi-fi|wifi|wlp/i.test(iface.name);
             const IfaceIcon = isWifi ? Wifi : Cable;
             return (
               <div
-                key={`${iface.name}-${iface.family}`}
+                key={`${iface.name}-${iface.family}-${idx}`}
                 className="flex items-center gap-2 rounded-md border border-primary/10 bg-background/40 px-2.5 py-1.5"
               >
                 <IfaceIcon className="h-3.5 w-3.5 flex-shrink-0 text-primary/60" />

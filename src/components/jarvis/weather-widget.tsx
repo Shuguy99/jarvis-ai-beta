@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { playSound } from "@/lib/sounds";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";
+import { publishWeatherUpdate } from "@/lib/context-bus";
 
 // ── Types ─────────────────────────────────────────────────────
 interface WeatherCurrent {
@@ -84,6 +85,13 @@ export function WeatherWidget() {
       const json = await res.json();
       setData(json);
       setError(false);
+      publishWeatherUpdate({
+        temp: json.current.temperature_2m,
+        condition: String(json.current.weather_code),
+        humidity: json.current.relative_humidity_2m,
+        windSpeed: json.current.wind_speed_10m,
+        location: "Неизвестно",
+      });
       playSound("data-received");
       addActivityEvent({ severity: "success", category: "weather", message: `Погода обновлена: ${Math.round(json.current.temperature_2m)}°C` });
     } catch {

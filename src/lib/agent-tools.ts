@@ -6,6 +6,17 @@
  * and an async execute function.
  */
 
+import fs from "fs";
+
+// ─── Helpers ──────────────────────────────────────────────────
+
+function validateFilePath(path: string): string | null {
+  if (!path.startsWith("/home/z/") || path.includes("..")) {
+    return "Access denied: path must start with /home/z/ and must not contain '..'";
+  }
+  return null;
+}
+
 // ─── Types ─────────────────────────────────────────────────────
 
 export interface AgentTool {
@@ -435,6 +446,183 @@ const tools: AgentTool[] = [
         data: { timestamp: now.toISOString(), timezones },
         display: `Current time:\n${lines.join("\n")}`,
       };
+    },
+  },
+
+  // 8. file_read
+  {
+    name: "file_read",
+    description:
+      "Read the contents of a file at an absolute path. Returns up to 2000 characters.",
+    icon: "FileText",
+    category: "files",
+    parameters: [
+      {
+        name: "path",
+        type: "string",
+        required: true,
+        description: "Absolute file path to read",
+      },
+    ],
+    async execute(params) {
+      const { path } = params;
+      if (!path) {
+        return {
+          success: false,
+          data: null,
+          display: "Error: path parameter is required.",
+          error: "Missing required parameter: path",
+        };
+      }
+      const secErr = validateFilePath(path);
+      if (secErr) {
+        return { success: false, data: null, display: secErr, error: secErr };
+      }
+      try {
+        let content = fs.readFileSync(path, "utf-8");
+        if (content.length > 2000) {
+          content = content.slice(0, 2000) + "[...truncated]";
+        }
+        return {
+          success: true,
+          data: { path, content },
+          display: `=== ${path} ===\n${content}`,
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to read file";
+        return {
+          success: false,
+          data: null,
+          display: `Error reading ${path}: ${msg}`,
+          error: msg,
+        };
+      }
+    },
+  },
+
+  // 9. file_write
+  {
+    name: "file_write",
+    description:
+      "Write content to a file at an absolute path. Optionally creates parent directories.",
+    icon: "Save",
+    category: "files",
+    parameters: [
+      {
+        name: "path",
+        type: "string",
+        required: true,
+        description: "Absolute file path to write",
+      },
+      {
+        name: "content",
+        type: "string",
+        required: true,
+        description: "Content to write to the file",
+      },
+      {
+        name: "createDirs",
+        type: "string",
+        required: false,
+        description: 'Set to "true" to create parent directories if they don\'t exist',
+      },
+    ],
+    async execute(params) {
+      const { path, content, createDirs } = params;
+      if (!path || !content) {
+        return {
+          success: false,
+          data: null,
+          display: "Error: path and content parameters are required.",
+          error: "Missing required parameter: path or content",
+        };
+      }
+      const secErr = validateFilePath(path);
+      if (secErr) {
+        return { success: false, data: null, display: secErr, error: secErr };
+      }
+      try {
+        if (createDirs === "true") {
+          fs.mkdirSync(path.substring(0, path.lastIndexOf("/")), { recursive: true });
+        }
+        fs.writeFileSync(path, content, "utf-8");
+        return {
+          success: true,
+          data: { path, bytesWritten: content.length },
+          display: `Файл ${path} записан (${content.length} символов).`,
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to write file";
+        return {
+          success: false,
+          data: null,
+          display: `Error writing ${path}: ${msg}`,
+          error: msg,
+        };
+      }
+    },
+  },
+
+  // 10. file_delete
+  {
+    name: "file_delete",
+    description: "Delete a file at an absolute path.",
+    icon: "Trash2",
+    category: "files",
+    parameters: [
+      {
+        name: "path",
+        type: "string",
+        required: true,
+        description: "Absolute file path to delete",
+      },
+    ],
+    async execute(params) {
+      const { path } = params;
+      if (!path) {
+        return {
+          success: false,
+          data: null,
+          display: "Error: path parameter is required.",
+          error: "Missing required parameter: path",
+        };
+      }
+      const secErr = validateFilePath(path);
+      if (secErr) {
+        return { success: false, data: null, display: secErr, error: secErr };
+      }
+      if (path.endsWith("/")) {
+        return {
+          success: false,
+          data: null,
+          display: "Error: path must not end with '/'. Only files can be deleted.",
+          error: "Path must not end with '/', only files can be deleted",
+        };
+      }
+      try {
+        if (!fs.existsSync(path)) {
+          return {
+            success: false,
+            data: null,
+            display: `Error: file not found: ${path}`,
+            error: "File not found",
+          };
+        }
+        fs.unlinkSync(path);
+        return {
+          success: true,
+          data: { path },
+          display: `Файл ${path} удалён.`,
+        };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Failed to delete file";
+        return {
+          success: false,
+          data: null,
+          display: `Error deleting ${path}: ${msg}`,
+          error: msg,
+        };
+      }
     },
   },
 ];

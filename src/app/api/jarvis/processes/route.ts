@@ -27,10 +27,23 @@ function parsePsAux(sort: string): ProcessInfo[] {
       sortFlag = "--sort=-%cpu";
   }
 
-  const raw = execSync(`LC_ALL=C ps aux ${sortFlag}`, {
-    encoding: "utf-8",
-    timeout: 5000,
-  });
+  let raw: string;
+  try {
+    raw = execSync(`LC_ALL=C ps aux ${sortFlag}`, {
+      encoding: "buffer",
+      timeout: 5000,
+    }).toString("utf-8");
+  } catch {
+    // Fallback: try with default encoding
+    try {
+      raw = execSync(`ps aux ${sortFlag}`, {
+        encoding: "utf-8",
+        timeout: 5000,
+      });
+    } catch (innerErr) {
+      throw new Error(`ps command failed: ${innerErr instanceof Error ? innerErr.message : "unknown"}`);
+    }
+  }
 
   const lines = raw.trim().split("\n");
   // Skip header line
