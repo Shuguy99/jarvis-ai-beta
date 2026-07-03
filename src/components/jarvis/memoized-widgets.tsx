@@ -19,6 +19,7 @@ import { ActivityFeed } from "@/components/jarvis/activity-feed";
 import { QuickLaunchWidget } from "@/components/jarvis/quick-launch-widget";
 import { TodoWidget } from "@/components/jarvis/todo-widget";
 import { HoloGlobe } from "@/components/jarvis/holo-globe";
+import { GitHubWidget } from "@/components/jarvis/github-widget";
 
 // React.memo wrappers — prevent unnecessary re-renders from parent state changes
 export const MemoizedSystemMonitor = memo(SystemMonitor);
@@ -39,3 +40,4 @@ export const MemoizedActivityFeed = memo(ActivityFeed);
 export const MemoizedQuickLaunchWidget = memo(QuickLaunchWidget);
 export const MemoizedTodoWidget = memo(TodoWidget);
 export const MemoizedHoloGlobe = memo(HoloGlobe);
+export const MemoizedGitHubWidget = memo(GitHubWidget);

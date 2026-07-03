@@ -29,7 +29,7 @@ import { SystemInsightsWidget } from "@/components/jarvis/system-insights-widget
 // Lazy-loaded overlays (code-split)
 import { LazyAgentPanel, LazyPluginPanel, LazyLayoutCustomizer, LazyNotificationCenter, LazySettingsPanel, LazyMarkdownWidget, LazyMetricsHistoryChart, JarvisSuspense } from "@/lib/lazy-components";
 // Memoized sidebar widgets (prevent re-renders)
-import { MemoizedSystemMonitor, MemoizedWeatherWidget, MemoizedWorldClockWidget, MemoizedMusicPlayer, MemoizedClipboardWidget, MemoizedNetworkWidget, MemoizedProcessManagerWidget, MemoizedAmbientSoundWidget, MemoizedPomodoroWidget, MemoizedSessionStatsWidget, MemoizedSystemAlertsWidget, MemoizedShortcutsWidget, MemoizedFileExplorerWidget, MemoizedCalendarWidget, MemoizedActivityFeed, MemoizedQuickLaunchWidget, MemoizedTodoWidget, MemoizedHoloGlobe } from "@/components/jarvis/memoized-widgets";
+import { MemoizedSystemMonitor, MemoizedWeatherWidget, MemoizedWorldClockWidget, MemoizedMusicPlayer, MemoizedClipboardWidget, MemoizedNetworkWidget, MemoizedProcessManagerWidget, MemoizedAmbientSoundWidget, MemoizedPomodoroWidget, MemoizedSessionStatsWidget, MemoizedSystemAlertsWidget, MemoizedShortcutsWidget, MemoizedFileExplorerWidget, MemoizedCalendarWidget, MemoizedActivityFeed, MemoizedQuickLaunchWidget, MemoizedTodoWidget, MemoizedHoloGlobe, MemoizedGitHubWidget } from "@/components/jarvis/memoized-widgets";
 import { CommandPalette, buildDefaultCommands } from "@/components/jarvis/command-palette";
 import { DndWidgetList } from "@/components/jarvis/dnd-widget-list";
 import type { JarvisSettingsData } from "@/components/jarvis/settings-panel";
@@ -371,6 +371,7 @@ export default function Home() {
       case "shortcuts": return <div className={base}><MemoizedShortcutsWidget /></div>;
       case "file-explorer": return <div className={base}><MemoizedFileExplorerWidget /></div>;
       case "calendar": return <div className={base}><MemoizedCalendarWidget /></div>;
+      case "github": return <div className={base}><MemoizedGitHubWidget /></div>;
       default: return null;
     }
   }, []);

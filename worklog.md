@@ -258,3 +258,55 @@ Work Log:
 Stage Summary:
 - P4 (Агентная автономия) и P5 (Голос-первый) полностью реализованы и интегрированы
 - JARVIS теперь: планирует задачи → выполняет по шагам (streaming) → формирует отчёт; озвучивает голосовые команды и проактивные уведомления
+
+---
+Task ID: gh-widget
+Agent: github-widget-builder
+Task: GitHub monitoring widget (HUD-styled)
+
+Work Log:
+- Создан `src/components/jarvis/github-widget.tsx` — HUD-виджет мониторинга GitHub
+  - Заголовок: иконка Github + «GITHUB» + кнопка обновления (RefreshCw)
+  - Статистика: 2×2 grid (Stars, Forks, Issues, Watchers) с иконками и числовыми значениями
+  - Recent Activity: до 5 событий с аватаром актора, цветной badge displayType, описание события (Push→branch, Release→tag, IssuesEvent→action+title, WatchEvent/ForkEvent), относительное время
+  - Latest Release: tag name, name, «Published {timeAgo}», кликабельная ссылка на GitHub
+  - Стили: `rounded-xl border jarvis-border-cyan bg-card/20 backdrop-blur-sm p-4` — совпадают с JARVIS HUD эстетикой
+  - `timeAgo()`: «только что», «Nм назад», «Nч назад», «Nд назад», дата
+  - `eventBadgeColor()`: цветные pills по типу события (emerald=push, cyan=release, red=issues, yellow=watch, purple=fork)
+  - Fetch on mount + auto-refresh каждые 2 минуты
+  - Loading state: skeleton placeholder с анимацией pulse
+  - Error state: «Нет подключения к GitHub» + кнопка «Повторить»
+  - Клик на имя репо → открывает GitHub в новой вкладке
+  - Клик на release → открывает страницу релиза
+  - Activity event через addActivityEvent при успешном fetch
+  - Framer Motion: fade-in анимация при появлении данных
+- Добавлен `MemoizedGitHubWidget` в `src/components/jarvis/memoized-widgets.tsx` (React.memo обёртка)
+- Lint: passed (zero errors)
+
+Stage Summary:
+- GitHubWidget готов к использованию в сайдбаре JARVIS
+- Экспортируется как `GitHubWidget` и `MemoizedGitHubWidget`
+- Ожидает API endpoint `/api/jarvis/github` для работы
+
+---
+Task ID: gh-api
+Agent: github-api-builder
+Task: GitHub API endpoints — repo stats, recent activity, releases
+
+Work Log:
+- Created `src/app/api/jarvis/github/route.ts` with GET and POST handlers
+- **Token extraction**: reads git remote URL via `execSync("git remote get-url origin")`, strips protocol prefix and `@github.com...` suffix to extract token
+- **GET handler**: fetches repo info, recent events (15), and releases (5) from GitHub API in parallel via `Promise.all`
+- **POST handler**: same as GET but forces cache bypass (`forceRefresh: true`)
+- **Repo data**: full_name, description, html_url, stargazers_count, forks_count, open_issues_count, subscribers_count, size, default_branch, pushed_at, created_at
+- **Events shaping**: PushEvent → commits array with messages; ReleaseEvent → release tag_name/name; IssuesEvent → issue number/title/state; other types → raw payload
+- **Display type map**: PushEvent→"Push", ReleaseEvent→"Release", IssuesEvent→"Issue", IssueCommentEvent→"Comment", PullRequestEvent→"Pull Request", CreateEvent→"Create", DeleteEvent→"Delete", ForkEvent→"Fork", WatchEvent→"Star"; fallback to raw type
+- **In-memory cache**: stores result with timestamp, returns cached if < 60 seconds old (prevents GitHub rate limiting)
+- **Error handling**: token not found → 500; GitHub API failure → 502; `runtime = "nodejs"` exported
+- Lint: passed (zero errors)
+
+Stage Summary:
+- New endpoint `GET /api/jarvis/github` returns repo stats, recent 15 events with displayType, and 5 latest releases
+- New endpoint `POST /api/jarvis/github` forces cache refresh
+- 60-second in-memory cache prevents GitHub rate limiting
+- Fully typed response with shaped payloads per event type
