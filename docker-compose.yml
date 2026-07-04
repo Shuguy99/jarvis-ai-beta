@@ -1,0 +1,14 @@
+services:
+  jarvis:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=file:/app/data/custom.db
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    volumes:
+      - jarvis-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  jarvis-data:

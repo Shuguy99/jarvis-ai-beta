@@ -66,3 +66,21 @@ qa-*.png
 dist-electron/
 electron/main.js
 electron/preload.js
+
+# Database
+db/*.db
+db/*.db-journal
+
+# Screenshots (dev artifacts)
+v*.png
+boot-check*.png
+chat-sent*.png
+current-state*.png
+verify-*.png
+screenshot*.png
+
+# Nested artifact (created by git submodule confusion)
+/jarvis-source/
+
+# Vitest
+vitest.config.ts.timestamp-*
