@@ -6,6 +6,7 @@ import { Cpu, ArrowUp, ArrowDown, Search, X, Skull } from "lucide-react";
 import { playSound } from "@/lib/sounds";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";
 import { useSystemData, refreshSystemData } from "@/hooks/use-system-poller";
+import { ConfirmDialog, useConfirmState } from "@/components/jarvis/confirm-dialog";
 
 type SortKey = "cpu" | "mem" | "name";
 type SortOrder = "desc" | "asc";
@@ -50,6 +51,7 @@ function SortArrow({
 // ── Main component ────────────────────────────────────────────
 export function ProcessManagerWidget() {
   const { processes: rawProcesses } = useSystemData();
+  const { confirmState, requestConfirm, resolveConfirm, resolveCancel } = useConfirmState();
   const [sortKey, setSortKey] = useState<SortKey>("cpu");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [filter, setFilter] = useState("");
@@ -88,7 +90,13 @@ export function ProcessManagerWidget() {
 
   // ── Kill process ───────────────────────────────────────────
   const handleKill = async (pid: number, name: string) => {
-    if (!confirm("Убить процесс " + pid + " (" + name + ")?")) return;
+    const confirmed = await requestConfirm({
+      title: "Kill Process",
+      message: `Завершить процесс ${name} (PID ${pid})? Это действие может привести к потере несохранённых данных.`,
+      confirmLabel: "Завершить",
+      variant: "danger",
+    });
+    if (!confirmed) return;
     playSound("click", 0.3);
     setKillingPid(pid);
     try {
@@ -143,6 +151,7 @@ export function ProcessManagerWidget() {
   }
 
   return (
+    <>
     <motion.div
       className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm"
       initial={{ opacity: 0, y: 10 }}
@@ -274,5 +283,16 @@ export function ProcessManagerWidget() {
         </div>
       </div>
     </motion.div>
+    <ConfirmDialog
+      open={confirmState.open}
+      title={confirmState.title}
+      message={confirmState.message}
+      confirmLabel={confirmState.confirmLabel}
+      cancelLabel={confirmState.cancelLabel}
+      variant={confirmState.variant}
+      onConfirm={resolveConfirm}
+      onCancel={resolveCancel}
+    />
+  </>
   );
 }

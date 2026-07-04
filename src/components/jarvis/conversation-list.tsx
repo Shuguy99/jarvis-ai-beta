@@ -1,7 +1,9 @@
 "use client";
 
+import { useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Plus, MessageSquare, Trash2, Clock } from "lucide-react";
+import { ConfirmDialog, useConfirmState } from "@/components/jarvis/confirm-dialog";
 import type { Conversation } from "@/lib/types";
 
 interface ConversationListProps {
@@ -31,6 +33,19 @@ export function ConversationList({
   onNew,
   onDelete,
 }: ConversationListProps) {
+  const { confirmState, requestConfirm, resolveConfirm, resolveCancel } = useConfirmState();
+
+  const handleDelete = useCallback(async (id: string, title: string) => {
+    const confirmed = await requestConfirm({
+      title: "Delete Conversation",
+      message: `Удалить беседу "${title}"? Все сообщения будут потеряны.`,
+      confirmLabel: "Удалить",
+      variant: "danger",
+    });
+    if (!confirmed) return;
+    onDelete(id);
+  }, [onDelete, requestConfirm]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-1 pb-2">
@@ -81,7 +96,7 @@ export function ConversationList({
                   </span>
                 </button>
                 <button
-                  onClick={() => onDelete(c.id)}
+                  onClick={() => handleDelete(c.id, c.title)}
                   className="flex-shrink-0 rounded p-1 text-muted-foreground/40 opacity-0 transition hover:text-destructive group-hover:opacity-100"
                   title="Удалить"
                   aria-label="Удалить беседу"
@@ -93,6 +108,16 @@ export function ConversationList({
           )}
         </AnimatePresence>
       </div>
+      <ConfirmDialog
+        open={confirmState.open}
+        title={confirmState.title}
+        message={confirmState.message}
+        confirmLabel={confirmState.confirmLabel}
+        cancelLabel={confirmState.cancelLabel}
+        variant={confirmState.variant}
+        onConfirm={resolveConfirm}
+        onCancel={resolveCancel}
+      />
     </div>
   );
 }

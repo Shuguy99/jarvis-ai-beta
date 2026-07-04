@@ -1458,6 +1458,21 @@ body {
   transition: width 0.15s ease-out, height 0.15s ease-out;
 }
 
+/* ===== Music Player CSS Visualizer ===== */
+.jarvis-viz-bar {
+  height: 100%;
+  transform-origin: bottom;
+  animation: jarvis-viz-pulse ease-in-out infinite alternate;
+  box-shadow: 0 0 4px oklch(0.85 0.19 193 / 50%);
+  opacity: 0.7;
+}
+
+@keyframes jarvis-viz-pulse {
+  0%   { transform: scaleY(0.15); opacity: 0.3; }
+  50%  { transform: scaleY(0.7);  opacity: 0.8; }
+  100% { transform: scaleY(1);    opacity: 1; }
+}
+
 /* ===== Reduced Motion ===== */
 @media (prefers-reduced-motion: reduce) {
   *,

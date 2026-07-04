@@ -23,13 +23,12 @@ function fmtTime(s: number) {
   return `${m}:${sec.toString().padStart(2, "0")}`;
 }
 
+// Pre-generated random delays for CSS visualizer bars (stable, module-level)
+const VIZ_DELAYS = Array.from({ length: 32 }, () => -(Math.random() * 0.8 + 0.1));
+
 export function MusicPlayer() {
   const reduced = useReducedMotion();
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const rafRef = useRef<number>(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const playTrackByIndexRef = useRef<(idx: number) => void>(() => {});
 
@@ -40,7 +39,6 @@ export function MusicPlayer() {
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const [showPlaylist, setShowPlaylist] = useState(false);
-  const [vizData, setVizData] = useState<Uint8Array>(new Uint8Array(32));
 
   const currentTrack = currentIndex >= 0 ? tracks[currentIndex] : null;
 
@@ -79,46 +77,6 @@ export function MusicPlayer() {
     };
     }, []);
 
-  // Visualizer loop
-  const startVizLoop = useCallback(() => {
-    const analyser = analyserRef.current;
-    if (!analyser) return;
-    const data = new Uint8Array(analyser.frequencyBinCount);
-    const loop = () => {
-      analyser.getByteFrequencyData(data);
-      setVizData(new Uint8Array(data.slice(0, 32)));
-      rafRef.current = requestAnimationFrame(loop);
-    };
-    rafRef.current = requestAnimationFrame(loop);
-  }, []);
-
-  const stopVizLoop = useCallback(() => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    setVizData(new Uint8Array(32));
-  }, []);
-
-  // Connect audio to analyser (one-time, per audio element)
-  const ensureAnalyser = useCallback(() => {
-    if (analyserRef.current) return;
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    try {
-      const ctx = new AudioContext();
-      audioCtxRef.current = ctx;
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 128;
-      analyser.smoothingTimeConstant = 0.8;
-      const source = ctx.createMediaElementSource(audio);
-      source.connect(analyser);
-      analyser.connect(ctx.destination);
-      analyserRef.current = analyser;
-      sourceRef.current = source;
-    } catch {
-      // Already connected or not supported
-    }
-  }, []);
-
   const playTrackByIndex = useCallback((idx: number) => {
     if (idx < 0 || idx >= tracks.length) return;
     const audio = audioRef.current;
@@ -128,13 +86,11 @@ export function MusicPlayer() {
     audio.src = tracks[idx].url;
     audio.play().then(() => {
       setIsPlaying(true);
-      ensureAnalyser();
-      startVizLoop();
       addActivityEvent({ severity: "info", category: "media", message: `Воспроизведение: ${tracks[idx].name.length > 35 ? tracks[idx].name.slice(0, 35) + "..." : tracks[idx].name}` });
     }).catch(() => {
       // Autoplay blocked
     });
-  }, [tracks, ensureAnalyser, startVizLoop]);
+  }, [tracks]);
 
   // Keep ref in sync for the onEnded handler
   useEffect(() => { playTrackByIndexRef.current = playTrackByIndex; }, [playTrackByIndex]);
@@ -146,15 +102,12 @@ export function MusicPlayer() {
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
-      stopVizLoop();
     } else {
-      ensureAnalyser();
       audio.play().then(() => {
         setIsPlaying(true);
-        startVizLoop();
       }).catch(() => {});
     }
-  }, [isPlaying, currentTrack, ensureAnalyser, startVizLoop, stopVizLoop]);
+  }, [isPlaying, currentTrack]);
 
   const stopPlayback = useCallback(() => {
     const audio = audioRef.current;
@@ -162,8 +115,7 @@ export function MusicPlayer() {
     audio.pause();
     audio.currentTime = 0;
     setIsPlaying(false);
-    stopVizLoop();
-  }, [stopVizLoop]);
+  }, []);
 
   const skipPrev = useCallback(() => {
     if (currentTime > 3) {
@@ -239,14 +191,12 @@ export function MusicPlayer() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      stopVizLoop();
       tracks.forEach((t) => URL.revokeObjectURL(t.url));
-      if (audioCtxRef.current) audioCtxRef.current.close();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
-  const maxViz = Math.max(255, ...vizData);
 
   return (
     <div className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/60 p-4 backdrop-blur-sm">
@@ -382,23 +332,21 @@ export function MusicPlayer() {
               </div>
             </div>
 
-            {/* Visualizer */}
+            {/* Visualizer — pure CSS, no rAF */}
             {isPlaying && (
-              <div className="mt-3 flex h-8 items-end justify-center gap-[2px]">
-                {Array.from(vizData).map((v, i) => {
-                  const h = reduced ? 10 : Math.max(4, (v / maxViz) * 100);
-                  return (
-                    <div
-                      key={i}
-                      className="w-[3px] flex-shrink-0 rounded-t-sm bg-primary transition-all duration-75 ease-out"
-                      style={{
-                        height: `${h}%`,
-                        boxShadow: `0 0 4px oklch(0.85 0.19 193 / 50%)`,
-                        opacity: reduced ? 0.5 : 0.4 + (v / maxViz) * 0.6,
-                      }}
-                    />
-                  );
-                })}
+              <div className="mt-3 flex h-8 items-end justify-center gap-[2px]" aria-hidden="true">
+                {VIZ_DELAYS.map((delay, _i) => (
+                  <div
+                    key={_i}
+                    className="jarvis-viz-bar w-[3px] flex-shrink-0 rounded-t-sm bg-primary"
+                    style={{
+                      animationDelay: `${delay}s`,
+                      animationDuration: `${0.3 + Math.abs(delay) * 0.5}s`,
+                      opacity: reduced ? 0.5 : undefined,
+                      height: reduced ? "10%" : undefined,
+                    }}
+                  />
+                ))}
               </div>
             )}
 

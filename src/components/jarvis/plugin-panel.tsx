@@ -379,6 +379,8 @@ export function PluginPanel({ open, onClose }: PluginPanelProps) {
           exit={{ opacity: 0, x: -40 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
           className="jarvis-glass-strong jarvis-box-glow-strong fixed inset-y-0 left-0 z-50 flex w-[420px] max-w-[90vw] flex-col overflow-hidden rounded-r-xl border-l-0 border-y-0 border-r border-border/20"
+          ref={trapRef}
+          {...getOverlayProps("Plugin Panel", open)}
         >
           {/* Scanline overlay */}
           <div className="pointer-events-none absolute inset-0 jarvis-scanline opacity-10" />

@@ -31,6 +31,7 @@ import {
   toggleRule,
   removeRule,
 } from "@/lib/notification-center";
+import { ConfirmDialog, useConfirmState } from "@/components/jarvis/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -377,6 +378,7 @@ function EmptyState() {
 export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
   const trapRef = useFocusTrap(open);
   const [notifications, setNotifications] = useState<Notification[]>(() => getNotifications());
+  const { confirmState, requestConfirm, resolveConfirm, resolveCancel } = useConfirmState();
 
   // Subscribe to changes
   useEffect(() => {
@@ -399,9 +401,15 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
     setNotifications(getNotifications());
   };
 
-  const handleClearAll = () => {
+  const handleClearAll = async () => {
+    const confirmed = await requestConfirm({
+      title: "Clear Notifications",
+      message: "Очистить все уведомления? Это действие необратимо.",
+      confirmLabel: "Очистить",
+      variant: "danger",
+    });
+    if (!confirmed) return;
     playSound("click");
-    if (!confirm("Очистить все уведомления?")) return;
     clearAll();
   };
 
@@ -411,6 +419,7 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
   };
 
   return (
+    <>
     <AnimatePresence>
       {open && (
         <>
@@ -515,5 +524,16 @@ export function NotificationCenter({ open, onClose }: NotificationCenterProps) {
         </>
       )}
     </AnimatePresence>
+    <ConfirmDialog
+      open={confirmState.open}
+      title={confirmState.title}
+      message={confirmState.message}
+      confirmLabel={confirmState.confirmLabel}
+      cancelLabel={confirmState.cancelLabel}
+      variant={confirmState.variant}
+      onConfirm={resolveConfirm}
+      onCancel={resolveCancel}
+    />
+    </>
   );
 }

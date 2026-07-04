@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useLayout, type LayoutPreset } from "@/hooks/use-layout";
 import { playSound } from "@/lib/sounds";
+import { ConfirmDialog, useConfirmState } from "@/components/jarvis/confirm-dialog";
 
 // ─── Icon map for presets ────────────────────────────────────────────────────
 
@@ -57,6 +58,7 @@ interface LayoutCustomizerProps {
 
 export function LayoutCustomizer({ open, onClose }: LayoutCustomizerProps) {
   const trapRef = useFocusTrap(open);
+  const { confirmState, requestConfirm, resolveConfirm, resolveCancel } = useConfirmState();
   const {
     widgets,
     setWidgetVisible,
@@ -109,9 +111,15 @@ export function LayoutCustomizer({ open, onClose }: LayoutCustomizerProps) {
     setWidgetPosition(id, pos);
   };
 
-  const handleReset = () => {
+  const handleReset = async () => {
+    const confirmed = await requestConfirm({
+      title: "Reset Layout",
+      message: "Сбросить раскладку виджетов по умолчанию? Текущие настройки будут потеряны.",
+      confirmLabel: "Сбросить",
+      variant: "warning",
+    });
+    if (!confirmed) return;
     playSound("shutdown");
-    if (!confirm("Сбросить раскладку виджетов по умолчанию?")) return;
     resetToDefault();
   };
 
@@ -121,6 +129,7 @@ export function LayoutCustomizer({ open, onClose }: LayoutCustomizerProps) {
   };
 
   return (
+    <>
     <AnimatePresence>
       {open && (
         <motion.div
@@ -141,6 +150,8 @@ export function LayoutCustomizer({ open, onClose }: LayoutCustomizerProps) {
 
           {/* Modal */}
           <motion.div
+            ref={trapRef}
+            {...getOverlayProps("Layout Customizer", open)}
             className="jarvis-glass-strong relative z-10 flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border jarvis-border-cyan"
             style={{ boxShadow: "0 0 60px rgba(0, 255, 255, 0.08), inset 0 0 60px rgba(0, 255, 255, 0.03)" }}
             initial={{ opacity: 0, scale: 0.92, y: 20 }}
@@ -269,6 +280,17 @@ export function LayoutCustomizer({ open, onClose }: LayoutCustomizerProps) {
         </motion.div>
       )}
     </AnimatePresence>
+    <ConfirmDialog
+      open={confirmState.open}
+      title={confirmState.title}
+      message={confirmState.message}
+      confirmLabel={confirmState.confirmLabel}
+      cancelLabel={confirmState.cancelLabel}
+      variant={confirmState.variant}
+      onConfirm={resolveConfirm}
+      onCancel={resolveCancel}
+    />
+    </>
   );
 }
 

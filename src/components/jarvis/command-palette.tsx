@@ -101,6 +101,7 @@ export function CommandPalette({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [activeCategory, setActiveCategory] = useState("all");
   const inputRef = useRef<HTMLInputElement>(null);
+  const trapRef = useFocusTrap(open);
 
   const {
     results,
@@ -254,6 +255,8 @@ export function CommandPalette({
           }}
         >
           <motion.div
+            ref={trapRef}
+            {...getOverlayProps("Command Palette", open)}
             className="w-full max-w-2xl overflow-hidden rounded-xl border-2 jarvis-border-cyan jarvis-box-glow-strong bg-card/95 shadow-2xl backdrop-blur-xl"
             initial={{ opacity: 0, y: -20, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
