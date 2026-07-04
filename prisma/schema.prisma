@@ -49,3 +49,37 @@ model Setting {
   value     String
   updatedAt DateTime @updatedAt
 }
+
+// ===== J.A.R.V.I.S. RAG Documents =====
+model Document {
+  id        String  @id @default(cuid())
+  filename  String
+  uploadedAt DateTime @default(now())
+  chunks    Chunk[]
+}
+
+model Chunk {
+  id         String   @id @default(cuid())
+  documentId String
+  content    String
+  index      Int
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+}
+
+// ===== J.A.R.V.I.S. Server-side Plugins =====
+model Plugin {
+  id          String   @id @default(cuid())
+  pluginId    String   @unique // unique identifier like "system-doctor"
+  name        String
+  description String
+  version     String   @default("1.0.0")
+  author      String   @default("unknown")
+  category    String   @default("system")
+  icon        String   @default("Puzzle")
+  enabled     Boolean  @default(true)
+  settings    String   @default("{}") // JSON: PluginSetting[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

@@ -846,3 +846,39 @@ export function getToolDefinitions(enabledTools?: string[]): string {
 
   return `Available tools:\n\n${lines.join("\n\n")}`;
 }
+
+/**
+ * Get tool definitions in OpenAI function-calling format.
+ * Used by the native function-calling agent loop.
+ */
+export function getToolDefinitionsForFunctionCalling(enabledTools?: string[]): Array<{
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: "object";
+      properties: Record<string, { type: string; description: string }>;
+      required: string[];
+    };
+  };
+}> {
+  const filtered = enabledTools
+    ? tools.filter((t) => enabledTools.includes(t.name))
+    : tools;
+
+  return filtered.map((t) => ({
+    type: "function" as const,
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: {
+        type: "object",
+        properties: Object.fromEntries(
+          t.parameters.map((p) => [p.name, { type: p.type, description: p.description }])
+        ),
+        required: t.parameters.filter((p) => p.required !== false).map((p) => p.name),
+      },
+    },
+  }));
+}

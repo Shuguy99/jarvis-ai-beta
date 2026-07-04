@@ -145,3 +145,15 @@ export async function executeToolBatch(
   }
   return results;
 }
+
+/**
+ * Execute multiple tools in parallel (Promise.all).
+ * Use when tools have no dependencies between them.
+ */
+export async function executeToolBatchParallel(
+  calls: Array<{ name: string; params?: Record<string, unknown> }>
+): Promise<MCPToolResult[]> {
+  return Promise.all(
+    calls.map((call) => executeTool(call.name, call.params ?? {}))
+  );
+}

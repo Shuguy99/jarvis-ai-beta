@@ -4,6 +4,7 @@ import { buildChatMessages } from "@/lib/jarvis";
 import type { BehaviorSettings } from "@/lib/jarvis";
 import type { ChatMessage } from "@/lib/types";
 import { parseJsonBody, MAX_BODY_BYTES_CHAT, BodyLimitError } from "@/lib/body-limit";
+import { injectRAGIntoSystemPrompt } from "@/lib/rag-context";
 
 export const runtime = "nodejs";
 
@@ -33,6 +34,16 @@ export async function POST(req: NextRequest) {
     }];
 
     const llmMessages = buildChatMessages(history, { behavior });
+
+    // Auto-inject RAG context if relevant documents exist
+    const systemContent = typeof llmMessages[0]?.content === "string" ? llmMessages[0].content : "";
+    const { prompt: ragPrompt, context: ragContext } = await injectRAGIntoSystemPrompt(
+      systemContent,
+      query
+    );
+    if (ragContext.hasContext && llmMessages.length > 0 && typeof llmMessages[0].content === "string") {
+      llmMessages[0] = { ...llmMessages[0], content: ragPrompt };
+    }
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream({

@@ -1,7 +1,7 @@
 /**
  * AI Provider — Multi-provider strategy pattern
  *
- * Supports: Ollama (local), OpenAI, Anthropic
+ * Supports: Ollama (local), OpenAI, Anthropic, Google Gemini
  * Provider is selected via settings (aiProvider key) or env vars.
  * Falls back to Ollama if no provider is configured.
  *
@@ -13,6 +13,8 @@
  *   OPENAI_MODEL       — OpenAI model (default: gpt-4o-mini)
  *   ANTHROPIC_API_KEY  — Anthropic API key
  *   ANTHROPIC_MODEL    — Anthropic model (default: claude-sonnet-4-20250514)
+ *   GEMINI_API_KEY     — Google Gemini API key
+ *   GEMINI_MODEL       — Gemini model (default: gemini-2.5-flash)
  */
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -50,7 +52,7 @@ export interface ImageGenResult {
   revisedPrompt?: string;
 }
 
-export type AIProviderType = "ollama" | "openai" | "anthropic";
+export type AIProviderType = "ollama" | "openai" | "anthropic" | "gemini" | "openrouter";
 
 export interface ProviderInfo {
   id: AIProviderType;
@@ -152,6 +154,19 @@ function createOllamaProvider(settings: Record<string, string>) {
     return { content };
   }
 
+  async function listModels(): Promise<string[]> {
+    try {
+      const res = await fetch(`${baseUrl.replace(/\/v1$/, "")}/api/tags`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return (data.models ?? []).map((m: { name: string }) => m.name);
+    } catch {
+      return [];
+    }
+  }
+
   return {
     id: "ollama" as AIProviderType,
     name: "Ollama (Local AI)",
@@ -162,6 +177,7 @@ function createOllamaProvider(settings: Record<string, string>) {
     chat,
     chatStream,
     vision,
+    listModels,
   };
 }
 
@@ -456,7 +472,285 @@ function createAnthropicProvider(settings: Record<string, string>) {
   };
 }
 
-// ─── SSE Stream Parser (shared by Ollama and OpenAI) ──────────
+/** Google Gemini provider — cloud, requires API key */
+function createGeminiProvider(settings: Record<string, string>) {
+  const apiKey = process.env.GEMINI_API_KEY || settings.geminiApiKey;
+  const model = process.env.GEMINI_MODEL || settings.geminiModel || "gemini-2.5-flash";
+  const baseUrl = process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com";
+
+  if (!apiKey) {
+    const unavailable = () => { throw new Error("GEMINI_UNAVAILABLE: API key not configured. Set GEMINI_API_KEY env var or geminiApiKey in settings."); };
+    return {
+      id: "gemini" as AIProviderType,
+      name: "Google Gemini",
+      chatAvailable: false,
+      visionAvailable: false,
+      imageGenAvailable: false,
+      searchAvailable: false,
+      chat: unavailable,
+      chatStream: unavailable,
+      vision: unavailable,
+    };
+  }
+
+  // Gemini uses systemInstruction as top-level, contents array for messages
+  function convertMessages(messages: LLMMessage[]) {
+    let systemInstruction = "";
+    const contents: Array<{
+      role: string;
+      parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }>;
+    }> = [];
+
+    for (const m of messages) {
+      if (m.role === "system") {
+        if (typeof m.content === "string") systemInstruction += m.content;
+        else systemInstruction += (m.content as ContentPart[]).map(p => p.text ?? "").join("");
+      } else {
+        const geminiRole = m.role === "assistant" ? "model" : "user";
+        const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+
+        if (typeof m.content === "string") {
+          parts.push({ text: m.content });
+        } else {
+          for (const p of m.content as ContentPart[]) {
+            if (p.type === "text") {
+              parts.push({ text: p.text ?? "" });
+            } else if (p.type === "image_url" && p.image_url?.url) {
+              const url = p.image_url.url;
+              const base64Match = url.match(/^data:(image\/\w+);base64,(.+)$/);
+              if (base64Match) {
+                parts.push({
+                  inlineData: { mimeType: base64Match[1], data: base64Match[2] },
+                });
+              }
+            }
+          }
+        }
+
+        contents.push({ role: geminiRole, parts });
+      }
+    }
+
+    return { systemInstruction, contents };
+  }
+
+  async function chat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
+    const { systemInstruction, contents } = convertMessages(messages);
+    const body: Record<string, unknown> = {
+      contents,
+      generationConfig: {
+        temperature: opts?.temperature ?? 0.7,
+        maxOutputTokens: opts?.maxTokens ?? 2048,
+      },
+    };
+    if (systemInstruction) {
+      body.systemInstruction = { parts: [{ text: systemInstruction }] };
+    }
+
+    const res = await fetch(
+      `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Gemini error (${res.status}): ${err}`);
+    }
+    const data = await res.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("Empty response from Gemini");
+    return { content: text };
+  }
+
+  async function* chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
+    const { systemInstruction, contents } = convertMessages(messages);
+    const body: Record<string, unknown> = {
+      contents,
+      generationConfig: {
+        temperature: opts?.temperature ?? 0.7,
+        maxOutputTokens: opts?.maxTokens ?? 2048,
+      },
+    };
+    if (systemInstruction) {
+      body.systemInstruction = { parts: [{ text: systemInstruction }] };
+    }
+
+    const res = await fetch(
+      `${baseUrl}/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Gemini stream error (${res.status}): ${err}`);
+    }
+
+    yield* parseSSEStream(res);
+  }
+
+  async function vision(imageBase64: string, prompt: string): Promise<LLMResponse> {
+    const base64Match = imageBase64.match(/^data:(image\/\w+);base64,(.+)$/);
+    const mediaType = base64Match ? base64Match[1] : "image/jpeg";
+    const data = base64Match ? base64Match[2] : imageBase64;
+
+    const visionModel = model.includes("gemini") ? model : "gemini-2.5-flash";
+    const body = {
+      contents: [{
+        role: "user",
+        parts: [
+          { inlineData: { mimeType: mediaType, data } },
+          { text: prompt },
+        ],
+      }],
+      generationConfig: { maxOutputTokens: 2048 },
+    };
+
+    const res = await fetch(
+      `${baseUrl}/v1beta/models/${visionModel}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }
+    );
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Gemini vision error (${res.status}): ${err}`);
+    }
+    const visionData = await res.json();
+    const text = visionData.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) throw new Error("Empty response from Gemini vision");
+    return { content: text };
+  }
+
+  return {
+    id: "gemini" as AIProviderType,
+    name: `Gemini (${model})`,
+    chatAvailable: true,
+    visionAvailable: true,
+    imageGenAvailable: false,
+    searchAvailable: false,
+    chat,
+    chatStream,
+    vision,
+  };
+}
+
+/** OpenRouter provider — multi-model aggregator, OpenAI-compatible API */
+function createOpenRouterProvider(settings: Record<string, string>) {
+  const apiKey = process.env.OPENROUTER_API_KEY || settings.openrouterApiKey;
+  const model = process.env.OPENROUTER_MODEL || settings.openrouterModel || "google/gemini-2.5-flash-preview:free";
+  const baseUrl = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1";
+
+  if (!apiKey) {
+    const unavailable = () => { throw new Error("OPENROUTER_UNAVAILABLE: API key not configured. Set OPENROUTER_API_KEY env var or openrouterApiKey in settings."); };
+    return {
+      id: "openrouter" as AIProviderType,
+      name: "OpenRouter",
+      chatAvailable: false,
+      visionAvailable: false,
+      imageGenAvailable: false,
+      searchAvailable: false,
+      chat: unavailable,
+      chatStream: unavailable,
+      vision: unavailable,
+    };
+  }
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${apiKey}`,
+    "HTTP-Referer": "https://github.com/Shuguy99/jarvis-ai-beta",
+    "X-Title": "JARVIS AI",
+  };
+
+  async function chat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model,
+        messages,
+        max_tokens: opts?.maxTokens ?? 2048,
+        temperature: opts?.temperature ?? 0.7,
+        stream: false,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenRouter error (${res.status}): ${err}`);
+    }
+    const data = await res.json();
+    return { content: data.choices?.[0]?.message?.content?.trim() ?? "" };
+  }
+
+  async function* chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model,
+        messages,
+        max_tokens: opts?.maxTokens ?? 2048,
+        temperature: opts?.temperature ?? 0.7,
+        stream: true,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenRouter stream error (${res.status}): ${err}`);
+    }
+    yield* parseSSEStream(res);
+  }
+
+  async function vision(imageBase64: string, prompt: string): Promise<LLMResponse> {
+    const imageUrl = imageBase64.startsWith("data:")
+      ? imageBase64
+      : `data:image/jpeg;base64,${imageBase64}`;
+
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: imageUrl } },
+          ],
+        }],
+        max_tokens: 2048,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenRouter vision error (${res.status}): ${err}`);
+    }
+    const data = await res.json();
+    return { content: data.choices?.[0]?.message?.content?.trim() ?? "" };
+  }
+
+  return {
+    id: "openrouter" as AIProviderType,
+    name: `OpenRouter (${model})`,
+    chatAvailable: true,
+    visionAvailable: true,
+    imageGenAvailable: false,
+    searchAvailable: false,
+    chat,
+    chatStream,
+    vision,
+  };
+}
+
+// ─── SSE Stream Parser (shared by Ollama, OpenAI, Gemini, OpenRouter) ──────────
 
 async function* parseSSEStream(res: Response): AsyncGenerator<string> {
   const reader = res.body?.getReader();
@@ -519,7 +813,18 @@ async function ollamaFetch(url: string, body: unknown): Promise<Response> {
 
 // ─── Provider Manager ───────────────────────────────────────────
 
-type ActiveProvider = ReturnType<typeof createOllamaProvider>;
+type ActiveProvider = {
+  id: AIProviderType;
+  name: string;
+  chatAvailable: boolean;
+  visionAvailable: boolean;
+  imageGenAvailable: boolean;
+  searchAvailable: boolean;
+  chat: (messages: LLMMessage[], opts?: LLMOptions) => Promise<LLMResponse>;
+  chatStream: (messages: LLMMessage[], opts?: LLMOptions) => AsyncGenerator<string>;
+  vision: (imageBase64: string, prompt: string) => Promise<LLMResponse>;
+  listModels?: () => Promise<string[]>;
+};
 
 let _activeProvider: ActiveProvider | null = null;
 
@@ -536,6 +841,12 @@ async function getActiveProvider(): Promise<ActiveProvider> {
       break;
     case "anthropic":
       _activeProvider = createAnthropicProvider(settings);
+      break;
+    case "gemini":
+      _activeProvider = createGeminiProvider(settings);
+      break;
+    case "openrouter":
+      _activeProvider = createOpenRouterProvider(settings);
       break;
     default:
       _activeProvider = createOllamaProvider(settings);
@@ -584,6 +895,105 @@ export const ai = {
     return [];
   },
 
+  /**
+   * Chat with native function-calling (tool_use) support.
+   * Sends tools in OpenAI format — works with Ollama, OpenAI, OpenRouter.
+   * Returns the raw API response so the agent can extract tool calls.
+   */
+  async chatWithTools(
+    messages: LLMMessage[],
+    toolDefinitions: Array<{
+      type: "function";
+      function: {
+        name: string;
+        description: string;
+        parameters: {
+          type: "object";
+          properties: Record<string, { type: string; description: string }>;
+          required: string[];
+        };
+      };
+    }>,
+    opts?: LLMOptions
+  ): Promise<{
+    content: string | null;
+    toolCalls?: Array<{
+      id: string;
+      name: string;
+      arguments: string;
+    }>;
+  }> {
+    const provider = await getActiveProvider();
+    const providerId = provider.id;
+
+    // Ollama and OpenAI/OpenRouter support native tools
+    if (providerId === "ollama" || providerId === "openai" || providerId === "openrouter") {
+      const baseUrl = providerId === "ollama"
+        ? (process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1").replace(/\/+$/, "")
+        : providerId === "openrouter"
+          ? (process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1")
+          : (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1");
+
+      const model = providerId === "ollama"
+        ? process.env.OLLAMA_MODEL || "llama3.1"
+        : providerId === "openrouter"
+          ? process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash-preview:free"
+          : process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+      const apiKey = providerId === "openai"
+        ? process.env.OPENAI_API_KEY
+        : providerId === "openrouter"
+          ? process.env.OPENROUTER_API_KEY
+          : undefined;
+
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+      if (providerId === "openrouter") {
+        headers["HTTP-Referer"] = "https://github.com/Shuguy99/jarvis-ai-beta";
+        headers["X-Title"] = "JARVIS AI";
+      }
+
+      const body: Record<string, unknown> = {
+        model,
+        messages,
+        max_tokens: opts?.maxTokens ?? 2048,
+        temperature: opts?.temperature ?? 0.3,
+        stream: false,
+      };
+      if (toolDefinitions.length > 0) {
+        body.tools = toolDefinitions;
+      }
+
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`chatWithTools error (${res.status}): ${err}`);
+      }
+
+      const data = await res.json();
+      const choice = data.choices?.[0];
+      const content = choice?.message?.content?.trim() || null;
+
+      const toolCalls = choice?.message?.tool_calls?.map((tc: { id: string; function: { name: string; arguments: string } }) => ({
+        id: tc.id,
+        name: tc.function.name,
+        arguments: tc.function.arguments,
+      }));
+
+      return { content, toolCalls: toolCalls?.length > 0 ? toolCalls : undefined };
+    }
+
+    // Anthropic and Gemini — fall back to prompt-based tool calling
+    // (they have their own function-calling formats but require different SDK integration)
+    const response = await provider.chat(messages, opts);
+    return { content: response.content };
+  },
+
   isChatAvailable(): boolean {
     // Best-effort sync check — assumes Ollama if no settings loaded
     const providerId = process.env.OPENAI_API_KEY ? "openai"
@@ -607,6 +1017,8 @@ export const ai = {
   getProviderName(): string {
     if (process.env.OPENAI_API_KEY) return `OpenAI (${process.env.OPENAI_MODEL || "gpt-4o-mini"})`;
     if (process.env.ANTHROPIC_API_KEY) return `Anthropic (${process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"})`;
+    if (process.env.GEMINI_API_KEY) return `Gemini (${process.env.GEMINI_MODEL || "gemini-2.5-flash"})`;
+    if (process.env.OPENROUTER_API_KEY) return `OpenRouter (${process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash-preview:free"})`;
     return "Ollama (Local AI)";
   },
 
@@ -633,6 +1045,12 @@ export const ai = {
     }
     if (process.env.ANTHROPIC_API_KEY) {
       providers.push({ id: "anthropic", name: `Anthropic (${process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"})`, chatAvailable: true, visionAvailable: true, imageGenAvailable: false, searchAvailable: false });
+    }
+    if (process.env.GEMINI_API_KEY) {
+      providers.push({ id: "gemini", name: `Gemini (${process.env.GEMINI_MODEL || "gemini-2.5-flash"})`, chatAvailable: true, visionAvailable: true, imageGenAvailable: false, searchAvailable: false });
+    }
+    if (process.env.OPENROUTER_API_KEY) {
+      providers.push({ id: "openrouter", name: `OpenRouter (${process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash-preview:free"})`, chatAvailable: true, visionAvailable: true, imageGenAvailable: false, searchAvailable: false });
     }
     return providers;
   },

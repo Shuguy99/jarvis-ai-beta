@@ -2,47 +2,23 @@ import { promises as fs } from "fs";
 import path from "path";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { PrismaClient } from "@prisma/client";
 
 export const runtime = "nodejs";
 
-// Simple nanoid implementation (no dependency needed)
-function nanoid(size = 21): string {
-  const bytes = new Uint8Array(size);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(36)).join("");
-}
+const prisma = new PrismaClient();
 
 const UPLOAD_DIR = process.env.RAG_UPLOAD_DIR || "/tmp/jarvis-rag";
-const CHUNK_SIZE = 500; // chars per chunk
-const CHUNK_OVERLAP = 100; // chars overlap between chunks
+const CHUNK_SIZE = 500;
+const CHUNK_OVERLAP = 100;
 
-// In-memory document store (in production, use a vector DB)
-interface Document {
-  id: string;
-  filename: string;
-  uploadedAt: string;
-  chunks: Chunk[];
-}
-
-interface Chunk {
-  id: string;
-  documentId: string;
-  content: string;
-  index: number;
-}
-
-const documents = new Map<string, Document>();
-
-/** Ensure upload directory exists */
 async function ensureDir() {
   await fs.mkdir(UPLOAD_DIR, { recursive: true });
 }
 
 /**
- * POST /api/jarvis/rag/upload
- * Upload a text/markdown file for RAG.
- * Body: FormData with "file" field.
- * Returns: { documentId, filename, chunkCount }
+ * POST /api/jarvis/rag
+ * Upload a text file for RAG. Persists document + chunks to SQLite.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -53,11 +29,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No file provided. Use 'file' field." }, { status: 400 });
     }
 
-    // Only allow text-based files
     const allowedTypes = [
       "text/plain", "text/markdown", "text/csv",
-      "application/json", "application/xml",
-      "text/x-markdown",
+      "application/json", "application/xml", "text/x-markdown",
     ];
     if (!allowedTypes.includes(file.type) && !file.name.match(/\.(md|txt|json|csv|xml|yaml|yml|ts|tsx|js|py|rs|go)$/i)) {
       return NextResponse.json(
@@ -73,26 +47,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "File is empty or too short." }, { status: 400 });
     }
 
-    // Simple chunking: split by paragraphs/sentences, respect overlap
     const chunks = chunkText(text, CHUNK_SIZE, CHUNK_OVERLAP);
-    const docId = nanoid(10);
 
-    const doc: Document = {
-      id: docId,
-      filename: file.name,
-      uploadedAt: new Date().toISOString(),
-      chunks: chunks.map((content, index) => ({
-        id: nanoid(10),
-        documentId: docId,
-        content,
-        index,
-      })),
-    };
-
-    documents.set(docId, doc);
+    // Persist to database
+    const doc = await prisma.document.create({
+      data: {
+        filename: file.name,
+        chunks: {
+          create: chunks.map((content, index) => ({ content, index })),
+        },
+      },
+      include: { chunks: true },
+    });
 
     return NextResponse.json({
-      documentId: docId,
+      documentId: doc.id,
       filename: doc.filename,
       chunkCount: doc.chunks.length,
       totalChars: text.length,
@@ -104,23 +73,37 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * GET /api/jarvis/documents
+ * GET /api/jarvis/rag
  * List uploaded documents.
  */
-export async function GET() {
-  const docs = Array.from(documents.values()).map(({ id, filename, uploadedAt, chunks }) => ({
-    id,
-    filename,
-    uploadedAt,
-    chunkCount: chunks.length,
-  }));
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const action = url.searchParams.get("action");
 
-  return NextResponse.json({ documents: docs });
+  // Search mode: GET /api/jarvis/rag?action=search&query=xxx
+  if (action === "search") {
+    return handleSearch(req);
+  }
+
+  // List mode: GET /api/jarvis/rag
+  const docs = await prisma.document.findMany({
+    orderBy: { uploadedAt: "desc" },
+    include: { chunks: { select: { id: true } } },
+  });
+
+  return NextResponse.json({
+    documents: docs.map((d) => ({
+      id: d.id,
+      filename: d.filename,
+      uploadedAt: d.uploadedAt,
+      chunkCount: d.chunks.length,
+    })),
+  });
 }
 
 /**
- * DELETE /api/jarvis/documents?documentId=xxx
- * Delete a document and its chunks.
+ * DELETE /api/jarvis/rag?documentId=xxx
+ * Delete a document and all its chunks (cascade).
  */
 export async function DELETE(req: NextRequest) {
   const url = new URL(req.url);
@@ -130,58 +113,58 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Missing documentId query param" }, { status: 400 });
   }
 
-  const deleted = documents.delete(docId);
-  if (!deleted) {
+  try {
+    const deleted = await prisma.document.delete({ where: { id: docId } });
+    return NextResponse.json({ success: true, documentId: deleted.id });
+  } catch {
     return NextResponse.json({ error: "Document not found" }, { status: 404 });
   }
-
-  return NextResponse.json({ success: true, documentId: docId });
 }
 
-/**
- * GET /api/jarvis/rag/search?query=xxx
- * Simple keyword search across all document chunks.
- * Returns: { results: [{ documentId, filename, chunkIndex, content, score }] }
- */
-export async function GET_search(req: NextRequest) {
+// ─── Search ──────────────────────────────────────────────────────
+
+async function handleSearch(req: NextRequest) {
   const url = new URL(req.url);
   const query = url.searchParams.get("query")?.trim();
+  const limit = parseInt(url.searchParams.get("limit") ?? "10", 10);
 
   if (!query) {
     return NextResponse.json({ error: "Missing query param" }, { status: 400 });
   }
 
   const queryLower = query.toLowerCase();
-  const results: Array<{
-    documentId: string;
-    filename: string;
-    chunkIndex: number;
-    content: string;
-    score: number;
-  }> = [];
+  const queryWords = queryLower.split(/\s+/).filter(Boolean);
 
-  for (const doc of documents.values()) {
-    for (const chunk of doc.chunks) {
+  // Fetch all chunks and score in-memory (SQLite FTS not yet configured)
+  const allChunks = await prisma.chunk.findMany({
+    include: { document: { select: { filename: true } } },
+  });
+
+  const results = allChunks
+    .map((chunk) => {
       const lowerContent = chunk.content.toLowerCase();
-      const idx = lowerContent.indexOf(queryLower);
-      if (idx === -1) continue;
-
-      // Score: higher for exact match, shorter chunks, early position
-      const score = 10 - Math.floor(idx / 100) - Math.floor(chunk.content.length / 1000);
-      results.push({
-        documentId: doc.id,
-        filename: doc.filename,
+      // Score: count matching words, boost exact substring match
+      let score = 0;
+      for (const word of queryWords) {
+        const idx = lowerContent.indexOf(word);
+        if (idx !== -1) {
+          score += 10 - Math.floor(idx / 200);
+        }
+      }
+      return {
+        documentId: chunk.documentId,
+        filename: chunk.document.filename,
         chunkIndex: chunk.index,
-        content: chunk.content.slice(Math.max(0, idx - 150), idx + 250).trim(),
+        content: chunk.content.slice(0, 500),
         score,
-      });
-    }
-  }
-
-  results.sort((a, b) => b.score - a.score);
+      };
+    })
+    .filter((r) => r.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
 
   return NextResponse.json({
-    results: results.slice(0, 10),
+    results,
     query,
     totalFound: results.length,
   });
@@ -198,15 +181,15 @@ function chunkText(text: string, chunkSize: number, overlap: number): string[] {
   while (start < text.length) {
     let end = Math.min(start + chunkSize, text.length);
 
-    // Try to break at a paragraph boundary
+    // Break at paragraph or line boundary
     if (end < text.length) {
-      const nextBreak = text.indexOf("\n\n", end - 200);
-      if (nextBreak > 0 && nextBreak < end + 200) {
-        end = nextBreak + 2;
+      const paraBreak = text.indexOf("\n\n", end - 200);
+      if (paraBreak > 0 && paraBreak < end + 200) {
+        end = paraBreak + 2;
       } else {
-        const nextBreak = text.indexOf("\n", end - 100);
-        if (nextBreak > 0 && nextBreak < end + 100) {
-          end = nextBreak + 1;
+        const lineBreak = text.indexOf("\n", end - 100);
+        if (lineBreak > 0 && lineBreak < end + 100) {
+          end = lineBreak + 1;
         }
       }
     }
