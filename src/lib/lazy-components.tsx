@@ -36,6 +36,11 @@ export const LazyMarkdownWidget = lazy(() =>
 export const LazyMetricsHistoryChart = lazy(() =>
   import("@/components/jarvis/metrics-history-chart")
 );
+export const LazyThemeEditor = lazy(() =>
+  import("@/components/jarvis/theme-editor").then((m) => ({
+    default: m.ThemeEditor,
+  }))
+);
 
 // HUD-style loading fallback
 export function JarvisSuspense({ children }: { children: ReactNode }) {

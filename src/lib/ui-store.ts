@@ -24,6 +24,7 @@ interface PanelState {
   notifOpen: boolean;
   searchOpen: boolean;
   dndMode: boolean;
+  themeEditorOpen: boolean;
   jarvisSettings: JarvisSettingsData | null;
   leftWidgetIds: string[];
   rightWidgetIds: string[];
@@ -50,6 +51,7 @@ interface PanelActions {
   setSearchOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
   setDndMode: (v: boolean | ((prev: boolean) => boolean)) => void;
   toggleDnd: () => void;
+  setThemeEditorOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
   setJarvisSettings: (s: JarvisSettingsData | null) => void;
   setLeftWidgetIds: (ids: string[] | ((prev: string[]) => string[])) => void;
   setRightWidgetIds: (ids: string[] | ((prev: string[]) => string[])) => void;
@@ -88,6 +90,7 @@ export const useUIStore = create<PanelState & PanelActions>()((set) => ({
   notifOpen: false,
   searchOpen: false,
   dndMode: false,
+  themeEditorOpen: false,
   jarvisSettings: null,
   leftWidgetIds: [...DEFAULT_LEFT_WIDGETS],
   rightWidgetIds: [...DEFAULT_RIGHT_WIDGETS],
@@ -113,6 +116,7 @@ export const useUIStore = create<PanelState & PanelActions>()((set) => ({
   setSearchOpen: (v) => set((s) => ({ searchOpen: apply(v, s.searchOpen) })),
   setDndMode: (v) => set((s) => ({ dndMode: apply(v, s.dndMode) })),
   toggleDnd: () => set((s) => ({ dndMode: !s.dndMode })),
+  setThemeEditorOpen: (v) => set((s) => ({ themeEditorOpen: apply(v, s.themeEditorOpen) })),
   setJarvisSettings: (s) => set({ jarvisSettings: s }),
   setLeftWidgetIds: (ids) => set((s) => ({ leftWidgetIds: apply(ids, s.leftWidgetIds) })),
   setRightWidgetIds: (ids) => set((s) => ({ rightWidgetIds: apply(ids, s.rightWidgetIds) })),

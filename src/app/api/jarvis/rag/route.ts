@@ -3,6 +3,7 @@ import path from "path";
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { searchFTS5, ensureFTS5 } from "@/lib/rag-fts5";
 
 export const runtime = "nodejs";
 
@@ -121,7 +122,7 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
-// ─── Search ──────────────────────────────────────────────────────
+// ─── Search (FTS5 BM25 — O(log n) indexed) ─────────────────────
 
 async function handleSearch(req: NextRequest) {
   const url = new URL(req.url);
@@ -132,39 +133,19 @@ async function handleSearch(req: NextRequest) {
     return NextResponse.json({ error: "Missing query param" }, { status: 400 });
   }
 
-  const queryLower = query.toLowerCase();
-  const queryWords = queryLower.split(/\s+/).filter(Boolean);
+  // Ensure FTS5 table exists
+  await ensureFTS5();
 
-  // Fetch all chunks and score in-memory (SQLite FTS not yet configured)
-  const allChunks = await prisma.chunk.findMany({
-    include: { document: { select: { filename: true } } },
-  });
-
-  const results = allChunks
-    .map((chunk) => {
-      const lowerContent = chunk.content.toLowerCase();
-      // Score: count matching words, boost exact substring match
-      let score = 0;
-      for (const word of queryWords) {
-        const idx = lowerContent.indexOf(word);
-        if (idx !== -1) {
-          score += 10 - Math.floor(idx / 200);
-        }
-      }
-      return {
-        documentId: chunk.documentId,
-        filename: chunk.document.filename,
-        chunkIndex: chunk.index,
-        content: chunk.content.slice(0, 500),
-        score,
-      };
-    })
-    .filter((r) => r.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+  const results = await searchFTS5(query, limit);
 
   return NextResponse.json({
-    results,
+    results: results.map((r) => ({
+      documentId: r.documentId,
+      filename: r.filename,
+      chunkIndex: r.chunkIndex,
+      content: r.content.slice(0, 500),
+      score: -r.rank, // Convert BM25 (lower=better) to score (higher=better)
+    })),
     query,
     totalFound: results.length,
   });

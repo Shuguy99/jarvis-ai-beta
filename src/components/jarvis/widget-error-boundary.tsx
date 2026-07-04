@@ -45,7 +45,7 @@ export class WidgetErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
 
       return (
-        <div className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border border-destructive/30 bg-card/60 p-4 backdrop-blur-sm">
+        <div className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border border-destructive/30 bg-card/60 p-4 backdrop-blur-sm animate-in fade-in-0 duration-300">
           <div className="jarvis-corner-brackets-inner absolute inset-0 rounded-xl" />
           <div className="pointer-events-none absolute inset-0 jarvis-grid-bg opacity-20" />
           <div className="relative flex flex-col items-center gap-3 py-4">

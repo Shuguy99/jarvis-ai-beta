@@ -5,6 +5,7 @@ import { buildChatMessages, buildSystemPrompt } from "@/lib/jarvis";
 import type { BehaviorSettings } from "@/lib/jarvis";
 import type { ChatMessage } from "@/lib/types";
 import { parseJsonBody, MAX_BODY_BYTES_CHAT, BodyLimitError } from "@/lib/body-limit";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -17,6 +18,15 @@ interface ChatRequestBody {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+    const { allowed, retryAfterMs } = checkRateLimit(ip, 30, 60_000);
+    if (!allowed) {
+      return NextResponse.json({ error: "Rate limit exceeded", retryAfterMs }, {
+        status: 429,
+        headers: { "Retry-After": String(Math.ceil(retryAfterMs / 1000)) },
+      });
+    }
+
     const body = await parseJsonBody<ChatRequestBody>(req, MAX_BODY_BYTES_CHAT);
     const { messages = [], query, behavior } = body;
 

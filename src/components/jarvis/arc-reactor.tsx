@@ -178,7 +178,7 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
       {/* ── Main SVG (all rings, geometry, core nodes, tendrils) ── */}
       <svg
         viewBox="0 0 200 200"
-        className="absolute top-0 left-0"
+        className={`absolute top-0 left-0${isThinking ? " arc-thinking" : ""}`}
         style={{
           width: size,
           height: size,

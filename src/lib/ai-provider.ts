@@ -17,6 +17,8 @@
  *   GEMINI_MODEL       — Gemini model (default: gemini-2.5-flash)
  */
 
+import { AI_CHAT_TIMEOUT_MS, AI_OTHER_TIMEOUT_MS } from "@/lib/api-timeout";
+
 // ─── Types ───────────────────────────────────────────────────────
 
 export interface LLMMessage {
@@ -108,10 +110,7 @@ function createOllamaProvider(settings: Record<string, string>) {
     };
 
     const res = await ollamaFetch(`${baseUrl}/chat/completions`, body);
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content?.trim();
-    if (!content) throw new Error("Empty response from Ollama");
-    return { content };
+    return normalizeChatResponse(await res.json(), "openai", { errorContext: "Ollama" });
   }
 
   async function* chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
@@ -148,10 +147,7 @@ function createOllamaProvider(settings: Record<string, string>) {
     };
 
     const res = await ollamaFetch(`${baseUrl}/chat/completions`, body);
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content?.trim();
-    if (!content) throw new Error("Empty response from vision model");
-    return { content };
+    return normalizeChatResponse(await res.json(), "openai", { errorContext: "vision model" });
   }
 
   async function listModels(): Promise<string[]> {
@@ -204,7 +200,7 @@ function createOpenAIProvider(settings: Record<string, string>) {
   }
 
   async function chat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await timedFetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -222,12 +218,11 @@ function createOpenAIProvider(settings: Record<string, string>) {
       const err = await res.text();
       throw new Error(`OpenAI error (${res.status}): ${err}`);
     }
-    const data = await res.json();
-    return { content: data.choices?.[0]?.message?.content?.trim() ?? "" };
+    return normalizeChatResponse(await res.json(), "openai", { throwOnEmpty: false });
   }
 
   async function* chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await timedFetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -253,7 +248,7 @@ function createOpenAIProvider(settings: Record<string, string>) {
       ? imageBase64
       : `data:image/jpeg;base64,${imageBase64}`;
 
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await timedFetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -270,13 +265,12 @@ function createOpenAIProvider(settings: Record<string, string>) {
         }],
         max_tokens: 2048,
       }),
-    });
+    }, AI_OTHER_TIMEOUT_MS);
     if (!res.ok) {
       const err = await res.text();
       throw new Error(`OpenAI vision error (${res.status}): ${err}`);
     }
-    const data = await res.json();
-    return { content: data.choices?.[0]?.message?.content?.trim() ?? "" };
+    return normalizeChatResponse(await res.json(), "openai", { throwOnEmpty: false });
   }
 
   return {
@@ -351,7 +345,7 @@ function createAnthropicProvider(settings: Record<string, string>) {
   async function chat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
     const { systemContent, anthropicMessages } = convertMessages(messages);
 
-    const res = await fetch(`${baseUrl}/v1/messages`, {
+    const res = await timedFetch(`${baseUrl}/v1/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -370,14 +364,13 @@ function createAnthropicProvider(settings: Record<string, string>) {
       const err = await res.text();
       throw new Error(`Anthropic error (${res.status}): ${err}`);
     }
-    const data = await res.json();
-    return { content: data.content?.[0]?.text?.trim() ?? "" };
+    return normalizeChatResponse(await res.json(), "anthropic", { throwOnEmpty: false });
   }
 
   async function* chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
     const { systemContent, anthropicMessages } = convertMessages(messages);
 
-    const res = await fetch(`${baseUrl}/v1/messages`, {
+    const res = await timedFetch(`${baseUrl}/v1/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -432,7 +425,7 @@ function createAnthropicProvider(settings: Record<string, string>) {
     const mediaType = base64Match ? base64Match[1] : "image/jpeg";
     const data = base64Match ? base64Match[2] : imageBase64;
 
-    const res = await fetch(`${baseUrl}/v1/messages`, {
+    const res = await timedFetch(`${baseUrl}/v1/messages`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -450,13 +443,12 @@ function createAnthropicProvider(settings: Record<string, string>) {
           ],
         }],
       }),
-    });
+    }, AI_OTHER_TIMEOUT_MS);
     if (!res.ok) {
       const err = await res.text();
       throw new Error(`Anthropic vision error (${res.status}): ${err}`);
     }
-    const visionData = await res.json();
-    return { content: visionData.content?.[0]?.text?.trim() ?? "" };
+    return normalizeChatResponse(await res.json(), "anthropic", { throwOnEmpty: false });
   }
 
   return {
@@ -547,7 +539,7 @@ function createGeminiProvider(settings: Record<string, string>) {
       body.systemInstruction = { parts: [{ text: systemInstruction }] };
     }
 
-    const res = await fetch(
+    const res = await timedFetch(
       `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         method: "POST",
@@ -559,10 +551,7 @@ function createGeminiProvider(settings: Record<string, string>) {
       const err = await res.text();
       throw new Error(`Gemini error (${res.status}): ${err}`);
     }
-    const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error("Empty response from Gemini");
-    return { content: text };
+    return normalizeChatResponse(await res.json(), "gemini", { errorContext: "Gemini" });
   }
 
   async function* chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
@@ -578,7 +567,7 @@ function createGeminiProvider(settings: Record<string, string>) {
       body.systemInstruction = { parts: [{ text: systemInstruction }] };
     }
 
-    const res = await fetch(
+    const res = await timedFetch(
       `${baseUrl}/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
       {
         method: "POST",
@@ -611,22 +600,20 @@ function createGeminiProvider(settings: Record<string, string>) {
       generationConfig: { maxOutputTokens: 2048 },
     };
 
-    const res = await fetch(
+    const res = await timedFetch(
       `${baseUrl}/v1beta/models/${visionModel}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      }
+      },
+      AI_OTHER_TIMEOUT_MS
     );
     if (!res.ok) {
       const err = await res.text();
       throw new Error(`Gemini vision error (${res.status}): ${err}`);
     }
-    const visionData = await res.json();
-    const text = visionData.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!text) throw new Error("Empty response from Gemini vision");
-    return { content: text };
+    return normalizeChatResponse(await res.json(), "gemini", { errorContext: "Gemini vision" });
   }
 
   return {
@@ -671,7 +658,7 @@ function createOpenRouterProvider(settings: Record<string, string>) {
   };
 
   async function chat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await timedFetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -686,12 +673,11 @@ function createOpenRouterProvider(settings: Record<string, string>) {
       const err = await res.text();
       throw new Error(`OpenRouter error (${res.status}): ${err}`);
     }
-    const data = await res.json();
-    return { content: data.choices?.[0]?.message?.content?.trim() ?? "" };
+    return normalizeChatResponse(await res.json(), "openai", { throwOnEmpty: false });
   }
 
   async function* chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await timedFetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -714,7 +700,7 @@ function createOpenRouterProvider(settings: Record<string, string>) {
       ? imageBase64
       : `data:image/jpeg;base64,${imageBase64}`;
 
-    const res = await fetch(`${baseUrl}/chat/completions`, {
+    const res = await timedFetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers,
       body: JSON.stringify({
@@ -728,13 +714,12 @@ function createOpenRouterProvider(settings: Record<string, string>) {
         }],
         max_tokens: 2048,
       }),
-    });
+    }, AI_OTHER_TIMEOUT_MS);
     if (!res.ok) {
       const err = await res.text();
       throw new Error(`OpenRouter vision error (${res.status}): ${err}`);
     }
-    const data = await res.json();
-    return { content: data.choices?.[0]?.message?.content?.trim() ?? "" };
+    return normalizeChatResponse(await res.json(), "openai", { throwOnEmpty: false });
   }
 
   return {
@@ -748,6 +733,61 @@ function createOpenRouterProvider(settings: Record<string, string>) {
     chatStream,
     vision,
   };
+}
+
+// ─── Unified Response Normalizer ─────────────────────────────────
+
+/**
+ * Response formats used by the different AI providers.
+ *   openai    — Ollama, OpenAI, OpenRouter  (choices[0].message.content)
+ *   anthropic — Anthropic                    (content[0].text)
+ *   gemini    — Google Gemini                (candidates[0].content.parts[0].text)
+ */
+type ResponseFormat = "openai" | "anthropic" | "gemini";
+
+/**
+ * Normalizes a raw provider response into the standard `LLMResponse` format.
+ *
+ * Extracts text content from the provider-specific JSON shape, trims it,
+ * and optionally throws when the result is empty.
+ *
+ * @param raw    - The parsed JSON object returned by the provider API.
+ * @param format - Which response shape to expect.
+ * @param opts.throwOnEmpty - When true (default), throws on empty/missing content.
+ *                           Set false to return `{ content: "" }` instead (used by
+ *                           OpenAI, Anthropic, OpenRouter which allow empty replies).
+ * @param opts.errorContext  - Provider name included in the error message
+ *                           when throwOnEmpty is true (default: "AI").
+ */
+function normalizeChatResponse(
+  raw: unknown,
+  format: ResponseFormat,
+  opts?: { throwOnEmpty?: boolean; errorContext?: string },
+): LLMResponse {
+  const r = raw as Record<string, unknown>;
+  let content: string | undefined;
+
+  switch (format) {
+    case "openai":
+      content = (r?.choices as Array<{ message?: { content?: string } }>)?.[0]?.message?.content;
+      break;
+    case "anthropic":
+      content = (r?.content as Array<{ text?: string }>)?.[0]?.text;
+      break;
+    case "gemini":
+      content = (r?.candidates as Array<{ content?: { parts?: Array<{ text?: string }> } }>)
+        ?.[0]?.content?.parts?.[0]?.text;
+      break;
+  }
+
+  const trimmed = content?.trim() ?? "";
+  const throwOnEmpty = opts?.throwOnEmpty !== false;
+  const errorContext = opts?.errorContext ?? "AI";
+
+  if (throwOnEmpty && !trimmed) {
+    throw new Error(`Empty response from ${errorContext}`);
+  }
+  return { content: trimmed };
 }
 
 // ─── SSE Stream Parser (shared by Ollama, OpenAI, Gemini, OpenRouter) ──────────
@@ -785,20 +825,49 @@ async function* parseSSEStream(res: Response): AsyncGenerator<string> {
   }
 }
 
+// ─── Timeout fetch helper (used by all providers) ────────────────
+
+async function timedFetch(
+  url: string | URL | Request,
+  init?: RequestInit,
+  timeoutMs: number = AI_CHAT_TIMEOUT_MS,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const mergedSignal = init?.signal
+    ? AbortSignal.any([init.signal, controller.signal])
+    : controller.signal;
+  try {
+    return await fetch(url, { ...init, signal: mergedSignal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // ─── Ollama Fetch Helper ────────────────────────────────────────
 
 async function ollamaFetch(url: string, body: unknown): Promise<Response> {
   let res: Response;
   try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), AI_CHAT_TIMEOUT_MS);
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed")) {
       throw new Error("OLLAMA_UNAVAILABLE: Сервер Ollama не запущен. Запустите Ollama и загрузите модель: ollama pull llama3.1");
+    }
+    if (e instanceof DOMException && e.name === "AbortError") {
+      throw new Error(`Ollama request timed out after ${AI_CHAT_TIMEOUT_MS / 1000}s`);
     }
     throw new Error(`Ошибка подключения к Ollama: ${msg}`);
   }
@@ -964,7 +1033,7 @@ export const ai = {
         body.tools = toolDefinitions;
       }
 
-      const res = await fetch(`${baseUrl}/chat/completions`, {
+      const res = await timedFetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers,
         body: JSON.stringify(body),
