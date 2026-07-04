@@ -29,6 +29,10 @@ import {
   BookOpen,
   FileText,
   RotateCcw,
+  Wifi,
+  WifiOff,
+  Loader2,
+  Shield,
 } from "lucide-react";
 
 // ─── Persona presets ──────────────────────────────────────────────
@@ -127,6 +131,15 @@ interface SettingsPanelProps {
   onSave?: (settings: JarvisSettingsData) => void;
 }
 
+interface ProviderInfo {
+  id: string;
+  name: string;
+  envKeys: string[];
+  defaultModel: string;
+  supports: { chat: boolean; vision: boolean; imageGen: boolean };
+  configured: boolean;
+}
+
 const VOICE_DEFAULTS: Omit<JarvisSettingsData, keyof typeof BEHAVIOR_DEFAULTS> = {
   ttsRate: 1.05,
   ttsPitch: 0.95,
@@ -167,7 +180,10 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<"voice" | "behavior">("behavior");
+  const [activeTab, setActiveTab] = useState<"voice" | "behavior" | "providers">("behavior");
+  const [providers, setProviders] = useState<ProviderInfo[]>([]);
+  const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
+  const [providersLoading, setProvidersLoading] = useState(false);
 
   // Load settings on mount or open
   useEffect(() => {
@@ -208,6 +224,43 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
 
     return () => { cancelled = true; };
   }, [open]);
+
+  // Load providers when providers tab is opened
+  useEffect(() => {
+    if (!open || activeTab !== "providers") return;
+    let cancelled = false;
+    setProvidersLoading(true);
+
+    (async () => {
+      try {
+        const res = await fetch("/api/jarvis/providers");
+        const data = await res.json();
+        if (cancelled) return;
+        setProviders(data.catalog ?? []);
+        setActiveProviderId(data.active?.id ?? null);
+      } catch {
+        // ignore
+      } finally {
+        if (!cancelled) setProvidersLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [open, activeTab]);
+
+  const switchProvider = useCallback(async (providerId: string) => {
+    try {
+      await fetch("/api/jarvis/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ settings: { aiProvider: providerId } }),
+      });
+      setActiveProviderId(providerId);
+      playSound("success");
+    } catch {
+      playSound("error");
+    }
+  }, []);
 
   const handleOpenChange = useCallback(
     (v: boolean) => {
@@ -331,6 +384,17 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
           >
             <Volume2 className="mr-1.5 inline h-3 w-3" />
             Голос & Система
+          </button>
+          <button
+            onClick={() => { setActiveTab("providers"); playSound("click"); }}
+            className={`flex-1 px-4 py-2.5 font-mono text-[10px] uppercase tracking-widest transition ${
+              activeTab === "providers"
+                ? "border-b-2 border-primary text-primary jarvis-glow bg-primary/5"
+                : "text-muted-foreground/60 hover:text-foreground/80"
+            }`}
+          >
+            <Shield className="mr-1.5 inline h-3 w-3" />
+            AI Провайдеры
           </button>
         </div>
 
@@ -592,6 +656,82 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
                     ))}
                   </div>
                 </div>
+              </SettingsSection>
+            </div>
+          )}
+
+          {activeTab === "providers" && (
+            <div className="space-y-0">
+              <SettingsSection
+                icon={<Shield className="h-3.5 w-3.5" />}
+                title="AI Провайдеры"
+                subtitle="Active Provider Selection"
+              >
+                {providersLoading ? (
+                  <div className="flex items-center justify-center gap-2 py-6">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    <span className="font-mono text-[10px] text-muted-foreground">Загрузка...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-2 py-1">
+                    {providers.map((p) => {
+                      const isActive = activeProviderId === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => { if (p.configured) switchProvider(p.id); }}
+                          disabled={!p.configured}
+                          className={`group relative flex w-full items-center justify-between rounded-lg border p-3 text-left transition ${
+                            !p.configured
+                              ? "cursor-not-allowed border-muted/20 bg-muted/10 opacity-50"
+                              : isActive
+                                ? "border-primary/60 bg-primary/10 jarvis-box-glow"
+                                : "border-jarvis-border-cyan/30 bg-muted/20 hover:border-primary/30 hover:bg-primary/5"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`flex h-7 w-7 items-center justify-center rounded-md border ${
+                              isActive ? "border-primary bg-primary/20" : "border-muted/30 bg-muted/30"
+                            }`}>
+                              {p.configured ? (
+                                <Wifi className={`h-3.5 w-3.5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                              ) : (
+                                <WifiOff className="h-3.5 w-3.5 text-muted-foreground/40" />
+                              )}
+                            </div>
+                            <div>
+                              <div className="font-mono text-[10px] font-semibold uppercase tracking-wider text-foreground/90">
+                                {p.name}
+                              </div>
+                              <div className="font-mono text-[8px] text-muted-foreground/60">
+                                {p.configured
+                                  ? `Model: ${p.defaultModel}`
+                                  : `Требуется: ${p.envKeys.join(", ")}`
+                                }
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="flex gap-1">
+                              {p.supports.chat && (
+                                <span className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[7px] uppercase text-primary">Chat</span>
+                              )}
+                              {p.supports.vision && (
+                                <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 font-mono text-[7px] uppercase text-emerald-400">Vision</span>
+                              )}
+                              {p.supports.imageGen && (
+                                <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[7px] uppercase text-amber-400">ImgGen</span>
+                              )}
+                            </div>
+                            {isActive && (
+                              <Check className="h-4 w-4 text-primary" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </SettingsSection>
             </div>
           )}
