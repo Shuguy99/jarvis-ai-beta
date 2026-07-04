@@ -7,7 +7,7 @@ import http from 'http';
 console.log('JARVIS Electron starting...');
 
 let mainWindow: BrowserWindow | null = null;
-let nextProcess: ChildProcess | null = null;
+let serverProcess: ChildProcess | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
 let isAlwaysOnTop = false;
@@ -15,8 +15,10 @@ let currentOpacity = 1.0;
 let isOnline = false;
 
 const isDev = !app.isPackaged;
-const NEXT_PORT = 3000;
-const NEXT_URL = `http://localhost:${NEXT_PORT}`;
+const VITE_PORT = 5173;
+const SERVER_PORT = 3001;
+const VITE_URL = `http://localhost:${VITE_PORT}`;
+const SERVER_URL = `http://localhost:${SERVER_PORT}`;
 
 // ─── Window State Persistence ─────────────────────────────────────────────
 // Сохранение позиции и размера окна между запусками
@@ -200,7 +202,7 @@ function checkOnlineStatus(): void {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 3000);
 
-  fetch(`${NEXT_URL}/api/jarvis/system`, { signal: controller.signal })
+  fetch(`${SERVER_URL}/api/jarvis/system`, { signal: controller.signal })
     .then(() => {
       const wasOffline = !isOnline;
       isOnline = true;
@@ -341,53 +343,45 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
-// ─── Next.js Server ────────────────────────────────────────────────────────
+// ─── Hono API Server ───────────────────────────────────────────────────
 
-function spawnNextServer(): void {
+function spawnHonoServer(): void {
   if (isDev) {
-    console.log('[JARVIS] Dev mode — expecting Next.js dev server on port 3000');
+    console.log('[JARVIS] Dev mode — expecting Vite dev server on port 5173 and Hono API on port 3001');
     return;
   }
 
-  console.log('[JARVIS] Spawning Next.js production server...');
-  nextProcess = spawn('npx', ['next', 'start', '-p', String(NEXT_PORT)], {
+  console.log('[JARVIS] Spawning Hono API server...');
+  serverProcess = spawn('npx', ['tsx', '--tsconfig', 'server/tsconfig.json', 'server/index.ts'], {
     cwd: app.getAppPath(),
     stdio: 'pipe',
     shell: true,
   });
 
-  nextProcess.stdout?.on('data', (data: Buffer) => {
-    console.log(`[Next.js] ${data.toString().trim()}`);
+  serverProcess.stdout?.on('data', (data: Buffer) => {
+    console.log(`[Hono] ${data.toString().trim()}`);
   });
 
-  nextProcess.stderr?.on('data', (data: Buffer) => {
-    console.error(`[Next.js] ${data.toString().trim()}`);
+  serverProcess.stderr?.on('data', (data: Buffer) => {
+    console.error(`[Hono] ${data.toString().trim()}`);
   });
 
-  nextProcess.on('close', (code) => {
-    console.log(`[Next.js] Exited with code ${code}`);
-    nextProcess = null;
+  serverProcess.on('close', (code) => {
+    console.log(`[Hono] Exited with code ${code}`);
+    serverProcess = null;
   });
 
-  nextProcess.on('error', (err) => {
-    console.error(`[Next.js] Failed to start: ${err.message}`);
+  serverProcess.on('error', (err) => {
+    console.error(`[Hono] Failed to start: ${err.message}`);
   });
 }
 
 function loadApp(win: BrowserWindow): void {
   if (isDev) {
-    win.loadURL(NEXT_URL);
+    win.loadURL(VITE_URL);
   } else {
-    const tryLoad = (attempts = 0): void => {
-      if (attempts > 30) {
-        console.error('[JARVIS] Failed to connect after 30 attempts');
-        return;
-      }
-      const req = http.get(NEXT_URL, () => win.loadURL(NEXT_URL));
-      req.on('error', () => setTimeout(() => tryLoad(attempts + 1), 1000));
-      req.setTimeout(1000, () => { req.destroy(); setTimeout(() => tryLoad(attempts + 1), 1000); });
-    };
-    tryLoad();
+    const distPath = path.join(app.getAppPath(), 'dist', 'index.html');
+    win.loadFile(distPath);
   }
 }
 
@@ -486,7 +480,7 @@ app.on('open-url', (event, url) => {
 const cliJarvisUrl = process.argv.find((arg) => arg.startsWith('jarvis://'));
 
 app.whenReady().then(() => {
-  if (!isDev) spawnNextServer();
+  if (!isDev) spawnHonoServer();
 
   const win = createWindow();
   createTray();
@@ -528,10 +522,10 @@ app.on('will-quit', () => {
   tray?.destroy();
   tray = null;
 
-  if (nextProcess) {
-    console.log('[JARVIS] Killing Next.js process...');
-    nextProcess.kill('SIGTERM');
-    nextProcess = null;
+  if (serverProcess) {
+    console.log('[JARVIS] Killing Hono server process...');
+    serverProcess.kill('SIGTERM');
+    serverProcess = null;
   }
 
   // Финальное сохранение состояния окна

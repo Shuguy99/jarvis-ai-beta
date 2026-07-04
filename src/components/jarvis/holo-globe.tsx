@@ -1,4 +1,4 @@
-"use client";
+
 
 /* ─── Color palette (JARVIS cyan) ─── */
 const CYAN = "oklch(0.85 0.19 193)";

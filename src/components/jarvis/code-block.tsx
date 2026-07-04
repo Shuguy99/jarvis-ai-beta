@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useState, useCallback } from "react";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";

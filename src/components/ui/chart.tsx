@@ -1,5 +1,4 @@
 // @ts-nocheck — recharts v2 Payload type mismatch; regenerate via: npx shadcn@latest add chart
-"use client"
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
 

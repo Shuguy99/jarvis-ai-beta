@@ -1,9 +1,6 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { json } from "@/lib/json-response";
 import { stat, readdir } from "fs/promises";
 import path from "path";
-
-export const runtime = "nodejs";
 
 const BASE_DIR = "/home/z";
 const MAX_ENTRIES = 50;
@@ -16,41 +13,34 @@ interface FileEntry {
   ext: string;
 }
 
-/**
- * GET /api/jarvis/files?path=/home/z/my-project
- * Lists directory contents with security restrictions.
- */
-export async function GET(request: NextRequest) {
-  const rawPath = request.nextUrl.searchParams.get("path") ?? "/home/z/my-project";
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const rawPath = url.searchParams.get("path") ?? "/home/z/my-project";
 
-  // Resolve to absolute path
   const resolved = path.resolve(rawPath);
 
-  // Security: must be under BASE_DIR
   if (!resolved.startsWith(BASE_DIR + path.sep) && resolved !== BASE_DIR) {
-    return NextResponse.json(
+    return json(
       { error: "Доступ запрещён: путь вне базовой директории" },
-      { status: 403 }
+      403
     );
   }
 
-  // Check path exists and is a directory
   try {
     const dirStat = await stat(resolved);
     if (!dirStat.isDirectory()) {
-      return NextResponse.json(
+      return json(
         { error: "Указанный путь не является директорией" },
-        { status: 400 }
+        400
       );
     }
   } catch {
-    return NextResponse.json(
+    return json(
       { error: "Директория не найдена" },
-      { status: 404 }
+      404
     );
   }
 
-  // Read directory entries
   let entries: FileEntry[];
   try {
     const items = await readdir(resolved, { withFileTypes: true });
@@ -79,22 +69,20 @@ export async function GET(request: NextRequest) {
       })
     );
 
-    // Sort: directories first, then files, both alphabetically
     entries.sort((a, b) => {
       if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
       return a.name.localeCompare(b.name);
     });
 
-    // Limit to MAX_ENTRIES
     entries = entries.slice(0, MAX_ENTRIES);
   } catch {
-    return NextResponse.json(
+    return json(
       { error: "Ошибка чтения директории" },
-      { status: 500 }
+      500
     );
   }
 
-  return NextResponse.json({
+  return json({
     path: resolved,
     files: entries,
   });

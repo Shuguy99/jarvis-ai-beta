@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useState, useEffect, useRef } from "react";
 import { ListTodo, CheckCircle2 } from "lucide-react";

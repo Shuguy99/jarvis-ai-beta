@@ -1,5 +1,4 @@
 // @ts-nocheck — react-day-picker v9 ClassNames mismatch; regenerate via: npx shadcn@latest add calendar
-"use client"
 import * as React from "react"
 import {
   ChevronDownIcon,

@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useState, useCallback, useRef } from "react";
 import { parseCommand, type ParsedCommand } from "@/lib/voice-commands";

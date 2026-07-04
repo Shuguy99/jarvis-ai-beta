@@ -1,21 +1,18 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { json } from "@/lib/json-response";
 
-// ── In-memory cache keyed by location (10 min TTL) ─────────
 interface CacheEntry {
   data: unknown;
   ts: number;
 }
 const cacheMap = new Map<string, CacheEntry>();
-const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const CACHE_TTL = 10 * 60 * 1000;
 
 const DEFAULT_LAT = 55.75;
 const DEFAULT_LON = 37.62;
 
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
 
-  // Fix: use null check instead of falsy || to handle lat/lon of 0
   const rawLat = searchParams.get("lat");
   const rawLon = searchParams.get("lon");
   const lat = rawLat !== null ? Number(rawLat) : DEFAULT_LAT;
@@ -24,7 +21,7 @@ export async function GET(req: NextRequest) {
   const cacheKey = `${lat}:${lon}`;
   const cached = cacheMap.get(cacheKey);
   if (cached && cached.ts + CACHE_TTL > Date.now()) {
-    return NextResponse.json(cached.data);
+    return json(cached.data);
   }
 
   const params = new URLSearchParams({
@@ -40,30 +37,22 @@ export async function GET(req: NextRequest) {
   try {
     const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
       headers: { "User-Agent": "JARVIS-Weather-Proxy/1.0" },
-      next: { revalidate: 600 },
     });
 
     if (!res.ok) {
-      return NextResponse.json(
-        { error: `Upstream returned ${res.status}` },
-        { status: 502 },
-      );
+      return json({ error: `Upstream returned ${res.status}` }, 502);
     }
 
     const data = await res.json();
     cacheMap.set(cacheKey, { data, ts: Date.now() });
 
-    // Evict stale entries to prevent unbounded growth
     const now = Date.now();
     for (const [key, entry] of cacheMap) {
       if (entry.ts + CACHE_TTL < now) cacheMap.delete(key);
     }
 
-    return NextResponse.json(data);
+    return json(data);
   } catch {
-    return NextResponse.json(
-      { error: "Failed to reach Open-Meteo API" },
-      { status: 502 },
-    );
+    return json({ error: "Failed to reach Open-Meteo API" }, 502);
   }
 }

@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useEffect, useRef, useCallback } from "react";
 import { showNotification } from "@/components/jarvis/notification-toast";

@@ -1,15 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+import { json } from "@/lib/json-response";
 import { ai } from "@/lib/ai-provider";
 
-export const runtime = "nodejs";
-
-// Simple in-memory cache (5 min TTL)
 let cachedInsights: {
   data: { health: number; summary: string; insights: Array<{ type: "info" | "warning" | "critical"; text: string }>; timestamp: string };
   expiresAt: number;
 } | null = null;
 
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 5 * 60 * 1000;
 
 interface Insight {
   type: "info" | "warning" | "critical";
@@ -35,7 +32,7 @@ interface SystemMetrics {
 
 async function fetchSystemMetrics(): Promise<SystemMetrics> {
   try {
-    const res = await fetch("http://localhost:3000/api/jarvis/system", {
+    const res = await fetch("http://localhost:3001/api/jarvis/system", {
       signal: AbortSignal.timeout(5000),
     });
     return await res.json();
@@ -44,14 +41,12 @@ async function fetchSystemMetrics(): Promise<SystemMetrics> {
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    // Check cache
     if (cachedInsights && Date.now() < cachedInsights.expiresAt) {
-      return NextResponse.json(cachedInsights.data);
+      return json(cachedInsights.data);
     }
 
-    // Get metrics (from body or fetch fresh)
     let metrics: SystemMetrics = {};
     try {
       const body = await req.json();
@@ -95,17 +90,14 @@ export async function POST(req: NextRequest) {
       { role: "user", content: "Проанализируй систему." },
     ], { temperature: 0.3, maxTokens: 512 });
 
-    // Parse JSON from response
     let parsed: InsightsResponse;
     try {
       let jsonStr = reply.content.trim();
-      // Strip markdown fences
       if (jsonStr.startsWith("```")) {
         jsonStr = jsonStr.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
       }
       parsed = JSON.parse(jsonStr);
     } catch {
-      // Fallback: generate basic insights
       const health = cpu > 90 || ram > 90 ? 3 : cpu > 70 || ram > 70 ? 6 : 9;
       parsed = {
         health,
@@ -120,46 +112,37 @@ export async function POST(req: NextRequest) {
       };
     }
 
-    // Validate and clamp health score
     parsed.health = Math.max(1, Math.min(10, Math.round(parsed.health || 5)));
     if (!parsed.insights || !Array.isArray(parsed.insights)) {
       parsed.insights = [];
     }
     parsed.timestamp = new Date().toISOString();
 
-    // Cache result
     cachedInsights = {
       data: parsed,
       expiresAt: Date.now() + CACHE_TTL,
     };
 
-    return NextResponse.json(parsed);
+    return json(parsed);
   } catch (error: unknown) {
     console.error("[Insights API Error]", error instanceof Error ? error.message : error);
-    return NextResponse.json(
+    return json(
       { error: "Ошибка анализа системы", health: 5, summary: "Недоступен", insights: [], timestamp: new Date().toISOString() },
-      { status: 500 }
+      500
     );
   }
 }
 
-// GET: return cached insights or fetch fresh
 export async function GET() {
   if (cachedInsights && Date.now() < cachedInsights.expiresAt) {
-    return NextResponse.json(cachedInsights.data);
+    return json(cachedInsights.data);
   }
-  // Trigger a POST-like analysis
   try {
     const metrics = await fetchSystemMetrics();
-    const _res = new NextRequest("http://internal/insights", {
-      method: "POST",
-      body: JSON.stringify({ metrics }),
-    });
-    // Inline the logic for GET
     const cpu = Number(metrics.cpuLoad) || 0;
     const ram = Number(metrics.memPct) || 0;
     const health = cpu > 90 || ram > 90 ? 3 : cpu > 70 || ram > 70 ? 6 : 9;
-    return NextResponse.json({
+    return json({
       health,
       summary: `CPU: ${cpu.toFixed(1)}%, RAM: ${ram.toFixed(1)}%`,
       insights: cpu < 50 && ram < 60
@@ -168,9 +151,9 @@ export async function GET() {
       timestamp: new Date().toISOString(),
     });
   } catch {
-    return NextResponse.json(
+    return json(
       { health: 5, summary: "Загрузка...", insights: [], timestamp: new Date().toISOString() },
-      { status: 200 }
+      200
     );
   }
 }

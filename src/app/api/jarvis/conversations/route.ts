@@ -1,15 +1,7 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { json } from "@/lib/json-response";
 import { db } from "@/lib/db";
 import { deriveTitle } from "@/lib/jarvis";
 
-export const runtime = "nodejs";
-
-/**
- * GET /api/jarvis/conversations  -> list all (latest first)
- * POST /api/jarvis/conversations -> create + optionally add first message
- *   body: { message?: string, role?: "user"|"assistant", title?: string }
- */
 export async function GET() {
   try {
     const convos = await db.conversation.findMany({
@@ -17,14 +9,14 @@ export async function GET() {
       take: 50,
       include: { messages: { orderBy: { createdAt: "asc" } } },
     });
-    return NextResponse.json({ conversations: convos });
+    return json({ conversations: convos });
   } catch (error) {
     console.error("list conversations error:", error);
-    return NextResponse.json({ conversations: [] });
+    return json({ conversations: [] });
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const { message, role = "user", title } = await req.json();
 
@@ -46,12 +38,12 @@ export async function POST(req: NextRequest) {
       include: { messages: { orderBy: { createdAt: "asc" } } },
     });
 
-    return NextResponse.json({ conversation: conv });
+    return json({ conversation: conv });
   } catch (error) {
     console.error("create conversation error:", error);
-    return NextResponse.json(
+    return json(
       { error: error instanceof Error ? error.message : "Не удалось создать сессию." },
-      { status: 500 }
+      500
     );
   }
 }

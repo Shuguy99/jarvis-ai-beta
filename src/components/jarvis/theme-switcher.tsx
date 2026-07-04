@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { playSound } from "@/lib/sounds";

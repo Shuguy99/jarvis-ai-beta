@@ -1,15 +1,7 @@
-import { NextResponse } from "next/server";
+import { json } from "@/lib/json-response";
 
-export const runtime = "nodejs";
-
-/**
- * POST /api/jarvis/asr
- *
- * В локальном режиме (Ollama) распознавание речи обрабатывается
- * в браузере через Web Speech API (SpeechRecognition).
- */
 export async function POST() {
-  return NextResponse.json({
+  return json({
     useBrowserASR: true,
     message: "Browser ASR (SpeechRecognition) is used in local mode.",
   });

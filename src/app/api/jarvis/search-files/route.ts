@@ -1,9 +1,6 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { json } from "@/lib/json-response";
 import { readdir, stat } from "fs/promises";
 import path from "path";
-
-export const runtime = "nodejs";
 
 const BASE_DIR = "/home/z/";
 const MAX_DEPTH = 3;
@@ -45,16 +42,16 @@ async function searchDir(dir: string, query: string, depth: number, results: Arr
   }
 }
 
-export async function GET(req: NextRequest) {
-  const q = req.nextUrl.searchParams.get("q")?.trim();
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const q = url.searchParams.get("q")?.trim();
 
   if (!q || q.length < 2) {
-    return NextResponse.json({ files: [], query: q || "" });
+    return json({ files: [], query: q || "" });
   }
 
-  // Basic path traversal protection
   if (q.includes("..") || q.includes("/") || q.includes("\\")) {
-    return NextResponse.json({ files: [], query: q });
+    return json({ files: [], query: q });
   }
 
   const results: Array<{ path: string; name: string; size: number; modified: string }> = [];
@@ -65,5 +62,5 @@ export async function GET(req: NextRequest) {
     console.error("[File Search Error]", err instanceof Error ? err.message : err);
   }
 
-  return NextResponse.json({ files: results, query: q });
+  return json({ files: results, query: q });
 }

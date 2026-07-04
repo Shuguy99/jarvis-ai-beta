@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { Play, Pause, RotateCcw, Timer, Clock, AlarmClock } from "lucide-react";

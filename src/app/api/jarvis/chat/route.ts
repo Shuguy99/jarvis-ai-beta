@@ -1,13 +1,10 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { json } from "@/lib/json-response";
 import { ai } from "@/lib/ai-provider";
 import { buildChatMessages, buildSystemPrompt } from "@/lib/jarvis";
 import type { BehaviorSettings } from "@/lib/jarvis";
 import type { ChatMessage } from "@/lib/types";
 import { parseJsonBody, MAX_BODY_BYTES_CHAT, BodyLimitError } from "@/lib/body-limit";
 import { checkRateLimit } from "@/lib/rate-limit";
-
-export const runtime = "nodejs";
 
 interface ChatRequestBody {
   messages: ChatMessage[];
@@ -16,12 +13,12 @@ interface ChatRequestBody {
   behavior?: Partial<BehaviorSettings>;
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
     const { allowed, retryAfterMs } = checkRateLimit(ip, 30, 60_000);
     if (!allowed) {
-      return NextResponse.json({ error: "Rate limit exceeded", retryAfterMs }, {
+      return json({ error: "Rate limit exceeded", retryAfterMs }, {
         status: 429,
         headers: { "Retry-After": String(Math.ceil(retryAfterMs / 1000)) },
       });
@@ -31,7 +28,7 @@ export async function POST(req: NextRequest) {
     const { messages = [], query, behavior } = body;
 
     if (!query || !query.trim()) {
-      return NextResponse.json({ error: "Пустой запрос." }, { status: 400 });
+      return json({ error: "Пустой запрос." }, 400);
     }
 
     const history: ChatMessage[] = [...messages, {
@@ -43,13 +40,12 @@ export async function POST(req: NextRequest) {
 
     const llmMessages = buildChatMessages(history, { behavior });
 
-    // Pass temperature and maxTokens to the AI provider if supported
     const reply = await ai.chat(llmMessages, {
       temperature: behavior?.temperature,
       maxTokens: behavior?.maxTokens,
     });
 
-    return NextResponse.json({
+    return json({
       reply: reply.content,
       provider: ai.getProviderName(),
       timestamp: new Date().toISOString(),
@@ -57,31 +53,30 @@ export async function POST(req: NextRequest) {
     });
   } catch (error) {
     if (error instanceof BodyLimitError) {
-      return NextResponse.json({ error: error.message }, { status: 413 });
+      return json({ error: error.message }, 413);
     }
     console.error("JARVIS chat error:", error);
 
     const msg = error instanceof Error ? error.message : "Внутренняя ошибка J.A.R.V.I.S.";
 
-    // Detect connection errors (provider unavailable)
     if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed") || msg.includes("connect") || msg.includes("UNAVAILABLE")) {
-      return NextResponse.json(
+      return json(
         {
           error: msg.includes("Ollama") ? "Сервер Ollama не запущен. Запустите Ollama и загрузите модель." : msg,
           providerUnavailable: true,
         },
-        { status: 503 }
+        503,
       );
     }
 
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return json({ error: msg }, 500);
   }
 }
 
 export async function GET() {
   try {
     const providerInfo = await ai.getActiveProviderInfo();
-    return NextResponse.json({
+    return json({
       name: "J.A.R.V.I.S.",
       online: true,
       provider: providerInfo.name,
@@ -92,8 +87,7 @@ export async function GET() {
       searchAvailable: providerInfo.searchAvailable,
     });
   } catch {
-    // Fallback if settings endpoint is down
-    return NextResponse.json({
+    return json({
       name: "J.A.R.V.I.S.",
       online: true,
       provider: ai.getProviderName(),

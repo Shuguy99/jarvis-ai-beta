@@ -1,4 +1,4 @@
-"use client";
+
 
 import React, { useState, useEffect, useCallback } from "react";
 import { Check, X, Wifi, Cable, StickyNote } from "lucide-react";

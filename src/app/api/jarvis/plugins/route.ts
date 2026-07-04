@@ -1,14 +1,7 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { json } from "@/lib/json-response";
 import { PrismaClient } from "@prisma/client";
 
-export const runtime = "nodejs";
-
 const prisma = new PrismaClient();
-
-// ─── Server-side plugin action registry ─────────────────────────
-// Plugins can register server actions (tools) that are executed
-// when POST /api/jarvis/plugins/execute is called.
 
 type PluginAction = (params: Record<string, unknown>) => Promise<Record<string, unknown>>;
 
@@ -24,10 +17,7 @@ export function unregisterServerActions(pluginId: string): void {
   }
 }
 
-// ─── Built-in server plugins (auto-registered) ───────────────────
-
 function registerBuiltinPlugins() {
-  // System Doctor — returns a health report
   registerServerAction("system-doctor", "healthCheck", async () => {
     const memUsage = process.memoryUsage();
     return {
@@ -40,7 +30,6 @@ function registerBuiltinPlugins() {
     };
   });
 
-  // Network Scanner — returns connection info
   registerServerAction("network-scanner", "getConnections", async () => {
     return {
       status: "ok",
@@ -51,10 +40,7 @@ function registerBuiltinPlugins() {
   });
 }
 
-// Auto-register on module load
 registerBuiltinPlugins();
-
-// ─── GET: List all plugins (DB + builtins) ───────────────────────
 
 export async function GET() {
   const dbPlugins = await prisma.plugin.findMany({ orderBy: { createdAt: "asc" } });
@@ -72,16 +58,14 @@ export async function GET() {
     source: "database" as const,
   }));
 
-  return NextResponse.json({
+  return json({
     plugins,
     serverPluginsAvailable: true,
     actionCount: serverActions.size,
   });
 }
 
-// ─── POST: Register / execute a plugin ───────────────────────────
-
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { action, pluginId, params, name, description, version, author, category, icon, settings } = body as {
@@ -98,9 +82,8 @@ export async function POST(req: NextRequest) {
     };
 
     if (action === "register") {
-      // Register a new server-side plugin from JSON manifest
       if (!pluginId || !name) {
-        return NextResponse.json({ error: "pluginId and name required for registration" }, { status: 400 });
+        return json({ error: "pluginId and name required for registration" }, 400);
       }
 
       const plugin = await prisma.plugin.upsert({
@@ -125,48 +108,48 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      return NextResponse.json({ success: true, plugin });
+      return json({ success: true, plugin });
     }
 
     if (action === "unregister") {
       if (!pluginId) {
-        return NextResponse.json({ error: "pluginId required" }, { status: 400 });
+        return json({ error: "pluginId required" }, 400);
       }
       await prisma.plugin.deleteMany({ where: { pluginId } });
       unregisterServerActions(pluginId);
-      return NextResponse.json({ success: true, pluginId });
+      return json({ success: true, pluginId });
     }
 
     if (action === "toggle") {
       if (!pluginId) {
-        return NextResponse.json({ error: "pluginId required" }, { status: 400 });
+        return json({ error: "pluginId required" }, 400);
       }
       const current = await prisma.plugin.findUnique({ where: { pluginId } });
       if (!current) {
-        return NextResponse.json({ error: "Plugin not found" }, { status: 404 });
+        return json({ error: "Plugin not found" }, 404);
       }
       const updated = await prisma.plugin.update({
         where: { pluginId },
         data: { enabled: !current.enabled },
       });
-      return NextResponse.json({ success: true, enabled: updated.enabled });
+      return json({ success: true, enabled: updated.enabled });
     }
 
     if (action === "execute") {
       if (!pluginId || !params?.actionName) {
-        return NextResponse.json({ error: "pluginId and params.actionName required" }, { status: 400 });
+        return json({ error: "pluginId and params.actionName required" }, 400);
       }
       const handler = serverActions.get(`${pluginId}:${params.actionName as string}`);
       if (!handler) {
-        return NextResponse.json({ error: `Action ${params.actionName} not found for plugin ${pluginId}` }, { status: 404 });
+        return json({ error: `Action ${params.actionName} not found for plugin ${pluginId}` }, 404);
       }
       const result = await handler(params as Record<string, unknown>);
-      return NextResponse.json({ success: true, result });
+      return json({ success: true, result });
     }
 
-    return NextResponse.json({ error: "Unknown action. Use: register, unregister, toggle, execute." }, { status: 400 });
+    return json({ error: "Unknown action. Use: register, unregister, toggle, execute." }, 400);
   } catch (error) {
     console.error("Plugin API error:", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Plugin API error" }, { status: 500 });
+    return json({ error: error instanceof Error ? error.message : "Plugin API error" }, 500);
   }
 }

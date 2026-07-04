@@ -1,4 +1,4 @@
-"use client";
+
 
 import { lazy, Suspense, type ReactNode } from "react";
 

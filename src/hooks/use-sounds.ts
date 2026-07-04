@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useCallback, useRef } from "react";
 import { playSound, initAudio, type SoundName } from "@/lib/sounds";

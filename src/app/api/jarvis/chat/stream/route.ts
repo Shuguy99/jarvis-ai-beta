@@ -1,4 +1,3 @@
-import type { NextRequest } from "next/server";
 import { ai } from "@/lib/ai-provider";
 import { buildChatMessages } from "@/lib/jarvis";
 import type { BehaviorSettings } from "@/lib/jarvis";
@@ -7,15 +6,13 @@ import { parseJsonBody, MAX_BODY_BYTES_CHAT, BodyLimitError } from "@/lib/body-l
 import { injectRAGIntoSystemPrompt } from "@/lib/rag-context";
 import { checkRateLimit } from "@/lib/rate-limit";
 
-export const runtime = "nodejs";
-
 interface StreamRequestBody {
   messages: ChatMessage[];
   query: string;
   behavior?: Partial<BehaviorSettings>;
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
     const { allowed, retryAfterMs } = checkRateLimit(ip, 30, 60_000);
@@ -45,7 +42,6 @@ export async function POST(req: NextRequest) {
 
     const llmMessages = buildChatMessages(history, { behavior });
 
-    // Auto-inject RAG context if relevant documents exist
     const systemContent = typeof llmMessages[0]?.content === "string" ? llmMessages[0].content : "";
     const { prompt: ragPrompt, context: ragContext } = await injectRAGIntoSystemPrompt(
       systemContent,
@@ -69,7 +65,6 @@ export async function POST(req: NextRequest) {
           controller.close();
         } catch (error) {
           let msg = error instanceof Error ? error.message : "Stream error";
-          // Translate Ollama connection errors to user-friendly message
           if (msg.includes("OLLAMA_UNAVAILABLE")) {
             msg = "Сервер Ollama не запущен. Запустите Ollama и загрузите модель:\nollama pull llama3.1";
           } else if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed")) {

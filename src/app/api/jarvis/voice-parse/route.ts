@@ -1,8 +1,5 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { json } from "@/lib/json-response";
 import { ai } from "@/lib/ai-provider";
-
-export const runtime = "nodejs";
 
 const SYSTEM_PROMPT = `Ты парсер голосовых команд для JARVIS AI. Проанализируй текст и верни JSON с intent и params. Возможные intents: open_widget, set_timer, toggle_theme, toggle_fullscreen, new_chat, capture_screen, toggle_notes, toggle_voice, search_web, get_weather, get_time, system_status, ask_question. Если не можешь определить intent, используй 'ask_question'. Верни ТОЛЬКО JSON без markdown: {"intent": "...", "params": {}}`;
 
@@ -24,21 +21,17 @@ function stripMarkdownFences(raw: string): string {
   return cleaned.trim();
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const body = (await req.json()) as VoiceParseRequest;
     const { text } = body;
 
     if (!text || !text.trim()) {
-      return NextResponse.json(
-        { error: "Пустой текст." },
-        { status: 400 }
-      );
+      return json({ error: "Пустой текст." }, 400);
     }
 
-    // If text is long, likely not a voice command — return ask_question
     if (text.length >= 100) {
-      return NextResponse.json<VoiceParseResponse>({
+      return json<VoiceParseResponse>({
         intent: "ask_question",
         params: {},
         confidence: 0.3,
@@ -59,7 +52,7 @@ export async function POST(req: NextRequest) {
     try {
       parsed = JSON.parse(cleaned);
     } catch {
-      return NextResponse.json<VoiceParseResponse>({
+      return json<VoiceParseResponse>({
         intent: "ask_question",
         params: {},
         confidence: 0.2,
@@ -67,19 +60,9 @@ export async function POST(req: NextRequest) {
     }
 
     const validIntents = new Set([
-      "open_widget",
-      "set_timer",
-      "toggle_theme",
-      "toggle_fullscreen",
-      "new_chat",
-      "capture_screen",
-      "toggle_notes",
-      "toggle_voice",
-      "search_web",
-      "get_weather",
-      "get_time",
-      "system_status",
-      "ask_question",
+      "open_widget", "set_timer", "toggle_theme", "toggle_fullscreen",
+      "new_chat", "capture_screen", "toggle_notes", "toggle_voice",
+      "search_web", "get_weather", "get_time", "system_status", "ask_question",
     ]);
 
     const intent = parsed.intent && validIntents.has(parsed.intent)
@@ -90,16 +73,13 @@ export async function POST(req: NextRequest) {
       ? parsed.params
       : {};
 
-    return NextResponse.json<VoiceParseResponse>({
+    return json<VoiceParseResponse>({
       intent,
       params,
       confidence: intent === "ask_question" ? 0.3 : 0.7,
     });
   } catch (error) {
     console.error("[voice-parse] Error:", error);
-    return NextResponse.json(
-      { error: "Не удалось обработать запрос." },
-      { status: 500 }
-    );
+    return json({ error: "Не удалось обработать запрос." }, 500);
   }
 }

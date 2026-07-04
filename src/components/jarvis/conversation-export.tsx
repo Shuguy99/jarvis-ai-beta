@@ -1,4 +1,4 @@
-"use client";
+
 
 import { Download } from "lucide-react";
 import { playSound } from "@/lib/sounds";

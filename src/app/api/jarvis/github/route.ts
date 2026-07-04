@@ -1,11 +1,7 @@
-export const runtime = "nodejs";
-
+import { json } from "@/lib/json-response";
 import { execFile as cpExecFile } from "child_process";
 import { promisify } from "util";
 const execFile = promisify(cpExecFile);
-import { NextResponse } from "next/server";
-
-// ── Types ──────────────────────────────────────────────────────────────────
 
 interface RepoInfo {
   full_name: string;
@@ -43,8 +39,6 @@ interface GithubData {
   releases: GitHubRelease[];
 }
 
-// ── Display type map ───────────────────────────────────────────────────────
-
 const DISPLAY_TYPE_MAP: Record<string, string> = {
   PushEvent: "Push",
   ReleaseEvent: "Release",
@@ -61,10 +55,7 @@ function getDisplayType(type: string): string {
   return DISPLAY_TYPE_MAP[type] ?? type;
 }
 
-// ── Token extraction ───────────────────────────────────────────────────────
-
 async function getGitHubToken(): Promise<string> {
-  // Priority: env var > git remote (never expose to client)
   const envToken = process.env.GITHUB_TOKEN;
   if (envToken) return envToken;
 
@@ -74,7 +65,6 @@ async function getGitHubToken(): Promise<string> {
       timeout: 5000,
     });
     const remoteUrl = stdout.toString().trim();
-    // Extract token from https://<TOKEN>@github.com/... format
     const match = remoteUrl.match(/^https?:\/\/([^@]+)@github\.com/);
     if (match?.[1] && !match[1].includes("://")) {
       return match[1];
@@ -83,10 +73,8 @@ async function getGitHubToken(): Promise<string> {
     // git remote not available
   }
 
-  return ""; // Unauthenticated — limited to 60 req/hour
+  return "";
 }
-
-// ── GitHub fetch helpers ───────────────────────────────────────────────────
 
 function githubHeaders(token: string) {
   const headers: Record<string, string> = {
@@ -139,7 +127,6 @@ async function fetchEvents(token: string): Promise<GitHubEvent[]> {
     const actor = event.actor as { login: string; avatar_url: string };
     const payload = event.payload as Record<string, unknown>;
 
-    // Shape the payload based on event type
     const shapedPayload: Record<string, unknown> = {};
     if (event.type === "PushEvent") {
       shapedPayload.commits = (
@@ -160,7 +147,6 @@ async function fetchEvents(token: string): Promise<GitHubEvent[]> {
         ? { number: issue.number, title: issue.title, state: issue.state }
         : null;
     } else {
-      // For other event types, pass raw payload
       Object.assign(shapedPayload, payload);
     }
 
@@ -194,13 +180,10 @@ async function fetchReleases(token: string): Promise<GitHubRelease[]> {
   }));
 }
 
-// ── In-memory cache ────────────────────────────────────────────────────────
-
 const CACHE_TTL_MS = 60_000;
 let cachedData: { data: GithubData; timestamp: number } | null = null;
 
 async function getGitHubData(forceRefresh: boolean): Promise<GithubData> {
-  // Return cached data if valid and not forced refresh
   if (
     !forceRefresh &&
     cachedData &&
@@ -223,24 +206,22 @@ async function getGitHubData(forceRefresh: boolean): Promise<GithubData> {
   return result;
 }
 
-// ── Route handlers ─────────────────────────────────────────────────────────
-
 export async function GET() {
   try {
     const data = await getGitHubData(false);
-    return NextResponse.json(data);
+    return json(data);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return json({ error: message }, 502);
   }
 }
 
 export async function POST() {
   try {
     const data = await getGitHubData(true);
-    return NextResponse.json(data);
+    return json(data);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return json({ error: message }, 502);
   }
 }

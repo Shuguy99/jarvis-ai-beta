@@ -1,10 +1,7 @@
-import { NextResponse } from "next/server";
+import { json } from "@/lib/json-response";
 import { ai } from "@/lib/ai-provider";
 import type { AIProviderType } from "@/lib/ai-provider";
 
-export const runtime = "nodejs";
-
-/** All provider IDs with display info */
 const PROVIDER_CATALOG: Array<{
   id: AIProviderType;
   name: string;
@@ -19,10 +16,6 @@ const PROVIDER_CATALOG: Array<{
   { id: "openrouter", name: "OpenRouter", envKeys: ["OPENROUTER_API_KEY"], defaultModel: "google/gemini-2.5-flash-preview:free", supports: { chat: true, vision: true, imageGen: false } },
 ];
 
-/**
- * GET /api/jarvis/providers
- * Returns catalog of all providers and the currently active one.
- */
 export async function GET() {
   const available = ai.getAvailableProviders();
   const active = await ai.getActiveProviderInfo();
@@ -32,5 +25,5 @@ export async function GET() {
     configured: available.some((a) => a.id === p.id),
   }));
 
-  return NextResponse.json({ catalog, active });
+  return json({ catalog, active });
 }

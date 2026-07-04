@@ -1,10 +1,7 @@
-import type { NextRequest } from "next/server";
 import { ai } from "@/lib/ai-provider";
 import { executeTool, getToolDefinitionsForFunctionCalling } from "@/lib/agent-tools";
 import { parseJsonBody, BodyLimitError } from "@/lib/body-limit";
 import { checkRateLimit } from "@/lib/rate-limit";
-
-export const runtime = "nodejs";
 
 interface AgentRequestBody {
   task: string;
@@ -13,12 +10,7 @@ interface AgentRequestBody {
 
 const MAX_TOOL_CALLS = 5;
 
-/**
- * POST /api/jarvis/agent/stream
- * Streaming agent with native function-calling.
- * SSE events: { type: "step" }, { type: "tool_call" }, { type: "tool_result" }, { type: "chunk" }, { type: "done" }
- */
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
     const { allowed, retryAfterMs } = checkRateLimit(ip, 15, 60_000);
@@ -64,7 +56,6 @@ export async function POST(req: NextRequest) {
               { temperature: 0.3, maxTokens: 4096 }
             );
 
-            // Direct answer, no tool calls
             if (!response.toolCalls?.length) {
               const text = response.content ?? "";
               for (const word of text.split(" ")) {
@@ -73,7 +64,6 @@ export async function POST(req: NextRequest) {
               break;
             }
 
-            // Process tool calls
             const assistantMsg: Record<string, unknown> = { role: "assistant", content: response.content };
             assistantMsg.tool_calls = response.toolCalls.map((tc) => ({
               id: tc.id, type: "function",
@@ -109,7 +99,6 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          // Exhausted calls — get summary
           if (toolCallCount >= MAX_TOOL_CALLS) {
             messages.push({ role: "user", content: "Provide final answer from gathered info." });
             const final = await ai.chatWithTools(

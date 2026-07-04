@@ -1,4 +1,4 @@
-"use client";
+
 
 // Shared TTS utilities for JARVIS — used by chat, proactive engine, voice commands
 

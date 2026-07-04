@@ -1,4 +1,4 @@
-"use client";
+
 
 import { Clock, Globe, Code2, Lightbulb, CalendarDays, Sparkles, Zap, Calculator, Image, ShieldCheck, Wand2, Palette } from "lucide-react";
 import { motion } from "framer-motion";

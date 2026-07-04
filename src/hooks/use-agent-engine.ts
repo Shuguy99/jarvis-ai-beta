@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useState, useCallback, useRef } from "react";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";

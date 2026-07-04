@@ -1,4 +1,4 @@
-"use client";
+
 
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useFocusTrap, getOverlayProps } from "@/lib/a11y-utils"

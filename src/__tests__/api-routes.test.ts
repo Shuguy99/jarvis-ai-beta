@@ -1,19 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// ─── Mock next/server before any imports ───────────────────────────────
-vi.mock("next/server", () => {
-  const json = (body: unknown, init?: { status?: number }) => {
-    const response = new Response(JSON.stringify(body), {
-      status: init?.status ?? 200,
-      headers: { "Content-Type": "application/json" },
-    });
-    return response;
-  };
-  return {
-    NextResponse: { json },
-  };
-});
-
 // ─── Mock @/lib/ai-provider ───────────────────────────────────────────
 const mockGetAvailableProviders = vi.fn();
 const mockGetActiveProviderInfo = vi.fn();
@@ -804,7 +790,7 @@ describe("API Routes", () => {
       const { GET } = await import("@/app/api/jarvis/conversations/[id]/route");
       const res = await GET(
         new Request("http://localhost/api/jarvis/conversations/conv-1") as never,
-        { params: Promise.resolve({ id: "conv-1" }) },
+        { params: { id: "conv-1" } },
       );
       const body = await parseBody(res) as { conversation: { id: string } };
 
@@ -818,7 +804,7 @@ describe("API Routes", () => {
       const { GET } = await import("@/app/api/jarvis/conversations/[id]/route");
       const res = await GET(
         new Request("http://localhost/api/jarvis/conversations/nonexistent") as never,
-        { params: Promise.resolve({ id: "nonexistent" }) },
+        { params: { id: "nonexistent" } },
       );
       const body = await parseBody(res);
 
@@ -831,7 +817,7 @@ describe("API Routes", () => {
       const { GET } = await import("@/app/api/jarvis/conversations/[id]/route");
       const res = await GET(
         new Request("http://localhost/api/jarvis/conversations/conv-1") as never,
-        { params: Promise.resolve({ id: "conv-1" }) },
+        { params: { id: "conv-1" } },
       );
 
       expect(res.status).toBe(500);
@@ -847,7 +833,7 @@ describe("API Routes", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      const res = await POST(req as never, { params: Promise.resolve({ id: "conv-1" }) });
+      const res = await POST(req as never, { params: { id: "conv-1" } });
       const body = await parseBody(res);
 
       expect(res.status).toBe(400);
@@ -861,7 +847,7 @@ describe("API Routes", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role: "user" }),
       });
-      const res = await POST(req as never, { params: Promise.resolve({ id: "conv-1" }) });
+      const res = await POST(req as never, { params: { id: "conv-1" } });
       const body = await parseBody(res);
 
       expect(res.status).toBe(400);
@@ -883,7 +869,7 @@ describe("API Routes", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ role: "user", content: "Hello" }),
       });
-      const res = await POST(req as never, { params: Promise.resolve({ id: "conv-1" }) });
+      const res = await POST(req as never, { params: { id: "conv-1" } });
       const body = await parseBody(res) as { message: { id: string; content: string } };
 
       expect(res.status).toBe(200);
@@ -902,7 +888,7 @@ describe("API Routes", () => {
       const { DELETE } = await import("@/app/api/jarvis/conversations/[id]/route");
       const res = await DELETE(
         new Request("http://localhost/api/jarvis/conversations/conv-1") as never,
-        { params: Promise.resolve({ id: "conv-1" }) },
+        { params: { id: "conv-1" } },
       );
       const body = await parseBody(res) as { ok: boolean };
 
@@ -916,7 +902,7 @@ describe("API Routes", () => {
       const { DELETE } = await import("@/app/api/jarvis/conversations/[id]/route");
       const res = await DELETE(
         new Request("http://localhost/api/jarvis/conversations/conv-1") as never,
-        { params: Promise.resolve({ id: "conv-1" }) },
+        { params: { id: "conv-1" } },
       );
 
       expect(res.status).toBe(500);

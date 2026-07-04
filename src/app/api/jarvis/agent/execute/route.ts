@@ -1,16 +1,9 @@
-import type { NextRequest } from "next/server";
 import { ai } from "@/lib/ai-provider";
 import { executeTool, getToolDefinitions } from "@/lib/agent-tools";
 import { BodyLimitError } from "@/lib/body-limit";
 
-export const runtime = "nodejs";
-
-// ─── Constants ────────────────────────────────────────────────
-
 const MAX_STEPS = 10;
 const MAX_TOOL_CALLS_PER_STEP = 2;
-
-// ─── Types ─────────────────────────────────────────────────────
 
 interface PlanStep {
   id: number;
@@ -22,13 +15,9 @@ interface ExecuteRequestBody {
   tools?: string[];
 }
 
-// ─── SSE helper ────────────────────────────────────────────────
-
 function sseEvent(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
-
-// ─── Tool call parser (same pattern as route.ts) ───────────────
 
 function tryParseToolCall(
   text: string
@@ -59,9 +48,7 @@ function tryParseToolCall(
   return null;
 }
 
-// ─── POST: SSE streaming agent execution ───────────────────────
-
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   const encoder = new TextEncoder();
 
   let body: ExecuteRequestBody;
@@ -242,7 +229,6 @@ IMPORTANT: When calling a tool, your ENTIRE response must be the JSON object onl
             const parsed = tryParseToolCall(llmResponse);
 
             if (!parsed) {
-              // Not a tool call — this is the findings/thinking
               send("step_progress", {
                 stepId: step.id,
                 type: "thinking",
@@ -252,7 +238,6 @@ IMPORTANT: When calling a tool, your ENTIRE response must be the JSON object onl
               break;
             }
 
-            // It's a tool call
             toolCallsInStep++;
             const callDesc = `Calling ${parsed.tool} with ${JSON.stringify(parsed.params)}`;
 
@@ -280,15 +265,12 @@ IMPORTANT: When calling a tool, your ENTIRE response must be the JSON object onl
               toolName: parsed.tool,
             });
 
-            // Feed result back to LLM for this step
             stepMessages.push({ role: "assistant", content: llmResponse });
             stepMessages.push({
               role: "user",
               content: `Tool "${parsed.tool}" result:\n${toolResult.display}\n\nNow summarize your findings for this step. If you need another tool (max ${MAX_TOOL_CALLS_PER_STEP}), respond with another JSON tool call.`,
             });
 
-            // After the tool loop ends (either tool limit or no more tools),
-            // we'll do one more LLM call to get the final summary
             if (toolCallsInStep >= MAX_TOOL_CALLS_PER_STEP) {
               try {
                 const finalResult = await ai.chat(stepMessages, {
@@ -308,8 +290,6 @@ IMPORTANT: When calling a tool, your ENTIRE response must be the JSON object onl
             }
           }
 
-          // If we used tools but the loop ended naturally (not via tool limit),
-          // stepSummary should already be set. If empty, set a default.
           if (!stepSummary) {
             stepSummary = `Step ${step.id} completed.`;
           }

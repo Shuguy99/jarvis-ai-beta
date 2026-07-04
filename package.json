@@ -1,13 +1,16 @@
 {
   "name": "jarvis-ai",
-  "version": "18.0.0",
+  "version": "19.0.0",
   "private": true,
   "description": "J.A.R.V.I.S. AI Assistant — Tony Stark HUD interface powered by Ollama",
   "main": "electron/main.js",
   "scripts": {
-    "dev": "next dev -p 3000",
-    "build": "next build",
-    "start": "next start",
+    "dev": "concurrently -k \"npm run server\" \"vite\"",
+    "dev:vite": "concurrently -k \"npm run server\" \"vite\"",
+    "build:vite": "vite build",
+    "server": "npx tsx --tsconfig server/tsconfig.json server/index.ts",
+    "build": "vite build",
+    "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -18,11 +21,12 @@
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
     "setup": "prisma generate && prisma db push",
-    "electron:dev": "concurrently -k \"next dev -p 3000\" \"wait-on http://localhost:3000 && electron .\"",
-    "electron:build": "next build && tsc -p electron/tsconfig.json && electron-builder --win",
-    "electron:preview": "next build && tsc -p electron/tsconfig.json && electron ."
+    "electron:dev": "concurrently -k \"npm run server\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "vite build && tsc -p electron/tsconfig.json && tsc -p server/tsconfig.json --outDir server/dist && electron-builder --win",
+    "electron:preview": "vite build && tsc -p electron/tsconfig.json && tsc -p server/tsconfig.json --outDir server/dist && electron ."
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.8",
     "@prisma/client": "^6.11.1",
     "@radix-ui/react-accordion": "^1.2.15",
     "@radix-ui/react-alert-dialog": "^1.1.18",
@@ -56,11 +60,10 @@
     "cmdk": "^1.1.1",
     "embla-carousel-react": "^8.6.0",
     "framer-motion": "^12.23.2",
+    "hono": "^4.12.27",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.525.0",
     "nanoid": "^5.1.16",
-    "next": "^16.1.1",
-    "next-themes": "^0.4.6",
     "react": "^19.0.0",
     "react-day-picker": "^10.0.1",
     "react-dom": "^19.0.0",
@@ -76,7 +79,6 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
-    "2": "^3.0.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -87,15 +89,19 @@
     "@types/react-dom": "^19",
     "@types/react-syntax-highlighter": "^15.5.13",
     "@types/wait-on": "^5.3.4",
+    "@typescript-eslint/eslint-plugin": "^8.62.1",
+    "@typescript-eslint/parser": "^8.62.1",
     "@vitejs/plugin-react": "^6.0.3",
     "concurrently": "^10.0.3",
     "electron": "^43.0.0",
     "electron-builder": "^26.15.3",
     "eslint": "^9",
-    "eslint-config-next": "^16.1.1",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.26",
     "jsdom": "^29.1.1",
     "prisma": "^6.11.1",
     "tailwindcss": "^4",
+    "tsx": "^4.23.0",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5",
     "vitest": "^4.1.9",
@@ -110,7 +116,8 @@
       "buildResources": "electron/resources"
     },
     "files": [
-      ".next/**/*",
+      "dist/**/*",
+      "server/dist/**/*",
       "electron/main.js",
       "electron/preload.js",
       "prisma/**/*",
@@ -118,7 +125,6 @@
       "node_modules/.prisma/**/*",
       "node_modules/@prisma/**/*",
       "package.json",
-      "next.config.*",
       "*.js",
       "*.mjs"
     ],
@@ -136,7 +142,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "electron/resources/icon.ico",
@@ -146,7 +154,10 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "electron/resources/icon.png",
@@ -161,11 +172,15 @@
       "target": [
         {
           "target": "AppImage",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "deb",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "electron/resources/icon.png",
