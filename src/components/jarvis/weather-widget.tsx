@@ -128,7 +128,7 @@ export function WeatherWidget() {
   }, [located]);
 
   // Fetch weather when coords are known, refresh every 10 min
-  // eslint-disable-next-line react-hooks/set-state-in-effect
+   
   useEffect(() => {
     if (!coords) return;
     const ac = new AbortController();

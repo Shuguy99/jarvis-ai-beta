@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useFocusTrap, getOverlayProps } from "@/lib/a11y-utils";
 import { motion, AnimatePresence } from "framer-motion";
+import type {
+  PlusCircle} from "lucide-react";
 import {
-  PlusCircle,
   Mic,
   Maximize,
   Settings,

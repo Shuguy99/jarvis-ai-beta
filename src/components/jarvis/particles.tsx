@@ -15,7 +15,7 @@ interface Particle {
 
 export function JarvisParticles({ count = 40 }: { count?: number }) {
   // Math.random() is intentionally used for non-deterministic particle placement.
-  // eslint-disable-next-line react-hooks/purity -- one-time random init via useMemo is safe
+   
   const particles = useMemo<Particle[]>(() => {
     const arr: Particle[] = [];
     for (let i = 0; i < count; i++) {

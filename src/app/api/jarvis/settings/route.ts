@@ -21,6 +21,14 @@ const VALID_KEYS = [
   "maxTokens",
   "contextWindow",
   "customPrompt",
+  // AI Provider
+  "aiProvider",
+  "openaiApiKey",
+  "openaiModel",
+  "anthropicApiKey",
+  "anthropicModel",
+  "ollamaModel",
+  "ollamaVisionModel",
 ];
 
 const DEFAULTS: Record<string, string> = {
@@ -39,6 +47,14 @@ const DEFAULTS: Record<string, string> = {
   maxTokens: "2048",
   contextWindow: "20",
   customPrompt: "",
+  // AI Provider defaults
+  aiProvider: "ollama",
+  openaiApiKey: "",
+  openaiModel: "gpt-4o-mini",
+  anthropicApiKey: "",
+  anthropicModel: "claude-sonnet-4-20250514",
+  ollamaModel: "llama3.1",
+  ollamaVisionModel: "llava",
 };
 
 /**

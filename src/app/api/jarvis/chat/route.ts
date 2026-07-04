@@ -53,12 +53,12 @@ export async function POST(req: NextRequest) {
 
     const msg = error instanceof Error ? error.message : "Внутренняя ошибка J.A.R.V.I.S.";
 
-    // Detect Ollama not running
-    if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed") || msg.includes("connect")) {
+    // Detect connection errors (provider unavailable)
+    if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed") || msg.includes("connect") || msg.includes("UNAVAILABLE")) {
       return NextResponse.json(
         {
-          error: "Ollama не запущен. Запустите Ollama (ollama.com) и убедитесь, что модель загружена: ollama pull llama3.1",
-          ollamaNotRunning: true,
+          error: msg.includes("Ollama") ? "Сервер Ollama не запущен. Запустите Ollama и загрузите модель." : msg,
+          providerUnavailable: true,
         },
         { status: 503 }
       );
@@ -69,11 +69,26 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET() {
-  return NextResponse.json({
-    name: "J.A.R.V.I.S.",
-    online: true,
-    provider: ai.getProviderName(),
-    chatAvailable: ai.isChatAvailable(),
-    searchAvailable: ai.isSearchAvailable(),
-  });
+  try {
+    const providerInfo = await ai.getActiveProviderInfo();
+    return NextResponse.json({
+      name: "J.A.R.V.I.S.",
+      online: true,
+      provider: providerInfo.name,
+      providerId: providerInfo.id,
+      chatAvailable: providerInfo.chatAvailable,
+      visionAvailable: providerInfo.visionAvailable,
+      imageGenAvailable: providerInfo.imageGenAvailable,
+      searchAvailable: providerInfo.searchAvailable,
+    });
+  } catch {
+    // Fallback if settings endpoint is down
+    return NextResponse.json({
+      name: "J.A.R.V.I.S.",
+      online: true,
+      provider: ai.getProviderName(),
+      chatAvailable: ai.isChatAvailable(),
+      searchAvailable: ai.isSearchAvailable(),
+    });
+  }
 }

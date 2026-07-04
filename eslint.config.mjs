@@ -47,7 +47,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "curly": ["error", "multi-line"],
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "electron/**"]
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "electron/**", "tailwind.config.ts"]
 }];
 
 export default eslintConfig;

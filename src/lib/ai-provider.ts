@@ -1,13 +1,18 @@
 /**
- * AI Provider — Ollama (local LLM, no API key needed)
+ * AI Provider — Multi-provider strategy pattern
  *
- * Requires Ollama running locally: https://ollama.com
- * Default: http://localhost:11434/v1 (OpenAI-compatible API)
+ * Supports: Ollama (local), OpenAI, Anthropic
+ * Provider is selected via settings (aiProvider key) or env vars.
+ * Falls back to Ollama if no provider is configured.
  *
- * Environment variables (all optional):
- *   OLLAMA_BASE_URL  — Ollama API base URL (default: http://localhost:11434/v1)
- *   OLLAMA_MODEL     — Chat model name (default: llama3.1)
- *   OLLAMA_VISION_MODEL — Vision model (default: llava)
+ * Environment variables (optional, override settings):
+ *   OLLAMA_BASE_URL   — Ollama API base URL (default: http://localhost:11434/v1)
+ *   OLLAMA_MODEL       — Ollama chat model (default: llama3.1)
+ *   OLLAMA_VISION_MODEL — Ollama vision model (default: llava)
+ *   OPENAI_API_KEY     — OpenAI API key
+ *   OPENAI_MODEL       — OpenAI model (default: gpt-4o-mini)
+ *   ANTHROPIC_API_KEY  — Anthropic API key
+ *   ANTHROPIC_MODEL    — Anthropic model (default: claude-sonnet-4-20250514)
  */
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -45,35 +50,453 @@ export interface ImageGenResult {
   revisedPrompt?: string;
 }
 
-// ─── Config ─────────────────────────────────────────────────────
+export type AIProviderType = "ollama" | "openai" | "anthropic";
 
-function getConfig() {
+export interface ProviderInfo {
+  id: AIProviderType;
+  name: string;
+  chatAvailable: boolean;
+  visionAvailable: boolean;
+  imageGenAvailable: boolean;
+  searchAvailable: boolean;
+}
+
+// ─── Provider Settings Loader ──────────────────────────────────
+// Server-side settings are cached for the lifetime of the process.
+// In dev mode with HMR, this means per-request re-read.
+
+let _cachedSettings: Record<string, string> | null = null;
+
+async function getProviderSettings(): Promise<Record<string, string>> {
+  if (_cachedSettings !== null) return _cachedSettings;
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
+      ? `${process.env.NEXT_PUBLIC_APP_URL}/api/jarvis/settings`
+      : "http://localhost:3000/api/jarvis/settings";
+    const res = await fetch(baseUrl, { signal: AbortSignal.timeout(2000) });
+    if (res.ok) {
+      const data = await res.json();
+      const settings: Record<string, string> = data.settings ?? {};
+      _cachedSettings = settings;
+      return settings;
+    }
+  } catch {
+    // Settings endpoint unavailable — use env/defaults
+  }
+  return {};
+}
+
+// ─── Provider Implementations ──────────────────────────────────
+
+/** Ollama provider — local, no API key */
+function createOllamaProvider(settings: Record<string, string>) {
+  const baseUrl = (process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1").replace(/\/+$/, "");
+  const model = process.env.OLLAMA_MODEL || settings.ollamaModel || "llama3.1";
+  const visionModel = process.env.OLLAMA_VISION_MODEL || settings.ollamaVisionModel || "llava";
+
+  async function chat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
+    const body = {
+      model,
+      messages: messages.map((m) => (typeof m.content === "string"
+        ? { role: m.role, content: m.content }
+        : { role: m.role, content: m.content })),
+      max_tokens: opts?.maxTokens ?? 2048,
+      temperature: opts?.temperature ?? 0.7,
+      stream: false,
+    };
+
+    const res = await ollamaFetch(`${baseUrl}/chat/completions`, body);
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) throw new Error("Empty response from Ollama");
+    return { content };
+  }
+
+  async function* chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
+    const body = {
+      model,
+      messages: messages.map((m) => (typeof m.content === "string"
+        ? { role: m.role, content: m.content }
+        : { role: m.role, content: m.content })),
+      max_tokens: opts?.maxTokens ?? 2048,
+      temperature: opts?.temperature ?? 0.7,
+      stream: true,
+    };
+
+    const res = await ollamaFetch(`${baseUrl}/chat/completions`, body);
+    yield* parseSSEStream(res);
+  }
+
+  async function vision(imageBase64: string, prompt: string): Promise<LLMResponse> {
+    const imageUrl = imageBase64.startsWith("data:")
+      ? imageBase64
+      : `data:image/jpeg;base64,${imageBase64}`;
+
+    const body = {
+      model: visionModel,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "text", text: prompt },
+          { type: "image_url", image_url: { url: imageUrl } },
+        ],
+      }],
+      max_tokens: 2048,
+      stream: false,
+    };
+
+    const res = await ollamaFetch(`${baseUrl}/chat/completions`, body);
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) throw new Error("Empty response from vision model");
+    return { content };
+  }
+
   return {
-    baseUrl: (process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1").replace(/\/+$/, ""),
-    model: process.env.OLLAMA_MODEL || "llama3.1",
-    visionModel: process.env.OLLAMA_VISION_MODEL || "llava",
+    id: "ollama" as AIProviderType,
+    name: "Ollama (Local AI)",
+    chatAvailable: true,
+    visionAvailable: true,
+    imageGenAvailable: false,
+    searchAvailable: false,
+    chat,
+    chatStream,
+    vision,
   };
 }
 
-// ─── Ollama Chat (OpenAI-compatible) ────────────────────────────
+/** OpenAI provider — cloud, requires API key */
+function createOpenAIProvider(settings: Record<string, string>) {
+  const apiKey = process.env.OPENAI_API_KEY || settings.openaiApiKey;
+  const model = process.env.OPENAI_MODEL || settings.openaiModel || "gpt-4o-mini";
+  const baseUrl = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 
-async function ollamaChat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
-  const cfg = getConfig();
+  if (!apiKey) {
+    // Return a stub that explains the issue
+    const unavailable = () => { throw new Error("OPENAI_UNAVAILABLE: API key not configured. Set OPENAI_API_KEY env var or openaiApiKey in settings."); };
+    return {
+      id: "openai" as AIProviderType,
+      name: "OpenAI",
+      chatAvailable: false,
+      visionAvailable: false,
+      imageGenAvailable: false,
+      searchAvailable: false,
+      chat: unavailable,
+      chatStream: unavailable,
+      vision: unavailable,
+    };
+  }
 
-  const body = {
-    model: cfg.model,
-    messages: messages.map((m) => {
-      if (typeof m.content === "string") return { role: m.role, content: m.content };
-      return { role: m.role, content: m.content };
-    }),
-    max_tokens: opts?.maxTokens ?? 2048,
-    temperature: opts?.temperature ?? 0.7,
-    stream: false,
+  async function chat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        max_tokens: opts?.maxTokens ?? 2048,
+        temperature: opts?.temperature ?? 0.7,
+        stream: false,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenAI error (${res.status}): ${err}`);
+    }
+    const data = await res.json();
+    return { content: data.choices?.[0]?.message?.content?.trim() ?? "" };
+  }
+
+  async function* chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        max_tokens: opts?.maxTokens ?? 2048,
+        temperature: opts?.temperature ?? 0.7,
+        stream: true,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenAI stream error (${res.status}): ${err}`);
+    }
+    yield* parseSSEStream(res);
+  }
+
+  async function vision(imageBase64: string, prompt: string): Promise<LLMResponse> {
+    const imageUrl = imageBase64.startsWith("data:")
+      ? imageBase64
+      : `data:image/jpeg;base64,${imageBase64}`;
+
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: model.includes("gpt-4o") ? model : "gpt-4o",
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: imageUrl } },
+          ],
+        }],
+        max_tokens: 2048,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`OpenAI vision error (${res.status}): ${err}`);
+    }
+    const data = await res.json();
+    return { content: data.choices?.[0]?.message?.content?.trim() ?? "" };
+  }
+
+  return {
+    id: "openai" as AIProviderType,
+    name: `OpenAI (${model})`,
+    chatAvailable: true,
+    visionAvailable: true,
+    imageGenAvailable: true, // DALL-E available
+    searchAvailable: false,
+    chat,
+    chatStream,
+    vision,
   };
+}
 
+/** Anthropic provider — cloud, requires API key */
+function createAnthropicProvider(settings: Record<string, string>) {
+  const apiKey = process.env.ANTHROPIC_API_KEY || settings.anthropicApiKey;
+  const model = process.env.ANTHROPIC_MODEL || settings.anthropicModel || "claude-sonnet-4-20250514";
+  const baseUrl = process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com";
+
+  if (!apiKey) {
+    const unavailable = () => { throw new Error("ANTHROPIC_UNAVAILABLE: API key not configured. Set ANTHROPIC_API_KEY env var or anthropicApiKey in settings."); };
+    return {
+      id: "anthropic" as AIProviderType,
+      name: "Anthropic",
+      chatAvailable: false,
+      visionAvailable: false,
+      imageGenAvailable: false,
+      searchAvailable: false,
+      chat: unavailable,
+      chatStream: unavailable,
+      vision: unavailable,
+    };
+  }
+
+  // Anthropic uses a different API format — system is a top-level param
+  function convertMessages(messages: LLMMessage[]) {
+    let systemContent = "";
+    const anthropicMessages: Array<{ role: string; content: string | Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }> }> = [];
+
+    for (const m of messages) {
+      if (m.role === "system") {
+        if (typeof m.content === "string") systemContent += m.content;
+        else systemContent += (m.content as ContentPart[]).map(p => p.text ?? "").join("");
+      } else if (typeof m.content === "string") {
+        anthropicMessages.push({ role: m.role, content: m.content });
+      } else {
+        // multimodal
+        const parts: Array<{ type: string; text?: string; source?: { type: string; media_type: string; data: string } }> = [];
+        for (const p of m.content as ContentPart[]) {
+          if (p.type === "text") {
+            parts.push({ type: "text", text: p.text });
+          } else if (p.type === "image_url" && p.image_url?.url) {
+            const url = p.image_url.url;
+            const base64Match = url.match(/^data:(image\/\w+);base64,(.+)$/);
+            if (base64Match) {
+              parts.push({
+                type: "image",
+                source: { type: "base64", media_type: base64Match[1], data: base64Match[2] },
+              });
+            }
+          }
+        }
+        anthropicMessages.push({ role: m.role, content: parts.length === 1 && parts[0].type === "text" ? parts[0].text! : parts });
+      }
+    }
+
+    return { systemContent, anthropicMessages };
+  }
+
+  async function chat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
+    const { systemContent, anthropicMessages } = convertMessages(messages);
+
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: opts?.maxTokens ?? 2048,
+        temperature: opts?.temperature ?? 0.7,
+        ...(systemContent ? { system: systemContent } : {}),
+        messages: anthropicMessages,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Anthropic error (${res.status}): ${err}`);
+    }
+    const data = await res.json();
+    return { content: data.content?.[0]?.text?.trim() ?? "" };
+  }
+
+  async function* chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
+    const { systemContent, anthropicMessages } = convertMessages(messages);
+
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: opts?.maxTokens ?? 2048,
+        temperature: opts?.temperature ?? 0.7,
+        ...(systemContent ? { system: systemContent } : {}),
+        messages: anthropicMessages,
+        stream: true,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Anthropic stream error (${res.status}): ${err}`);
+    }
+
+    // Anthropic SSE format: event types message_start, content_block_delta, message_delta, message_stop
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error("No response body");
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data: ")) continue;
+        try {
+          const parsed = JSON.parse(trimmed.slice(6));
+          if (parsed.type === "content_block_delta") {
+            const text = parsed.delta?.text;
+            if (text) yield text;
+          }
+        } catch {
+          // Skip malformed
+        }
+      }
+    }
+  }
+
+  async function vision(imageBase64: string, prompt: string): Promise<LLMResponse> {
+    const base64Match = imageBase64.match(/^data:(image\/\w+);base64,(.+)$/);
+    const mediaType = base64Match ? base64Match[1] : "image/jpeg";
+    const data = base64Match ? base64Match[2] : imageBase64;
+
+    const res = await fetch(`${baseUrl}/v1/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: model.includes("claude") ? model : "claude-sonnet-4-20250514",
+        max_tokens: 2048,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "image", source: { type: "base64", media_type: mediaType, data } },
+            { type: "text", text: prompt },
+          ],
+        }],
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`Anthropic vision error (${res.status}): ${err}`);
+    }
+    const visionData = await res.json();
+    return { content: visionData.content?.[0]?.text?.trim() ?? "" };
+  }
+
+  return {
+    id: "anthropic" as AIProviderType,
+    name: `Anthropic (${model})`,
+    chatAvailable: true,
+    visionAvailable: true,
+    imageGenAvailable: false,
+    searchAvailable: false,
+    chat,
+    chatStream,
+    vision,
+  };
+}
+
+// ─── SSE Stream Parser (shared by Ollama and OpenAI) ──────────
+
+async function* parseSSEStream(res: Response): AsyncGenerator<string> {
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("No response body");
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed === "data: [DONE]") continue;
+
+      let jsonStr = trimmed;
+      if (jsonStr.startsWith("data: ")) {
+        jsonStr = jsonStr.slice(6);
+      }
+
+      try {
+        const parsed = JSON.parse(jsonStr);
+        const chunk = parsed.choices?.[0]?.delta?.content;
+        if (chunk) yield chunk;
+      } catch {
+        // Skip malformed lines
+      }
+    }
+  }
+}
+
+// ─── Ollama Fetch Helper ────────────────────────────────────────
+
+async function ollamaFetch(url: string, body: unknown): Promise<Response> {
   let res: Response;
   try {
-    res = await fetch(`${cfg.baseUrl}/chat/completions`, {
+    res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -91,165 +514,90 @@ async function ollamaChat(messages: LLMMessage[], opts?: LLMOptions): Promise<LL
     throw new Error(`Ollama error (${res.status}): ${err}`);
   }
 
-  const data = await res.json();
-  const content = data.choices?.[0]?.message?.content?.trim();
-  if (!content) throw new Error("Empty response from Ollama");
-  return { content };
+  return res;
 }
 
-// ─── Ollama Vision ──────────────────────────────────────────────
+// ─── Provider Manager ───────────────────────────────────────────
 
-async function ollamaVision(imageBase64: string, prompt: string): Promise<LLMResponse> {
-  const cfg = getConfig();
-  const imageUrl = imageBase64.startsWith("data:")
-    ? imageBase64
-    : `data:image/jpeg;base64,${imageBase64}`;
+type ActiveProvider = ReturnType<typeof createOllamaProvider>;
 
-  const body = {
-    model: cfg.visionModel,
-    messages: [
-      {
-        role: "user",
-        content: [
-          { type: "text", text: prompt },
-          { type: "image_url", image_url: { url: imageUrl } },
-        ],
-      },
-    ],
-    max_tokens: 2048,
-    stream: false,
-  };
+let _activeProvider: ActiveProvider | null = null;
 
-  let res: Response;
-  try {
-    res = await fetch(`${cfg.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "";
-    if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed")) {
-      throw new Error("OLLAMA_UNAVAILABLE: Сервер Ollama не запущен.");
-    }
-    throw new Error(`Ошибка подключения к Ollama: ${msg}`);
+async function getActiveProvider(): Promise<ActiveProvider> {
+  // Return cached if available (settings don't change during runtime in practice)
+  if (_activeProvider) return _activeProvider;
+
+  const settings = await getProviderSettings();
+  const providerId = (settings.aiProvider as AIProviderType) || "ollama";
+
+  switch (providerId) {
+    case "openai":
+      _activeProvider = createOpenAIProvider(settings);
+      break;
+    case "anthropic":
+      _activeProvider = createAnthropicProvider(settings);
+      break;
+    default:
+      _activeProvider = createOllamaProvider(settings);
+      break;
   }
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Ollama vision error (${res.status}): ${err}`);
-  }
-
-  const data = await res.json();
-  const content = data.choices?.[0]?.message?.content?.trim();
-  if (!content) throw new Error("Empty response from vision model");
-  return { content };
+  return _activeProvider;
 }
 
-// ─── Unified API ─────────────────────────────────────────────────
+/** Invalidate the cached provider (call after settings change) */
+function invalidateProviderCache(): void {
+  _activeProvider = null;
+  _cachedSettings = null;
+}
+
+// ─── Unified Public API (backward-compatible) ───────────────────
 
 export const ai = {
-  /** Send messages to the LLM and get a response */
   async chat(messages: LLMMessage[], opts?: LLMOptions): Promise<LLMResponse> {
-    return ollamaChat(messages, opts);
+    const provider = await getActiveProvider();
+    return provider.chat(messages, opts);
   },
 
-  /** Stream chat response — returns an async generator of content chunks */
   async *chatStream(messages: LLMMessage[], opts?: LLMOptions): AsyncGenerator<string> {
-    const cfg = getConfig();
-    const body = {
-      model: cfg.model,
-      messages: messages.map((m) => {
-        if (typeof m.content === "string") return { role: m.role, content: m.content };
-        return { role: m.role, content: m.content };
-      }),
-      max_tokens: opts?.maxTokens ?? 2048,
-      temperature: opts?.temperature ?? 0.7,
-      stream: true,
-    };
-
-    let res: Response;
-    try {
-      res = await fetch(`${cfg.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "";
-      if (msg.includes("ECONNREFUSED") || msg.includes("fetch failed")) {
-        throw new Error("OLLAMA_UNAVAILABLE: Сервер Ollama не запущен. Запустите Ollama и загрузите модель: ollama pull llama3.1");
-      }
-      throw new Error(`Ошибка подключения к Ollama: ${msg}`);
-    }
-
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Ollama stream error (${res.status}): ${err}`);
-    }
-
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error("No response body");
-
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed === "data: [DONE]") continue;
-
-        // Strip SSE "data: " prefix (Ollama /v1 returns SSE format)
-        let jsonStr = trimmed;
-        if (jsonStr.startsWith("data: ")) {
-          jsonStr = jsonStr.slice(6);
-        }
-
-        try {
-          const parsed = JSON.parse(jsonStr);
-          const chunk = parsed.choices?.[0]?.delta?.content;
-          if (chunk) yield chunk;
-        } catch {
-          // Skip malformed lines
-        }
-      }
-    }
+    const provider = await getActiveProvider();
+    yield* provider.chatStream(messages, opts);
   },
 
-  /** Analyze an image with a vision model */
   async vision(imageBase64: string, prompt: string): Promise<LLMResponse> {
-    return ollamaVision(imageBase64, prompt);
+    const provider = await getActiveProvider();
+    return provider.vision(imageBase64, prompt);
   },
 
-  /** Generate an image — not supported by Ollama */
   async imageGen(_prompt: string, _size?: string): Promise<ImageGenResult> {
+    const provider = await getActiveProvider();
+    if (provider.imageGenAvailable) {
+      // OpenAI DALL-E — can be implemented when needed
+      throw new Error("Image generation via API is not yet implemented for this provider.");
+    }
     throw new Error(
-      "Генерация изображений недоступна с Ollama. Для генерации изображений требуется подключение к сервису с поддержкой DALL-E/Stable Diffusion."
+      "Генерация изображений недоступна. Для OpenAI подключите API ключ."
     );
   },
 
-  /** Web search — not available locally without external API */
   async search(_query: string, _num?: number): Promise<SearchResult[]> {
     return [];
   },
 
   isChatAvailable(): boolean {
-    return true;
+    // Best-effort sync check — assumes Ollama if no settings loaded
+    const providerId = process.env.OPENAI_API_KEY ? "openai"
+      : process.env.ANTHROPIC_API_KEY ? "anthropic"
+      : "ollama";
+    return providerId === "ollama" || !!process.env.OPENAI_API_KEY || !!process.env.ANTHROPIC_API_KEY;
   },
 
   isVisionAvailable(): boolean {
-    return true;
+    return true; // All three providers support vision
   },
 
   isImageGenAvailable(): boolean {
-    return false;
+    return !!process.env.OPENAI_API_KEY;
   },
 
   isSearchAvailable(): boolean {
@@ -257,6 +605,40 @@ export const ai = {
   },
 
   getProviderName(): string {
+    if (process.env.OPENAI_API_KEY) return `OpenAI (${process.env.OPENAI_MODEL || "gpt-4o-mini"})`;
+    if (process.env.ANTHROPIC_API_KEY) return `Anthropic (${process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"})`;
     return "Ollama (Local AI)";
+  },
+
+  /** Get info about the currently active provider */
+  async getActiveProviderInfo(): Promise<ProviderInfo> {
+    const provider = await getActiveProvider();
+    return {
+      id: provider.id,
+      name: provider.name,
+      chatAvailable: provider.chatAvailable,
+      visionAvailable: provider.visionAvailable,
+      imageGenAvailable: provider.imageGenAvailable,
+      searchAvailable: provider.searchAvailable,
+    };
+  },
+
+  /** Get all available providers */
+  getAvailableProviders(): ProviderInfo[] {
+    const providers: ProviderInfo[] = [
+      { id: "ollama", name: "Ollama (Local AI)", chatAvailable: true, visionAvailable: true, imageGenAvailable: false, searchAvailable: false },
+    ];
+    if (process.env.OPENAI_API_KEY) {
+      providers.push({ id: "openai", name: `OpenAI (${process.env.OPENAI_MODEL || "gpt-4o-mini"})`, chatAvailable: true, visionAvailable: true, imageGenAvailable: true, searchAvailable: false });
+    }
+    if (process.env.ANTHROPIC_API_KEY) {
+      providers.push({ id: "anthropic", name: `Anthropic (${process.env.ANTHROPIC_MODEL || "claude-sonnet-4-20250514"})`, chatAvailable: true, visionAvailable: true, imageGenAvailable: false, searchAvailable: false });
+    }
+    return providers;
+  },
+
+  /** Refresh provider after settings change */
+  refreshProvider() {
+    invalidateProviderCache();
   },
 };
