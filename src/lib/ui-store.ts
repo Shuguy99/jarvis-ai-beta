@@ -35,6 +35,9 @@ interface PanelState {
   leftWidgetIds: string[];
   rightWidgetIds: string[];
   activePersonaId: string;
+  voiceEnabled: boolean;
+  voiceAutoReactivate: boolean;
+  selectedVoiceIndex: number;
 }
 
 interface PanelActions {
@@ -72,6 +75,9 @@ interface PanelActions {
   closeAllPanels: () => void;
   setActivePersonaId: (id: string) => void;
   cyclePersona: () => void;
+  setVoiceEnabled: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setVoiceAutoReactivate: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setSelectedVoiceIndex: (v: number | ((prev: number) => number)) => void;
 }
 
 const DEFAULT_LEFT_WIDGETS = [
@@ -116,6 +122,9 @@ export const useUIStore = create<PanelState & PanelActions>()((set) => ({
   leftWidgetIds: [...DEFAULT_LEFT_WIDGETS],
   rightWidgetIds: [...DEFAULT_RIGHT_WIDGETS],
   activePersonaId: "classic",
+  voiceEnabled: false,
+  voiceAutoReactivate: false,
+  selectedVoiceIndex: -1,
 
   // Actions
   setBooted: (v) => set({ booted: v }),
@@ -159,6 +168,9 @@ export const useUIStore = create<PanelState & PanelActions>()((set) => ({
     const nextIdx = (currentIdx + 1) % PERSONAS.length;
     return { activePersonaId: PERSONAS[nextIdx].id };
   }),
+  setVoiceEnabled: (v) => set((s) => ({ voiceEnabled: apply(v, s.voiceEnabled) })),
+  setVoiceAutoReactivate: (v) => set((s) => ({ voiceAutoReactivate: apply(v, s.voiceAutoReactivate) })),
+  setSelectedVoiceIndex: (v) => set((s) => ({ selectedVoiceIndex: apply(v, s.selectedVoiceIndex) })),
   closeAllPanels: () => set({
     paletteOpen: false,
     settingsOpen: false,

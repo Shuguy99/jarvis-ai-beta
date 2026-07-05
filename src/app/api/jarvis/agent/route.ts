@@ -1,175 +1,212 @@
-import { json } from "@/lib/json-response";
+/**
+ * Agent Loop API Route — SSE streaming agent execution.
+ *
+ * POST: accepts { message, provider?, model?, tools? }
+ * Returns SSE stream with real-time tool call progress.
+ * Uses the AgentLoop class server-side with native function calling.
+ */
+
 import { ai } from "@/lib/ai-provider";
 import { executeTool, getToolDefinitionsForFunctionCalling } from "@/lib/agent-tools";
+import { AgentLoop } from "@/lib/agent-loop";
+import type { FunctionToolDef, AgentLoopMessage, AgentAIResponse } from "@/lib/agent-loop";
 import { parseJsonBody, BodyLimitError } from "@/lib/body-limit";
 
 interface AgentRequestBody {
-  task: string;
+  message: string;
+  provider?: string;
+  model?: string;
   tools?: string[];
 }
 
-interface Step {
-  id: number;
-  type: "thinking" | "tool_call" | "tool_result" | "final_answer";
-  content: string;
-  toolName?: string;
-  timestamp: string;
-}
+const MAX_ITERATIONS = 10;
 
-interface ToolCallRecord {
-  tool: string;
-  params: Record<string, unknown>;
-  result: string;
+function sse(data: unknown): string {
+  return `data: ${JSON.stringify(data)}\n\n`;
 }
-
-const MAX_TOOL_CALLS = 5;
 
 export async function POST(req: Request) {
+  const encoder = new TextEncoder();
+
+  let body: AgentRequestBody;
   try {
-    const body = await parseJsonBody<AgentRequestBody>(req);
-    const { task, tools: enabledTools } = body;
-
-    if (!task || !task.trim()) {
-      return json(
-        { error: "Task description is required." },
-        400
-      );
-    }
-
-    const steps: Step[] = [];
-    const toolCalls: ToolCallRecord[] = [];
-    let stepId = 0;
-
-    const addStep = (type: Step["type"], content: string, toolName?: string) => {
-      steps.push({ id: ++stepId, type, content, toolName, timestamp: new Date().toISOString() });
-    };
-
-    const toolDefs = getToolDefinitionsForFunctionCalling(enabledTools);
-
-    const systemPrompt = `You are J.A.R.V.I.S., an advanced AI assistant by Stark Industries. You are in AGENT MODE with access to tools.
-Use the provided tools when needed. After receiving tool results, provide a clear final answer.
-Be concise but thorough. Maximum ${MAX_TOOL_CALLS} tool calls per task.`;
-
-    addStep("thinking", `Analyzing task: "${task}"`);
-
-    const messages: Array<Record<string, unknown>> = [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: task },
-    ];
-
-    let toolCallCount = 0;
-    let finalAnswer = "";
-
-    while (toolCallCount < MAX_TOOL_CALLS) {
-      const response = await ai.chatWithTools(
-        messages as unknown as import("@/lib/ai-provider").LLMMessage[],
-        toolDefs,
-        { temperature: 0.3, maxTokens: 4096 }
-      );
-
-      if (!response.toolCalls || response.toolCalls.length === 0) {
-        finalAnswer = response.content ?? "No response generated.";
-        break;
-      }
-
-      const assistantMsg: Record<string, unknown> = { role: "assistant", content: response.content };
-      if (response.toolCalls) {
-        assistantMsg.tool_calls = response.toolCalls.map((tc) => ({
-          id: tc.id,
-          type: "function",
-          function: { name: tc.name, arguments: tc.arguments },
-        }));
-      }
-      messages.push(assistantMsg);
-
-      for (const tc of response.toolCalls) {
-        toolCallCount++;
-        let params: Record<string, unknown> = {};
-        try {
-          params = JSON.parse(tc.arguments);
-        } catch {
-          params = {};
-        }
-
-        addStep("tool_call", `Calling ${tc.name} with ${JSON.stringify(params)}`, tc.name);
-
-        const toolResult = await executeTool(tc.name, params as Record<string, string>);
-
-        const resultStr = toolResult.display;
-        toolCalls.push({ tool: tc.name, params, result: resultStr });
-
-        addStep(
-          "tool_result",
-          toolResult.success
-            ? resultStr.slice(0, 800)
-            : `Error: ${toolResult.error ?? resultStr}`,
-          tc.name
-        );
-
-        messages.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: toolResult.success ? resultStr : `Error: ${toolResult.error ?? resultStr}`,
-        });
-      }
-    }
-
-    if (!finalAnswer && toolCallCount >= MAX_TOOL_CALLS) {
-      messages.push({
-        role: "user",
-        content: "You have reached the maximum number of tool calls. Provide your final answer based on the information gathered.",
-      });
-
-      const lastResponse = await ai.chatWithTools(
-        messages as unknown as import("@/lib/ai-provider").LLMMessage[],
-        [],
-        { temperature: 0.3, maxTokens: 2048 }
-      );
-      finalAnswer = lastResponse.content ?? "Could not generate final answer.";
-    }
-
-    addStep("final_answer", finalAnswer);
-
-    return json({
-      reply: finalAnswer,
-      toolCalls,
-      steps,
-      timestamp: new Date().toISOString(),
-    });
+    body = await parseJsonBody<AgentRequestBody>(req);
   } catch (error) {
     if (error instanceof BodyLimitError) {
-      return json({ error: error.message }, 413);
-    }
-    console.error("JARVIS agent error:", error);
-
-    const msg =
-      error instanceof Error ? error.message : "Internal J.A.R.V.I.S. agent error.";
-
-    if (
-      msg.includes("ECONNREFUSED") ||
-      msg.includes("fetch failed") ||
-      msg.includes("connect")
-    ) {
-      return json(
+      return new Response(
+        sse({ type: "error", message: error.message }),
         {
-          error:
-            "Ollama not running. Start Ollama (ollama.com) and ensure the model is loaded: ollama pull llama3.1",
-          ollamaNotRunning: true,
+          status: 413,
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            Connection: "keep-alive",
+          },
         },
-        503
       );
     }
-
-    return json({ error: msg }, 500);
+    return new Response(
+      sse({ type: "error", message: "Invalid JSON in request body." }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      },
+    );
   }
+
+  const { message, tools: enabledTools } = body;
+
+  if (!message?.trim()) {
+    return new Response(
+      sse({ type: "error", message: "Message is required." }),
+      {
+        status: 400,
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      },
+    );
+  }
+
+  const toolDefs: FunctionToolDef[] = getToolDefinitionsForFunctionCalling(enabledTools) as unknown as FunctionToolDef[];
+
+  // Build the AI caller that bridges to the existing ai-provider
+  const callAI: (
+    messages: AgentLoopMessage[],
+    tools: FunctionToolDef[],
+    opts: { temperature: number; maxTokens: number },
+    signal: AbortSignal,
+  ) => Promise<AgentAIResponse> = async (messages, tools, opts, signal) => {
+    const response = await ai.chatWithTools(
+      messages as unknown as import("@/lib/ai-provider").LLMMessage[],
+      tools as unknown as Parameters<typeof ai.chatWithTools>[1],
+      { temperature: opts.temperature, maxTokens: opts.maxTokens },
+    );
+
+    // Respect abort signal
+    if (signal.aborted) {
+      throw new DOMException("Aborted", "AbortError");
+    }
+
+    return {
+      content: response.content,
+      toolCalls: response.toolCalls,
+    };
+  };
+
+  // Build the tool executor
+  const toolExecutor = async (name: string, params: Record<string, string>) => {
+    return executeTool(name, params);
+  };
+
+  const systemPrompt = `You are J.A.R.V.I.S., an advanced AI assistant by Stark Industries.
+You are in AGENT MODE with access to tools. Use the tools when needed to accomplish the user's task.
+After receiving tool results, analyze them and provide a clear final answer.
+Be concise but thorough. If you already have enough information, respond directly.`;
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (data: unknown) => {
+        controller.enqueue(encoder.encode(sse(data)));
+      };
+
+      try {
+        const loop = new AgentLoop(callAI, toolExecutor, toolDefs, {
+          maxIterations: MAX_ITERATIONS,
+          systemPrompt,
+          temperature: 0.3,
+          maxTokens: 4096,
+          onStatusChange(status) {
+            send({ type: "status", status });
+          },
+          onToolCall(call) {
+            send({ type: "tool_call", toolName: call.name, params: call.params });
+          },
+          onToolResult(result) {
+            send({
+              type: "tool_result",
+              toolName: result.toolName,
+              success: result.success,
+              content: result.content.slice(0, 500),
+            });
+          },
+          onToken(token) {
+            send({ type: "chunk", text: token });
+          },
+          onLog(entry) {
+            if (entry.type !== "tool_call" && entry.type !== "tool_result") {
+              send({ type: "log", iteration: entry.iteration, logType: entry.type, content: entry.content, toolName: entry.toolName, timestamp: entry.timestamp });
+            }
+          },
+        });
+
+        // Track iterations via log callback override
+        let currentIter = 0;
+        const origOnLog = loop.getLog;
+        // We get iterations from onToolCall timing instead
+
+        // Run the loop
+        await loop.run(message);
+
+        // Send iteration count (best effort from the loop)
+        send({ type: "iteration", iteration: loop.getIterations() });
+
+        send({ type: "done" });
+        controller.close();
+      } catch (error) {
+        const msg =
+          error instanceof Error ? error.message : "Agent loop error";
+
+        if (
+          msg.includes("ECONNREFUSED") ||
+          msg.includes("fetch failed") ||
+          msg.includes("connect")
+        ) {
+          send({
+            type: "error",
+            message:
+              "AI provider not reachable. Start Ollama or configure your API key.",
+          });
+        } else if (msg.includes("AbortError") || msg.includes("cancelled")) {
+          send({ type: "error", message: "Agent loop cancelled" });
+        } else {
+          send({ type: "error", message: msg });
+        }
+        controller.close();
+      }
+    },
+    cancel() {
+      // Client disconnected
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
 }
 
 export async function GET() {
-  return json({
-    name: "J.A.R.V.I.S. Agent",
-    online: true,
-    provider: ai.getProviderName(),
-    maxToolCalls: MAX_TOOL_CALLS,
-    functionCalling: true,
-  });
+  return new Response(
+    JSON.stringify({
+      name: "J.A.R.V.I.S. Agent Loop",
+      online: true,
+      provider: ai.getProviderName(),
+      maxIterations: MAX_ITERATIONS,
+      functionCalling: true,
+    }),
+    {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 }

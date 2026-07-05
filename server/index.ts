@@ -5,33 +5,33 @@ import path from "path";
 
 // ─── Import all route handlers ──────────────────────────────────────────────
 
-import * as rootRoute from "@/app/api/route";
-import * as chatRoute from "@/app/api/jarvis/chat/route";
-import * as chatStreamRoute from "@/app/api/jarvis/chat/stream/route";
-import * as convosRoute from "@/app/api/jarvis/conversations/route";
-import * as convoByIdRoute from "@/app/api/jarvis/conversations/[id]/route";
-import * as agentRoute from "@/app/api/jarvis/agent/route";
-import * as agentExecuteRoute from "@/app/api/jarvis/agent/execute/route";
-import * as agentStreamRoute from "@/app/api/jarvis/agent/stream/route";
-import * as asrRoute from "@/app/api/jarvis/asr/route";
-import * as filesRoute from "@/app/api/jarvis/files/route";
-import * as githubRoute from "@/app/api/jarvis/github/route";
-import * as imageGenRoute from "@/app/api/jarvis/image-gen/route";
-import * as insightsRoute from "@/app/api/jarvis/insights/route";
-import * as notesRoute from "@/app/api/jarvis/notes/route";
-import * as pluginsRoute from "@/app/api/jarvis/plugins/route";
-import * as processesRoute from "@/app/api/jarvis/processes/route";
-import * as providersRoute from "@/app/api/jarvis/providers/route";
-import * as ragRoute from "@/app/api/jarvis/rag/route";
-import * as searchFilesRoute from "@/app/api/jarvis/search-files/route";
-import * as searchRoute from "@/app/api/jarvis/search/route";
-import * as settingsRoute from "@/app/api/jarvis/settings/route";
-import * as systemRoute from "@/app/api/jarvis/system/route";
-import * as ttsRoute from "@/app/api/jarvis/tts/route";
-import * as visionRoute from "@/app/api/jarvis/vision/route";
-import * as voiceParseRoute from "@/app/api/jarvis/voice-parse/route";
-import * as weatherRoute from "@/app/api/jarvis/weather/route";
-import * as analyticsRoute from "@/app/api/jarvis/analytics/route";
+import * as rootRoute from "../src/app/api/route";
+import * as chatRoute from "../src/app/api/jarvis/chat/route";
+import * as chatStreamRoute from "../src/app/api/jarvis/chat/stream/route";
+import * as convosRoute from "../src/app/api/jarvis/conversations/route";
+import * as convoByIdRoute from "../src/app/api/jarvis/conversations/[id]/route";
+import * as agentRoute from "../src/app/api/jarvis/agent/route";
+import * as agentExecuteRoute from "../src/app/api/jarvis/agent/execute/route";
+import * as agentStreamRoute from "../src/app/api/jarvis/agent/stream/route";
+import * as asrRoute from "../src/app/api/jarvis/asr/route";
+import * as filesRoute from "../src/app/api/jarvis/files/route";
+import * as githubRoute from "../src/app/api/jarvis/github/route";
+import * as imageGenRoute from "../src/app/api/jarvis/image-gen/route";
+import * as insightsRoute from "../src/app/api/jarvis/insights/route";
+import * as notesRoute from "../src/app/api/jarvis/notes/route";
+import * as pluginsRoute from "../src/app/api/jarvis/plugins/route";
+import * as processesRoute from "../src/app/api/jarvis/processes/route";
+import * as providersRoute from "../src/app/api/jarvis/providers/route";
+import * as ragRoute from "../src/app/api/jarvis/rag/route";
+import * as searchFilesRoute from "../src/app/api/jarvis/search-files/route";
+import * as searchRoute from "../src/app/api/jarvis/search/route";
+import * as settingsRoute from "../src/app/api/jarvis/settings/route";
+import * as systemRoute from "../src/app/api/jarvis/system/route";
+import * as ttsRoute from "../src/app/api/jarvis/tts/route";
+import * as visionRoute from "../src/app/api/jarvis/vision/route";
+import * as voiceParseRoute from "../src/app/api/jarvis/voice-parse/route";
+import * as weatherRoute from "../src/app/api/jarvis/weather/route";
+import * as analyticsRoute from "../src/app/api/jarvis/analytics/route";
 
 // ─── Rate limiter + Origin check middleware (from src/middleware.ts) ───────
 

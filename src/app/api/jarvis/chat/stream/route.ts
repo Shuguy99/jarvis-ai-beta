@@ -12,12 +12,14 @@ interface StreamRequestBody {
   behavior?: Partial<BehaviorSettings>;
   imageBase64?: string;
   voicePersonaId?: string;
+  memoryContext?: string;
+  ragContext?: string;
 }
 
 export async function POST(req: Request) {
   try {
     const body = await parseJsonBody<StreamRequestBody>(req, MAX_BODY_BYTES_CHAT);
-    const { messages = [], query, behavior, imageBase64, voicePersonaId } = body;
+    const { messages = [], query, behavior, imageBase64, voicePersonaId, memoryContext, ragContext: clientRAGContext } = body;
 
     if (!query || !query.trim()) {
       return new Response(JSON.stringify({ error: "Пустой запрос." }), {
@@ -49,6 +51,16 @@ export async function POST(req: Request) {
         ];
         llmMessages[lastUserIdx] = { ...llmMessages[lastUserIdx], content: parts };
       }
+    }
+
+    // Inject memory context into system prompt
+    if (memoryContext && llmMessages.length > 0 && typeof llmMessages[0].content === "string") {
+      llmMessages[0] = { ...llmMessages[0], content: llmMessages[0].content + "\n\n" + memoryContext };
+    }
+
+    // Inject client-side RAG context (IndexedDB TF-IDF) after memory context
+    if (clientRAGContext && llmMessages.length > 0 && typeof llmMessages[0].content === "string") {
+      llmMessages[0] = { ...llmMessages[0], content: llmMessages[0].content + "\n\nRelevant document context:\n" + clientRAGContext };
     }
 
     const systemContent = typeof llmMessages[0]?.content === "string" ? llmMessages[0].content : "";

@@ -20,9 +20,11 @@ import {
   StickyNote,
   Wrench,
   Plug,
+  Store,
 } from "lucide-react";
 import { CustomToolsPanel } from "./custom-tools-panel";
 import { MCPPanel } from "./mcp-panel";
+import { PluginManagerPanel } from "./plugin-manager-panel";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { playSound } from "@/lib/sounds";
@@ -60,6 +62,7 @@ const CATEGORIES: CategoryDef[] = [
   { id: "network", label: "Сеть", icon: Wifi },
   { id: "tools", label: "Тулы", icon: Wrench },
   { id: "mcp", label: "MCP", icon: Plug },
+  { id: "plugins", label: "Plugins", icon: Store },
 ];
 
 // ── Settings Dialog (inline) ──────────────────────────────────────
@@ -444,6 +447,8 @@ export function PluginPanel({ open, onClose }: PluginPanelProps) {
               <CustomToolsPanel />
             ) : activeCategory === "mcp" ? (
               <MCPPanel />
+            ) : activeCategory === "plugins" ? (
+              <PluginManagerPanel />
             ) : (
               <AnimatePresence mode="popLayout">
                 {filteredPlugins.length > 0 ? (

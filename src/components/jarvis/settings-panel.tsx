@@ -24,6 +24,9 @@ import { CommunityThemesGallery } from "@/components/jarvis/community-themes-gal
 import { HotkeySettings } from "@/components/jarvis/hotkey-settings";
 import { RemoteAccessPanel } from "@/components/jarvis/remote-access-panel";
 import { ApiAccessPanel, AuthSection } from "@/components/jarvis/api-access-panel";
+import { VoiceSettings } from "@/components/jarvis/voice-settings";
+import { EventMonitor } from "@/components/jarvis/event-monitor";
+import { eventBus } from "@/lib/event-bus";
 import {
   Volume2,
   Cpu,
@@ -46,6 +49,7 @@ import {
   Keyboard,
   Monitor,
   Key,
+  Activity,
 } from "lucide-react";
 
 // ─── Persona presets ──────────────────────────────────────────────
@@ -193,7 +197,7 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<"voice" | "behavior" | "providers" | "integrations" | "security" | "hotkeys">("behavior");
+  const [activeTab, setActiveTab] = useState<"voice" | "behavior" | "providers" | "integrations" | "security" | "hotkeys" | "events">("behavior");
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
   const [providersLoading, setProvidersLoading] = useState(false);
@@ -270,6 +274,7 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
       });
       setActiveProviderId(providerId);
       auditLog("provider_change", "Провайдер изменён", `New provider: ${providerId}`);
+      eventBus.emit("ai:provider-changed", { provider: providerId, model: "" });
       playSound("success");
     } catch {
       playSound("error");
@@ -443,6 +448,17 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
           >
             <Keyboard className="mr-1.5 inline h-3 w-3" />
             Хоткеи
+          </button>
+          <button
+            onClick={() => { setActiveTab("events"); playSound("click"); }}
+            className={`flex-1 px-4 py-2.5 font-mono text-[10px] uppercase tracking-widest transition ${
+              activeTab === "events"
+                ? "border-b-2 border-primary text-primary jarvis-glow bg-primary/5"
+                : "text-muted-foreground/60 hover:text-foreground/80"
+            }`}
+          >
+            <Activity className="mr-1.5 inline h-3 w-3" />
+            Events
           </button>
         </div>
 
@@ -672,6 +688,15 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
                 />
               </SettingsSection>
 
+              {/* ── Voice Pipeline (STT → AI → TTS) ── */}
+              <SettingsSection
+                icon={<Volume2 className="h-3.5 w-3.5" />}
+                title="Voice Pipeline"
+                subtitle="STT → AI → TTS"
+              >
+                <VoiceSettings />
+              </SettingsSection>
+
               {/* ── System ── */}
               <SettingsSection
                 icon={<Cpu className="h-3.5 w-3.5" />}
@@ -855,6 +880,12 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
           {activeTab === "hotkeys" && (
             <div className="space-y-0">
               <HotkeySettings />
+            </div>
+          )}
+
+          {activeTab === "events" && (
+            <div className="space-y-0">
+              <EventMonitor />
             </div>
           )}
         </div>

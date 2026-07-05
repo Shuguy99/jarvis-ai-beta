@@ -19,6 +19,10 @@ import { useTTS } from "@/hooks/use-tts";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { processLocalCommand } from "@/hooks/use-local-commands";
 import { auditLog } from "@/lib/security-audit";
+import { memoryStore } from "@/lib/memory-system";
+import { extractMemoriesFromMessage, AUTO_SAVE_THRESHOLD } from "@/lib/memory-extractor";
+import { buildClientRAGContext } from "@/lib/rag-store";
+import { eventBus } from "@/lib/event-bus";
 
 /** 20% chance to attach a mood emoji based on message content */
 function detectMoodEmoji(text: string): string | undefined {
@@ -200,6 +204,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       };
       useJarvisStore.getState().addMessage(userMsg);
       publishChatMessage({ messageId: userMsg.id, content: userMsg.content, isUser: true, charCount: userMsg.content.length });
+      eventBus.emit("chat:message-sent", { messageId: userMsg.id, content: clean, provider: "default" });
       addActivityEvent({ severity: "info", category: "chat", message: `Сообщение отправлено: ${trunc(clean)}` });
       auditLog("settings_change", "Отправлено сообщение", `Source: ${source}`);
 
@@ -234,6 +239,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
       };
       useJarvisStore.getState().addMessage(pendingMsg);
       useJarvisStore.getState().setJarvisState("thinking");
+      eventBus.emit("chat:response-start", { messageId: pendingId });
       playSound("processing-start");
 
       const { messages: currentMessages, activeConvoId } = useJarvisStore.getState();
@@ -263,10 +269,19 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         const isPlanRequest = clean.match(/^(спланируй|plan|запланируй|составь план)/i);
         const effectiveQuery = isPlanRequest ? generatePlanPrompt(clean) : clean;
         const voicePersonaId = useUIStore.getState().activePersonaId;
+        // ─── Memory context injection ───
+        const memoryContext = memoryStore.getForContext(500);
+        // ─── Client-side RAG context (IndexedDB TF-IDF) ───
+        let clientRAGContext: string | undefined;
+        try {
+          const ragCtx = await buildClientRAGContext(effectiveQuery, 5);
+          if (ragCtx) clientRAGContext = ragCtx;
+        } catch { /* IndexedDB unavailable — skip */ }
+
         const res = await fetch("/api/jarvis/chat/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: history, query: effectiveQuery, behavior, voicePersonaId, ...(imageBase64 ? { imageBase64 } : {}) }),
+          body: JSON.stringify({ messages: history, query: effectiveQuery, behavior, voicePersonaId, ...(imageBase64 ? { imageBase64 } : {}), ...(memoryContext ? { memoryContext } : {}), ...(clientRAGContext ? { ragContext: clientRAGContext } : {}) }),
         });
 
         if (!res.ok) {
@@ -324,6 +339,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
         const moodEmoji = detectMoodEmoji(fullContent);
         useJarvisStore.getState().updateMessage(pendingId, { content: fullContent, streaming: false, hasAudio: true, moodEmoji });
+        eventBus.emit("chat:response-complete", { messageId: pendingId, content: fullContent });
         publishChatMessage({ messageId: pendingId, content: fullContent, isUser: false, charCount: fullContent.length });
 
         // Task planner: detect planning requests and parse AI response
@@ -337,6 +353,26 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         if (convoId) void persistMessage("assistant", fullContent);
 
         addActivityEvent({ severity: "success", category: "chat", message: `Ответ получен (${fullContent.length} символов)` });
+
+        // ─── Memory extraction ───
+        try {
+          const autoExtract = localStorage.getItem("jarvis-memory-auto-extract") !== "false";
+          if (autoExtract) {
+            const candidates = extractMemoriesFromMessage(clean, fullContent);
+            for (const c of candidates) {
+              if (c.confidence >= AUTO_SAVE_THRESHOLD) {
+                memoryStore.add({
+                  content: c.content,
+                  category: c.category,
+                  timestamp: new Date().toISOString(),
+                  source: "auto",
+                });
+              }
+            }
+          }
+        } catch {
+          /* memory extraction failure — non-critical */
+        }
 
         if (aso) {
           await speak(fullContent);
@@ -352,6 +388,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         }
         useJarvisStore.getState().setError(msg);
         useJarvisStore.getState().setJarvisState("error");
+        eventBus.emit("chat:response-error", { messageId: pendingId, error: msg });
         addActivityEvent({ severity: "error", category: "system", message: `Ошибка: ${trunc(msg, 35)}` });
         playSound("alert");
         useJarvisStore.getState().updateMessage(pendingId, { content: `» Ошибка: ${msg}`, pending: false });

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 // ReactMarkdown is lazy-loaded below via LazyMarkdown wrapper
-import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Monitor, FileCode, FileText, SmilePlus, X } from "lucide-react";
+import { Send, Square, Mic, MicOff, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Monitor, FileCode, FileText, SmilePlus, X, Zap } from "lucide-react";
 import type { ChatMessage } from "@/lib/types";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
 import { playSound } from "@/lib/sounds";
@@ -12,6 +12,12 @@ import { generateConversationHTML, downloadHTML } from "@/lib/export-html";
 import { generateChatPDF, printPDF } from "@/lib/export-pdf";
 import { useJarvisStore } from "@/lib/jarvis-store";
 import { getSuggestions, expandSuggestion } from "@/lib/suggestions";
+import { useAgentLoop } from "@/hooks/use-agent-loop";
+import { AgentStatusIndicator } from "@/components/jarvis/agent-status-indicator";
+import { useVoice } from "@/hooks/use-voice";
+import { VoiceIndicator } from "@/components/jarvis/voice-indicator";
+import { useUIStore } from "@/lib/ui-store";
+import { SpeechRecognitionService } from "@/lib/voice-stt";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
@@ -403,8 +409,45 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
   const [pendingImage, setPendingImage] = useState<{ dataUrl: string; name: string } | null>(null);
   const [screenCaptureOpen, setScreenCaptureOpen] = useState(false);
   const [screenPrompt, setScreenPrompt] = useState("");
+  const [agentMode, setAgentMode] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
+  const lastSpokenMsgIdRef = useRef<string | null>(null);
+
+  // ─── Voice Pipeline ───
+  const voiceEnabled = useUIStore((s) => s.voiceEnabled);
+  const voice = useVoice({
+    onTranscriptFinal: (text) => {
+      if (text.trim()) {
+        void sendText(text.trim(), "voice");
+      }
+    },
+  });
+
+  // Auto-speak latest assistant message when voice pipeline is enabled
+  useEffect(() => {
+    if (!voiceEnabled) return;
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg || lastMsg.role !== "assistant" || lastMsg.pending || lastMsg.streaming) return;
+    if (lastSpokenMsgIdRef.current === lastMsg.id) return;
+    if (!lastMsg.content.trim()) return;
+    lastSpokenMsgIdRef.current = lastMsg.id;
+    voice.speakResponse(lastMsg.content);
+  }, [messages, voiceEnabled, voice.speakResponse]);
+
+  const handleVoiceToggle = useCallback(() => {
+    if (voice.state !== "idle") {
+      playSound("deactivate");
+      voice.stopVoice();
+    } else {
+      if (!SpeechRecognitionService.isSupported()) return;
+      playSound("mic-on");
+      voice.startVoice();
+    }
+  }, [voice]);
+
+  // Agent loop hook
+  const agent = useAgentLoop();
 
   const handleAutoScroll = useCallback(() => {
     const el = scrollRef.current;
@@ -419,17 +462,27 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
     (e: React.FormEvent) => {
       e.preventDefault();
       const text = input.trim();
-      if ((!text && !pendingImage) || state === "thinking" || state === "speaking") return;
+      if ((!text && !pendingImage) || state === "thinking" || state === "speaking" || agent.isRunning) return;
+
+      if (agentMode && text && !pendingImage) {
+        // Agent mode: use agent loop instead of regular chat
+        setPendingImage(null);
+        setInput("");
+        playSound("message-send");
+        agent.startAgent(text);
+        return;
+      }
+
       const imageData = pendingImage?.dataUrl;
       setPendingImage(null);
       setInput("");
       playSound("message-send");
       void sendText(text || "Проанализируй это изображение", "text", imageData);
     },
-    [input, state, sendText, pendingImage]
+    [input, state, sendText, pendingImage, agentMode, agent.isRunning, agent.startAgent]
   );
 
-  const busy = state === "thinking" || state === "speaking";
+  const busy = state === "thinking" || state === "speaking" || agent.isRunning;
   const suggestions = getSuggestions(
     messages.filter(m => m.role === "assistant").pop()?.content ?? null,
     messages.length
@@ -562,6 +615,16 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
         )}
       </div>
 
+      {/* Agent Status Indicator */}
+      <AgentStatusIndicator
+        status={agent.status}
+        currentTool={agent.currentTool}
+        iterations={agent.iterations}
+        log={agent.log}
+        error={agent.error}
+        onCancel={agent.stopAgent}
+      />
+
       {/* Quick Suggestions */}
       <AnimatePresence>
         {messages.length > 0 && !busy && (
@@ -647,6 +710,65 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
               <Monitor className="h-4 w-4" />
             </button>
           )}
+          {/* Voice Pipeline Mic Button */}
+          {voiceEnabled && (
+            <button
+              type="button"
+              onClick={handleVoiceToggle}
+              disabled={busy || !voice.isSupported}
+              className={`flex md:h-[44px] md:w-[44px] h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                voice.state !== "idle"
+                  ? "border-primary bg-primary/20 text-primary jarvis-box-glow"
+                  : "border-jarvis-border-cyan bg-card/60 text-primary/80 hover:bg-primary/15 hover:text-primary hover:jarvis-box-glow"
+              }`}
+              title={
+                !voice.isSupported
+                  ? "Voice not supported in this browser"
+                  : voice.state !== "idle"
+                    ? "Остановить голосовой ввод"
+                    : "Голосовой ввод (Voice Pipeline)"
+              }
+            >
+              {voice.state !== "idle" ? (
+                <MicOff className="h-4 w-4" />
+              ) : (
+                <Mic className="h-4 w-4" />
+              )}
+            </button>
+          )}
+          {/* Voice Indicator (shown when voice pipeline is active) */}
+          <AnimatePresence>
+            {voice.state !== "idle" && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-2"
+              >
+                <VoiceIndicator
+                  state={voice.state}
+                  volume={voice.volume}
+                  waveformData={voice.waveformData}
+                  size={44}
+                />
+                <div className="flex flex-col">
+                  <span className="font-mono text-[9px] uppercase tracking-widest text-primary/80">
+                    {voice.state === "listening"
+                      ? "Listening…"
+                      : voice.state === "processing"
+                        ? "Processing…"
+                        : "Speaking…"}
+                  </span>
+                  {voice.transcript && voice.isListening && (
+                    <span className="max-w-[120px] truncate font-mono text-[9px] text-muted-foreground/60">
+                      {voice.transcript}
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <div className="relative flex-1">
             <textarea
               value={input}
@@ -673,14 +795,32 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
               <Square className="h-4 w-4" />
             </button>
           ) : (
-            <button
-              type="submit"
-              disabled={!input.trim() && !pendingImage}
-              className="flex md:h-[44px] md:w-[44px] h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-primary/15 text-primary transition hover:bg-primary/25 hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary/15"
-              title="Отправить"
-            >
-              <Send className="h-4 w-4" />
-            </button>
+            <>
+              {/* Agent Mode Toggle */}
+              <button
+                type="button"
+                onClick={() => {
+                  playSound(agentMode ? "deactivate" : "activate");
+                  setAgentMode((v) => !v);
+                }}
+                className={`flex md:h-[44px] md:w-[44px] h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border transition ${
+                  agentMode
+                    ? "border-primary bg-primary/20 text-primary jarvis-box-glow"
+                    : "border-muted-foreground/20 bg-card/60 text-muted-foreground/60 hover:border-primary/30 hover:text-primary/80 hover:bg-primary/10"
+                }`}
+                title={agentMode ? "Agent Mode ON — click to disable" : "Agent Mode — click to enable"}
+              >
+                <Zap className={`h-4 w-4 ${agentMode ? "animate-pulse" : ""}`} />
+              </button>
+              <button
+                type="submit"
+                disabled={!input.trim() && !pendingImage}
+                className="flex md:h-[44px] md:w-[44px] h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-primary/15 text-primary transition hover:bg-primary/25 hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary/15"
+                title="Отправить"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </>
           )}
         </div>
         {/* Превью прикреплённого изображения */}
