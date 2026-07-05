@@ -7,13 +7,14 @@
 import { useUIStore } from "@/lib/ui-store";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
 import { playSound } from "@/lib/sounds";
+import { showNotification } from "@/components/jarvis/notification-toast";
 import { ThemeSwitcher } from "@/components/jarvis/theme-switcher";
 import { FullscreenToggle } from "@/components/jarvis/fullscreen-toggle";
 import { WindowControls } from "@/components/jarvis/window-controls";
 import { StatusClock } from "@/components/jarvis/status-clock";
 import {
   Volume2, VolumeX, Ear, EarOff, FileText, Keyboard, Settings,
-  Bell, Command,
+  Bell, Command, Moon, EyeOff,
 } from "lucide-react";
 
 interface JarvisHeaderProps {
@@ -26,6 +27,8 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
   const notesOpen = useUIStore((s) => s.notesOpen);
   const wakeWordEnabled = useUIStore((s) => s.wakeWordEnabled);
   const dndMode = useUIStore((s) => s.dndMode);
+  const quietMode = useUIStore((s) => s.quietMode);
+  const incognitoMode = useUIStore((s) => s.incognitoMode);
   const notifOpen = useUIStore((s) => s.notifOpen);
   const paletteOpen = useUIStore((s) => s.paletteOpen);
 
@@ -33,6 +36,8 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
   const setWakeWordEnabled = useUIStore((s) => s.setWakeWordEnabled);
   const toggleNotes = useUIStore((s) => s.toggleNotes);
   const toggleDnd = useUIStore((s) => s.toggleDnd);
+  const toggleQuietMode = useUIStore((s) => s.toggleQuietMode);
+  const toggleIncognitoMode = useUIStore((s) => s.toggleIncognitoMode);
   const toggleNotif = useUIStore((s) => s.toggleNotif);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const setThemeEditorOpen = useUIStore((s) => s.setThemeEditorOpen);
@@ -125,7 +130,41 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
           <span className="hidden sm:inline">{jarvis.autoSpeakOn ? "Voice On" : "Muted"}</span>
         </button>
 
-        {/* DnD Toggle */}
+        {/* Do Not Disturb Toggle (quiet mode) */}
+        <button
+          onClick={() => toggleQuietMode()}
+          className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition shrink-0 ${
+            quietMode
+              ? "border-amber-400/50 bg-amber-400/15 text-amber-400 shadow-[0_0_8px_rgba(245,158,11,0.3)]"
+              : "jarvis-border-cyan bg-card/40 text-muted-foreground hover:border-primary/50 hover:text-primary"
+          }`}
+          title="Не беспокоить (Ctrl+Shift+D)"
+        >
+          {quietMode ? <Moon className="h-3 w-3" /> : <Bell className="h-3 w-3" />}
+          <span className="hidden sm:inline">{quietMode ? "DND: On" : "DND"}</span>
+        </button>
+
+        {/* Incognito Toggle */}
+        <button
+          onClick={() => {
+            const wasActive = useUIStore.getState().incognitoMode;
+            toggleIncognitoMode();
+            if (wasActive) {
+              showNotification({ title: "Инкогнито отключён", type: "info" });
+            }
+          }}
+          className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition shrink-0 ${
+            incognitoMode
+              ? "border-purple-400/50 bg-purple-400/15 text-purple-400 shadow-[0_0_8px_rgba(168,85,247,0.3)]"
+              : "jarvis-border-cyan bg-card/40 text-muted-foreground hover:border-primary/50 hover:text-primary"
+          }`}
+          title="Инкогнито (Alt+I)"
+        >
+          <EyeOff className="h-3 w-3" />
+          <span className="hidden sm:inline">{incognitoMode ? "Incognito" : "Normal"}</span>
+        </button>
+
+        {/* DnD Toggle (widget drag-and-drop) */}
         <button
           onClick={() => { playSound("click"); toggleDnd(); }}
           className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition shrink-0 ${

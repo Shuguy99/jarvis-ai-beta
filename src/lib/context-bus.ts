@@ -106,6 +106,9 @@ export type ContextEvent =
       task: string;
       success: boolean;
     }>
+  | BaseEvent<"agent:execute-request", {
+      task: string;
+    }>
   | BaseEvent<"jarvis:proactive-alert", {
       message: string;
       severity: "info" | "warning" | "error";

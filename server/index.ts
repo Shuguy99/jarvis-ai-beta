@@ -31,6 +31,7 @@ import * as ttsRoute from "@/app/api/jarvis/tts/route";
 import * as visionRoute from "@/app/api/jarvis/vision/route";
 import * as voiceParseRoute from "@/app/api/jarvis/voice-parse/route";
 import * as weatherRoute from "@/app/api/jarvis/weather/route";
+import * as analyticsRoute from "@/app/api/jarvis/analytics/route";
 
 // ─── Rate limiter + Origin check middleware (from src/middleware.ts) ───────
 
@@ -212,6 +213,9 @@ app.post("/api/jarvis/voice-parse", (c) => voiceParseRoute.POST(c.req.raw));
 
 // Weather
 app.get("/api/jarvis/weather", (c) => weatherRoute.GET(c.req.raw));
+
+// Analytics
+app.get("/api/jarvis/analytics", (c) => analyticsRoute.GET());
 
 // ─── Start server ──────────────────────────────────────────────────────────
 

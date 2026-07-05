@@ -3,6 +3,8 @@
  * Никаких внешних аудиофайлов — всё генерируется программно.
  */
 
+import { useUIStore } from "./ui-store";
+
 type SoundName =
   | "click"
   | "hover"
@@ -627,6 +629,8 @@ const SOUND_MAP: Record<SoundName, (_vol?: number) => void> = {
 /** Воспроизвести звук по имени */
 export function playSound(name: SoundName, vol?: number) {
   try {
+    // Do Not Disturb mode: silence all sounds
+    if (typeof window !== "undefined" && useUIStore.getState().quietMode) return;
     SOUND_MAP[name]?.(vol);
   } catch {
     /* silent fail — аудио может быть недоступно */

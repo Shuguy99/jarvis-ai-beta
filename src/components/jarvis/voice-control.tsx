@@ -8,11 +8,13 @@ import { playSound } from "@/lib/sounds";
 
 interface VoiceControlProps {
   jarvis: UseJarvisReturn;
+  pushToTalkActive?: boolean;
 }
 
-export function VoiceControl({ jarvis }: VoiceControlProps) {
+export function VoiceControl({ jarvis, pushToTalkActive }: VoiceControlProps) {
   const reduced = useReducedMotion();
   const { isRecording, toggleListening, stopSpeaking, state, audioLevel, continuousMode, toggleContinuousMode } = jarvis;
+  const ptt = !!pushToTalkActive;
   const speaking = state === "speaking";
 
   return (
@@ -44,7 +46,7 @@ export function VoiceControl({ jarvis }: VoiceControlProps) {
       <div className="relative flex items-center justify-center">
         {(isRecording || speaking) && (
           <span
-            className="absolute h-16 w-16 rounded-full border-2 anim-pulse-glow"
+            className={`absolute h-16 w-16 rounded-full border-2 ${ptt ? "animate-ping" : "anim-pulse-glow"}`}
             style={{
               borderColor: isRecording ? "oklch(0.78 0.16 165 / 60%)" : "oklch(0.8 0.16 220 / 60%)",
             }}
@@ -52,8 +54,8 @@ export function VoiceControl({ jarvis }: VoiceControlProps) {
         )}
         {isRecording && (
           <span
-            className="absolute h-20 w-20 rounded-full border anim-pulse-glow"
-            style={{ borderColor: "oklch(0.78 0.16 165 / 30%)", animationDelay: "0.3s" }}
+            className={`absolute h-20 w-20 rounded-full border ${ptt ? "animate-ping" : "anim-pulse-glow"}`}
+            style={{ borderColor: "oklch(0.78 0.16 165 / 30%)", animationDelay: ptt ? "0.15s" : "0.3s" }}
           />
         )}
         {speaking ? (
@@ -82,10 +84,10 @@ export function VoiceControl({ jarvis }: VoiceControlProps) {
 
       <div className="text-center">
         <div className="font-mono text-[10px] uppercase tracking-widest text-primary/80">
-          {isRecording ? "Recording… tap to stop" : speaking ? "Speaking…" : "Voice Input"}
+          {ptt && isRecording ? "PUSH-TO-TALK ●" : isRecording ? "Recording… tap to stop" : speaking ? "Speaking…" : "Voice Input"}
         </div>
         <div className="mt-0.5 font-mono text-[9px] text-muted-foreground/60">
-          {isRecording ? "Говорите чётко" : "Нажмите и говорите"}
+          {ptt && isRecording ? "Отпустите Space для отправки" : isRecording ? "Говорите чётко" : "Нажмите и говорите"}
         </div>
       </div>
 

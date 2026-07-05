@@ -12,6 +12,8 @@ export interface ChatMessage {
   hasAudio?: boolean;
   imagePreview?: string;
   generatedImage?: string;
+  reactions?: string[];
+  moodEmoji?: string;
 }
 
 export interface Conversation {

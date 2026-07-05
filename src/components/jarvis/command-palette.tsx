@@ -26,6 +26,9 @@ import {
   Bot,
   ArrowRight,
   Sparkles,
+  Moon,
+  EyeOff,
+  BarChart3,
 } from "lucide-react";
 import { playSound } from "@/lib/sounds";
 import {
@@ -481,6 +484,10 @@ export function buildDefaultCommands(handlers: {
   toggleCalculator?: () => void;
   captureScreen?: () => void;
   toggleWakeWord?: () => void;
+  toggleQuietMode?: () => void;
+  toggleIncognitoMode?: () => void;
+  openAnalytics?: () => void;
+  openBriefing?: () => void;
 }): CommandItem[] {
   return [
     {
@@ -591,6 +598,56 @@ export function buildDefaultCommands(handlers: {
             category: "Voice",
             keywords: ["wake", "hey jarvis", "пробуждение", "слово"],
             action: handlers.toggleWakeWord,
+          },
+        ]
+      : []),
+    ...(handlers.toggleQuietMode
+      ? [
+          {
+            id: "quiet-mode",
+            label: "Не беспокоить",
+            shortcut: "Ctrl+Shift+D",
+            icon: Moon,
+            category: "Mode",
+            keywords: ["тишина", "без звука", "dnd", "quiet", "не беспокоить"],
+            action: handlers.toggleQuietMode,
+          },
+        ]
+      : []),
+    ...(handlers.toggleIncognitoMode
+      ? [
+          {
+            id: "incognito-mode",
+            label: "Инкогнито",
+            shortcut: "Alt+I",
+            icon: EyeOff,
+            category: "Mode",
+            keywords: ["инкогнито", "приватность", "incognito", "без сохранения"],
+            action: handlers.toggleIncognitoMode,
+          },
+        ]
+      : []),
+    ...(handlers.openAnalytics
+      ? [
+          {
+            id: "analytics",
+            label: "Статистика",
+            icon: BarChart3,
+            category: "System",
+            keywords: ["статистика", "analytics", "использование", "сообщения", "диалоги"],
+            action: handlers.openAnalytics,
+          },
+        ]
+      : []),
+    ...(handlers.openBriefing
+      ? [
+          {
+            id: "daily-briefing",
+            label: "Сводка",
+            icon: Sparkles,
+            category: "System",
+            keywords: ["сводка", "briefing", "погода", "цитата", "задачи", "приветствие"],
+            action: handlers.openBriefing,
           },
         ]
       : []),

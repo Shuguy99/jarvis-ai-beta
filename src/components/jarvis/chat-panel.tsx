@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 // ReactMarkdown is lazy-loaded below via LazyMarkdown wrapper
-import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Monitor } from "lucide-react";
+import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Monitor, FileCode, SmilePlus } from "lucide-react";
 import type { ChatMessage } from "@/lib/types";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
 import { playSound } from "@/lib/sounds";
 import { getMarkdownComponents } from "@/components/jarvis/code-block";
+import { generateConversationHTML, downloadHTML } from "@/lib/export-html";
+import { useJarvisStore } from "@/lib/jarvis-store";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
@@ -225,6 +227,42 @@ function TypewriterText({ text, speed = 25, onDone, onScroll }: { text: string; 
   );
 }
 
+const REACTION_EMOJIS = ["👍", "❤️", "😂", "🤔", "😮", "🔥"];
+
+/** Inline reaction picker — appears on hover over assistant messages */
+function ReactionPicker({ msgId, currentReactions }: { msgId: string; currentReactions?: string[] }) {
+  const updateMessage = useJarvisStore((s) => s.updateMessage);
+
+  const toggleReaction = (emoji: string) => {
+    playSound("click");
+    const existing = currentReactions ?? [];
+    const next = existing.includes(emoji)
+      ? existing.filter((e) => e !== emoji)
+      : [...existing, emoji];
+    updateMessage(msgId, { reactions: next.length ? next : undefined });
+  };
+
+  return (
+    <div className="absolute -bottom-7 left-8 z-10 flex items-center gap-0.5 rounded-lg border jarvis-border-cyan bg-background/90 px-1.5 py-0.5 opacity-0 backdrop-blur-sm transition-opacity duration-200 group-hover/msg:opacity-100">
+      {REACTION_EMOJIS.map((emoji) => {
+        const active = currentReactions?.includes(emoji);
+        return (
+          <button
+            key={emoji}
+            onClick={() => toggleReaction(emoji)}
+            className={`rounded px-1 py-0.5 text-sm leading-none transition hover:scale-125 ${
+              active ? "bg-primary/20 ring-1 ring-primary/40" : "hover:bg-primary/10"
+            }`}
+          >
+            {emoji}
+          </button>
+        );
+      })}
+      <SmilePlus className="ml-0.5 h-3 w-3 text-muted-foreground/50" />
+    </div>
+  );
+}
+
 function MessageBubble({ msg, onSpeak, isLatest, onScroll }: { msg: ChatMessage; onSpeak: (t: string) => void; isLatest?: boolean; onScroll?: () => void }) {
   const isUser = msg.role === "user";
   const isTypewriterTarget = !isUser && !msg.pending && !msg.streaming && !!msg.content && isLatest;
@@ -259,7 +297,7 @@ function MessageBubble({ msg, onSpeak, isLatest, onScroll }: { msg: ChatMessage;
     );
   }
   return (
-    <div className="flex justify-start gap-2 anim-fade-up">
+    <div className="relative flex justify-start gap-2 anim-fade-up group/msg pb-6">
       <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full border jarvis-border-cyan bg-primary/15 jarvis-box-glow">
         <Cpu className="h-3.5 w-3.5 text-primary" />
       </div>
@@ -324,9 +362,27 @@ function MessageBubble({ msg, onSpeak, isLatest, onScroll }: { msg: ChatMessage;
                 <Volume2 className="h-2.5 w-2.5" /> replay audio
               </button>
             )}
+            {/* Mood emoji */}
+            {msg.moodEmoji && (
+              <span className="ml-1 inline-block text-xs opacity-70">{msg.moodEmoji}</span>
+            )}
+            {/* Active reactions */}
+            {msg.reactions && msg.reactions.length > 0 && (
+              <div className="mt-1.5 flex flex-wrap gap-0.5">
+                {msg.reactions.map((r) => (
+                  <span key={r} className="rounded-full border border-primary/20 bg-primary/10 px-1.5 py-0.5 text-xs">
+                    {r}
+                  </span>
+                ))}
+              </div>
+            )}
           </>
         )}
       </div>
+      {/* Reaction picker (only for finalized assistant messages) */}
+      {!msg.pending && !msg.streaming && (
+        <ReactionPicker msgId={msg.id} currentReactions={msg.reactions} />
+      )}
     </div>
   );
 }
@@ -637,8 +693,31 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
           <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
             Enter — отправить · Shift+Enter — перенос · Drag & Drop — изображение
           </span>
-          <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
-            {messages.length} сообщ.
+          <div className="flex items-center gap-2">
+            {messages.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  playSound("success");
+                  const title = "Chat Export";
+                  const html = generateConversationHTML({ title, messages, model: "local", provider: "JARVIS" });
+                  downloadHTML(html, `jarvis-chat-${Date.now()}.html`);
+                }}
+                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 transition hover:text-primary hover:bg-primary/10"
+                title="Экспортировать как HTML"
+              >
+                <FileCode className="h-2.5 w-2.5" />
+                <span>HTML</span>
+              </button>
+            )}
+            <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
+              {messages.length} сообщ.
+            </span>
+          </div>
+        </div>
+        <div className="mt-0.5 flex justify-center px-1">
+          <span className="font-mono text-[10px] text-muted-foreground/40">
+            Удерживайте Space для голосового ввода
           </span>
         </div>
       </form>

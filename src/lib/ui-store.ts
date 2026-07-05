@@ -12,6 +12,7 @@ import type { JarvisSettingsData } from "@/components/jarvis/settings-panel";
 interface PanelState {
   booted: boolean;
   wakeWordEnabled: boolean;
+  privacyWizardShown: boolean;
   notesOpen: boolean;
   timerVisible: boolean;
   calcVisible: boolean;
@@ -24,7 +25,11 @@ interface PanelState {
   notifOpen: boolean;
   searchOpen: boolean;
   dndMode: boolean;
+  quietMode: boolean;
+  incognitoMode: boolean;
   themeEditorOpen: boolean;
+  analyticsOpen: boolean;
+  briefingOpen: boolean;
   jarvisSettings: JarvisSettingsData | null;
   leftWidgetIds: string[];
   rightWidgetIds: string[];
@@ -33,6 +38,7 @@ interface PanelState {
 interface PanelActions {
   setBooted: (v: boolean) => void;
   setWakeWordEnabled: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setPrivacyWizardShown: (v: boolean | ((prev: boolean) => boolean)) => void;
   toggleNotes: () => void;
   setNotesOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
   setTimerVisible: (v: boolean | ((prev: boolean) => boolean)) => void;
@@ -51,7 +57,13 @@ interface PanelActions {
   setSearchOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
   setDndMode: (v: boolean | ((prev: boolean) => boolean)) => void;
   toggleDnd: () => void;
+  setQuietMode: (v: boolean | ((prev: boolean) => boolean)) => void;
+  toggleQuietMode: () => void;
+  setIncognitoMode: (v: boolean | ((prev: boolean) => boolean)) => void;
+  toggleIncognitoMode: () => void;
   setThemeEditorOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setAnalyticsOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setBriefingOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
   setJarvisSettings: (s: JarvisSettingsData | null) => void;
   setLeftWidgetIds: (ids: string[] | ((prev: string[]) => string[])) => void;
   setRightWidgetIds: (ids: string[] | ((prev: string[]) => string[])) => void;
@@ -78,6 +90,7 @@ export const useUIStore = create<PanelState & PanelActions>()((set) => ({
   // State
   booted: false,
   wakeWordEnabled: false,
+  privacyWizardShown: typeof window !== "undefined" ? (() => { try { return JSON.parse(localStorage.getItem("jarvis-privacy-wizard-shown") || "false"); } catch { return false; } })() : false,
   notesOpen: false,
   timerVisible: true,
   calcVisible: false,
@@ -90,7 +103,11 @@ export const useUIStore = create<PanelState & PanelActions>()((set) => ({
   notifOpen: false,
   searchOpen: false,
   dndMode: false,
+  quietMode: false,
+  incognitoMode: false,
   themeEditorOpen: false,
+  analyticsOpen: false,
+  briefingOpen: false,
   jarvisSettings: null,
   leftWidgetIds: [...DEFAULT_LEFT_WIDGETS],
   rightWidgetIds: [...DEFAULT_RIGHT_WIDGETS],
@@ -98,6 +115,11 @@ export const useUIStore = create<PanelState & PanelActions>()((set) => ({
   // Actions
   setBooted: (v) => set({ booted: v }),
   setWakeWordEnabled: (v) => set((s) => ({ wakeWordEnabled: apply(v, s.wakeWordEnabled) })),
+  setPrivacyWizardShown: (v) => set((s) => {
+    const next = apply(v, s.privacyWizardShown);
+    try { localStorage.setItem("jarvis-privacy-wizard-shown", JSON.stringify(next)); } catch { /* ignore */ }
+    return { privacyWizardShown: next };
+  }),
   toggleNotes: () => set((s) => ({ notesOpen: !s.notesOpen })),
   setNotesOpen: (v) => set((s) => ({ notesOpen: apply(v, s.notesOpen) })),
   setTimerVisible: (v) => set((s) => ({ timerVisible: apply(v, s.timerVisible) })),
@@ -116,7 +138,13 @@ export const useUIStore = create<PanelState & PanelActions>()((set) => ({
   setSearchOpen: (v) => set((s) => ({ searchOpen: apply(v, s.searchOpen) })),
   setDndMode: (v) => set((s) => ({ dndMode: apply(v, s.dndMode) })),
   toggleDnd: () => set((s) => ({ dndMode: !s.dndMode })),
+  setQuietMode: (v) => set((s) => ({ quietMode: apply(v, s.quietMode) })),
+  toggleQuietMode: () => set((s) => ({ quietMode: !s.quietMode })),
+  setIncognitoMode: (v) => set((s) => ({ incognitoMode: apply(v, s.incognitoMode) })),
+  toggleIncognitoMode: () => set((s) => ({ incognitoMode: !s.incognitoMode })),
   setThemeEditorOpen: (v) => set((s) => ({ themeEditorOpen: apply(v, s.themeEditorOpen) })),
+  setAnalyticsOpen: (v) => set((s) => ({ analyticsOpen: apply(v, s.analyticsOpen) })),
+  setBriefingOpen: (v) => set((s) => ({ briefingOpen: apply(v, s.briefingOpen) })),
   setJarvisSettings: (s) => set({ jarvisSettings: s }),
   setLeftWidgetIds: (ids) => set((s) => ({ leftWidgetIds: apply(ids, s.leftWidgetIds) })),
   setRightWidgetIds: (ids) => set((s) => ({ rightWidgetIds: apply(ids, s.rightWidgetIds) })),
@@ -129,5 +157,7 @@ export const useUIStore = create<PanelState & PanelActions>()((set) => ({
     pluginOpen: false,
     layoutOpen: false,
     notifOpen: false,
+    analyticsOpen: false,
+    briefingOpen: false,
   }),
 }));

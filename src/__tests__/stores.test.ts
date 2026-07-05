@@ -163,6 +163,8 @@ describe("ui-store", () => {
       booted: false,
       timerVisible: true,
       dndMode: false,
+      quietMode: false,
+      incognitoMode: false,
     });
   });
 
@@ -186,6 +188,20 @@ describe("ui-store", () => {
       useUIStore.getState().toggleDnd();
       expect(useUIStore.getState().dndMode).toBe(true);
     });
+
+    it("toggleQuietMode toggles quietMode", () => {
+      expect(useUIStore.getState().quietMode).toBe(false);
+      useUIStore.getState().toggleQuietMode();
+      expect(useUIStore.getState().quietMode).toBe(true);
+      useUIStore.getState().toggleQuietMode();
+      expect(useUIStore.getState().quietMode).toBe(false);
+    });
+
+    it("toggleIncognitoMode toggles incognitoMode", () => {
+      expect(useUIStore.getState().incognitoMode).toBe(false);
+      useUIStore.getState().toggleIncognitoMode();
+      expect(useUIStore.getState().incognitoMode).toBe(true);
+    });
   });
 
   describe("setters with updater function", () => {
@@ -197,6 +213,16 @@ describe("ui-store", () => {
     it("setDndMode with function", () => {
       useUIStore.getState().setDndMode((prev) => !prev);
       expect(useUIStore.getState().dndMode).toBe(true);
+    });
+
+    it("setQuietMode with function", () => {
+      useUIStore.getState().setQuietMode((prev) => !prev);
+      expect(useUIStore.getState().quietMode).toBe(true);
+    });
+
+    it("setIncognitoMode with function", () => {
+      useUIStore.getState().setIncognitoMode((prev) => !prev);
+      expect(useUIStore.getState().incognitoMode).toBe(true);
     });
   });
 

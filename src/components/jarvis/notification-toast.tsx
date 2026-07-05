@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Info, CheckCircle, AlertTriangle, XCircle, X } from "lucide-react";
 import { playSound } from "@/lib/sounds";
+import { useUIStore } from "@/lib/ui-store";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";
 import { addNotification as addToCenter } from "@/lib/notification-center";
 
@@ -31,6 +32,23 @@ export function showNotification(
     timestamp: Date.now(),
     duration: 4000,
   };
+
+  // In Do Not Disturb mode: still log to activity feed & notification center, but skip visual toast
+  if (useUIStore.getState().quietMode) {
+    addActivityEvent({
+      message: opts.title + (opts.message ? `: ${opts.message}` : ""),
+      severity: opts.type,
+      category: "system",
+    });
+    addToCenter({
+      title: opts.title,
+      message: opts.message ?? "",
+      type: opts.type === "error" ? "error" : opts.type,
+      source: "system",
+    });
+    return;
+  }
+
   toastListeners.forEach((fn) => fn(full));
   // Also push to Activity Feed
   addActivityEvent({

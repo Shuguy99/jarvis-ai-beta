@@ -41,6 +41,16 @@ export const LazyThemeEditor = lazy(() =>
     default: m.ThemeEditor,
   }))
 );
+export const LazyAnalyticsWidget = lazy(() =>
+  import("@/components/jarvis/analytics-widget").then((m) => ({
+    default: m.AnalyticsWidget,
+  }))
+);
+export const LazyDailyBriefing = lazy(() =>
+  import("@/components/jarvis/daily-briefing").then((m) => ({
+    default: m.DailyBriefing,
+  }))
+);
 
 // HUD-style loading fallback
 export function JarvisSuspense({ children }: { children: ReactNode }) {

@@ -11,6 +11,8 @@ export interface HotkeyConfig {
   onToggleVoice?: () => void;
   onToggleFullscreen?: () => void;
   onOpenPalette?: () => void;
+  onToggleQuietMode?: () => void;
+  onToggleIncognitoMode?: () => void;
 }
 
 export function useHotkeys(config: HotkeyConfig) {
@@ -75,6 +77,20 @@ export function useHotkeys(config: HotkeyConfig) {
     if (e.key === "F11" || (ctrl && shift && e.key === "F")) {
       e.preventDefault();
       config.onToggleFullscreen?.();
+      return;
+    }
+
+    // Ctrl+Shift+D — Toggle Do Not Disturb
+    if (ctrl && shift && e.key === "D") {
+      e.preventDefault();
+      config.onToggleQuietMode?.();
+      return;
+    }
+
+    // Alt+I — Toggle Incognito
+    if (alt && !ctrl && !shift && (e.key === "i" || e.key === "I")) {
+      e.preventDefault();
+      config.onToggleIncognitoMode?.();
       return;
     }
 

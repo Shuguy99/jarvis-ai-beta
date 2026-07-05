@@ -11,11 +11,23 @@ import {
   type CommandHandlers,
 } from "@/lib/jarvis-store";
 import { playSound } from "@/lib/sounds";
+import { useUIStore } from "@/lib/ui-store";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";
 import { publishChatMessage } from "@/lib/context-bus";
 import { useTTS } from "@/hooks/use-tts";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { processLocalCommand } from "@/hooks/use-local-commands";
+
+/** 20% chance to attach a mood emoji based on message content */
+function detectMoodEmoji(text: string): string | undefined {
+  if (Math.random() > 0.2) return undefined;
+  const lower = text.toLowerCase();
+  if (/ошибка|проблема|не удалось/.test(lower)) return "😔";
+  if (/успешно|готово|выполнено/.test(lower)) return "✅";
+  if (/\?|интересно|любопытно/.test(lower)) return "🤔";
+  if (text.length > 500 && /```/.test(text)) return "💻";
+  return undefined;
+}
 
 // ── Re-exports for backward compatibility ─────────────────────
 export type { JarvisState, CommandHandlers, JarvisSettings };
@@ -69,6 +81,8 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
   const persistMessage = useCallback(
     async (role: ChatMessage["role"], content: string) => {
+      // Incognito mode: skip database persistence
+      if (useUIStore.getState().incognitoMode) return;
       const convoId = useJarvisStore.getState().activeConvoId;
       if (!convoId) return;
       try {
@@ -85,6 +99,8 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   );
 
   const ensureConversation = useCallback(async (firstUserText: string) => {
+    // Incognito mode: skip conversation creation
+    if (useUIStore.getState().incognitoMode) return null;
     const convoId = useJarvisStore.getState().activeConvoId;
     if (convoId) return convoId;
     try {
@@ -297,7 +313,8 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
           return;
         }
 
-        useJarvisStore.getState().updateMessage(pendingId, { content: fullContent, streaming: false, hasAudio: true });
+        const moodEmoji = detectMoodEmoji(fullContent);
+        useJarvisStore.getState().updateMessage(pendingId, { content: fullContent, streaming: false, hasAudio: true, moodEmoji });
         publishChatMessage({ messageId: pendingId, content: fullContent, isUser: false, charCount: fullContent.length });
 
         if (convoId) void persistMessage("assistant", fullContent);
@@ -397,7 +414,8 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         if (!res.ok) throw new Error(data.error || "Ошибка анализа изображения.");
 
         const reply = data.reply as string;
-        useJarvisStore.getState().updateMessage(pendingId, { content: reply, pending: false, hasAudio: true });
+        const moodEmoji = detectMoodEmoji(reply);
+        useJarvisStore.getState().updateMessage(pendingId, { content: reply, pending: false, hasAudio: true, moodEmoji });
 
         if (convoId) void persistMessage("assistant", reply);
 

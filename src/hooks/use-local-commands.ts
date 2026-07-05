@@ -1,4 +1,6 @@
 import { useJarvisStore, type CommandHandlers } from "@/lib/jarvis-store";
+import { useUIStore } from "@/lib/ui-store";
+import { contextBus } from "@/lib/context-bus";
 
 // ── Local command processing ────────────────────────────────
 // Parses user input with regex for local actions (notes, timers,
@@ -154,6 +156,88 @@ export async function processLocalCommand(
   // Weather — delegate to LLM
   if (/^(погода|какая погода|прогноз|покажи погоду)/i.test(cmd)) {
     return { handled: false };
+  }
+
+  // ── Agent scenario trigger ────────────────────────────────
+  // "JARVIS, выполни утреннюю сводку" / "Джарвис, запусти сценарий X"
+  const agentMatch = cmd.match(
+    /(?:jarvis|джарвис),?\s+(?:выполни|запусти|сделай)\s+(?:сценарий\s+)?[""']?(.+?)[""']?\s*$/i
+  );
+  if (agentMatch) {
+    const scenario = agentMatch[1].trim();
+    if (scenario) {
+      // Open the agent panel so the user can see progress
+      useUIStore.getState().setAgentOpen(true);
+      // Publish event for agent-panel to pick up and execute
+      contextBus.publish({
+        type: "agent:execute-request",
+        data: { task: scenario },
+        timestamp: Date.now(),
+      });
+      return { handled: true, response: `Запускаю сценарий: «${scenario}». Панель агента открыта, сэр.` };
+    }
+  }
+
+  // ── Persona switching ─────────────────────────────────────
+  // "JARVIS, стань учёным" / "Джарвис, режим военный"
+  const PERSONA_KEYWORDS: Record<string, string> = {
+    "классический": "classic",
+    "классика": "classic",
+    "джарвисом": "classic",
+    "default": "classic",
+    "обычный": "classic",
+    "стандартный": "classic",
+    "военный": "military",
+    "боевой": "military",
+    "тактический": "military",
+    "друг": "casual",
+    "бро": "casual",
+    "дружище": "casual",
+    "неформальный": "casual",
+    "доктором": "scientist",
+    "учёным": "scientist",
+    "ученый": "scientist",
+    "учёный": "scientist",
+    "научный": "scientist",
+    "наука": "scientist",
+    "творческим": "creative",
+    "креативным": "creative",
+    "арт": "creative",
+    "творческий": "creative",
+    "креативный": "creative",
+  };
+
+  const personaMatch = cmd.match(/(?:стань|режим)\s+(\S+)/i);
+  if (personaMatch) {
+    const keyword = personaMatch[1].toLowerCase();
+    const personaId = PERSONA_KEYWORDS[keyword];
+    if (personaId) {
+      const personaNames: Record<string, string> = {
+        classic: "Classic JARVIS",
+        military: "Military Mode",
+        casual: "Casual Buddy",
+        scientist: "Dr. JARVIS",
+        creative: "Creative Muse",
+        custom: "Custom",
+      };
+      const personaLabel = personaNames[personaId] ?? personaId;
+      try {
+        // Persist to server
+        await fetch("/api/jarvis/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ settings: { persona: personaId } }),
+        });
+        // Update local UI store immediately
+        const current = useUIStore.getState().jarvisSettings;
+        if (current) {
+          useUIStore.getState().setJarvisSettings({ ...current, persona: personaId as "classic" });
+        }
+      } catch {
+        /* best-effort */
+      }
+      return { handled: true, response: `Персона переключена на «${personaLabel}», сэр.` };
+    }
   }
 
   return null;

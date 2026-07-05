@@ -25,6 +25,7 @@ import {
   Ban,
 } from "lucide-react";
 import { playSound } from "@/lib/sounds";
+import { contextBus } from "@/lib/context-bus";
 import {
   useAgentEngine,
   type AgentPhase,
@@ -191,6 +192,22 @@ export function AgentPanel({ open, onClose }: AgentPanelProps) {
       });
     }
     }, [agent.phase, agent.report, agent.plan, agent.stepResults, agent.progress, lastTask]);
+
+  // Listen for voice-triggered agent execution requests
+  useEffect(() => {
+    const unsub = contextBus.on<{ type: "agent:execute-request"; data: { task: string }; timestamp: number }>(
+      "agent:execute-request",
+      (event) => {
+        const task = event.data.task;
+        if (task && !agent.isRunning) {
+          setTask(task);
+          setLastTask(task);
+          agent.executeTask(task, Array.from(enabledTools));
+        }
+      }
+    );
+    return unsub;
+  }, [agent, enabledTools]);
 
   // Close on Escape
   useEffect(() => {

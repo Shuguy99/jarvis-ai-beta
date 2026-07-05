@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 import { useJarvisStore } from "@/lib/jarvis-store";
+import { useUIStore } from "@/lib/ui-store";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";
 
 // ── Voice picker helper ──────────────────────────────────────
@@ -79,6 +80,11 @@ export function useTTS(opts: UseTTSOptions = {}) {
   const speak = useCallback(
     (text: string) => {
       if (!text.trim()) return;
+      // Do Not Disturb mode: skip TTS auto-speak
+      if (useUIStore.getState().quietMode) {
+        useJarvisStore.getState().setJarvisState("idle");
+        return;
+      }
       const synth = window.speechSynthesis;
       if (!synth) {
         useJarvisStore.getState().setJarvisState("idle");

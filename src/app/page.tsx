@@ -6,13 +6,14 @@
 //   jarvis-footer, jarvis-overlays
 // Токены ~2.5k, время монтирования ~10ms
 
-import { useCallback, useRef, useEffect, useMemo } from "react";
+import { useCallback, useRef, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Search, Monitor, FileText, FileCode, Bot, Puzzle, LayoutGrid, Settings, AlertTriangle } from "lucide-react";
+import { Mic, Search, Monitor, FileText, FileCode, Bot, Puzzle, LayoutGrid, Settings, AlertTriangle, Moon, EyeOff, BarChart3 } from "lucide-react";
 
 import { useJarvis, type CommandHandlers } from "@/hooks/use-jarvis";
 import { useWakeWord } from "@/hooks/use-wake-word";
 import { useHotkeys } from "@/hooks/use-hotkeys";
+import { usePushToTalk } from "@/hooks/use-push-to-talk";
 import { useSystemAlerts } from "@/hooks/use-system-alerts";
 import { useProactiveEngine } from "@/hooks/use-proactive-engine";
 import { useVoiceCommands } from "@/hooks/use-voice-commands";
@@ -28,6 +29,7 @@ import { VoiceControl } from "@/components/jarvis/voice-control";
 import { NewsTicker } from "@/components/jarvis/news-ticker";
 import { JarvisParticles } from "@/components/jarvis/particles";
 import { ConversationExport } from "@/components/jarvis/conversation-export";
+import { PrivacyWizard } from "@/components/jarvis/privacy-wizard";
 import { QuickActionsBar, type QuickAction } from "@/components/jarvis/quick-actions-bar";
 import { buildDefaultCommands } from "@/components/jarvis/command-palette";
 import type { TimerHandle } from "@/components/jarvis/timer-widget";
@@ -58,10 +60,14 @@ export default function Home() {
   const setAgentOpen = useUIStore(s => s.setAgentOpen);
   const setPluginOpen = useUIStore(s => s.setPluginOpen);
   const setLayoutOpen = useUIStore(s => s.setLayoutOpen);
+  const setAnalyticsOpen = useUIStore(s => s.setAnalyticsOpen);
+  const setBriefingOpen = useUIStore(s => s.setBriefingOpen);
   const closeAllPanels = useUIStore(s => s.closeAllPanels);
   const setJarvisSettings = useUIStore(s => s.setJarvisSettings);
 
   const timerRef = useRef<TimerHandle>(null);
+  const briefingShownRef = useRef(false);
+  const [pushToTalkActive, setPushToTalkActive] = useState(false);
 
   // Load behavior settings from DB on mount
   useEffect(() => {
@@ -112,6 +118,8 @@ export default function Home() {
       else if (w === "плагины" || w === "plugins") setPluginOpen(true);
       else if (w === "раскладка" || w === "layout") setLayoutOpen(true);
       else if (w === "markdown") setMarkdownOpen(true);
+      else if (w === "статистика" || w === "analytics") setAnalyticsOpen(true);
+      else if (w === "сводка" || w === "briefing") setBriefingOpen(true);
     },
     set_timer: (params: Record<string, string>) => {
       setTimerVisible(true);
@@ -124,7 +132,12 @@ export default function Home() {
   const handleBootComplete = useCallback(() => {
     setBooted(true);
     showNotification({ title: "J.A.R.V.I.S. Online", message: "Все системы в норме. Ожидаю ваших указаний, сэр.", type: "success" });
-  }, [setBooted]);
+    // Show daily briefing once per session, after a short delay
+    if (!briefingShownRef.current) {
+      briefingShownRef.current = true;
+      setTimeout(() => setBriefingOpen(true), 600);
+    }
+  }, [setBooted, setBriefingOpen]);
 
   // Set up command handlers for the hook
   useEffect(() => {
@@ -165,6 +178,26 @@ export default function Home() {
     onToggleVoice: () => jarvis.toggleListening(),
     onToggleFullscreen: async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); } catch { /* ignore */ } },
     onOpenPalette: () => setPaletteOpen(true),
+    onToggleQuietMode: () => useUIStore.getState().toggleQuietMode(),
+    onToggleIncognitoMode: () => {
+      const wasActive = useUIStore.getState().incognitoMode;
+      useUIStore.getState().toggleIncognitoMode();
+      if (wasActive) showNotification({ title: "Инкогнито отключён", type: "info" });
+    },
+  });
+
+  // Push-to-talk: hold Space to record, release to send
+  usePushToTalk({
+    onHold: () => {
+      if (!jarvis.isRecording) {
+        setPushToTalkActive(true);
+        jarvis.startListening();
+      }
+    },
+    onRelease: () => {
+      setPushToTalkActive(false);
+      if (jarvis.isRecording) jarvis.stopListening();
+    },
   });
 
   const handleWakeWord = useCallback(() => { jarvis.startListening(); }, [jarvis]);
@@ -179,6 +212,8 @@ export default function Home() {
   const pluginOpen = useUIStore((s) => s.pluginOpen);
   const layoutOpen = useUIStore((s) => s.layoutOpen);
   const notifOpen = useUIStore((s) => s.notifOpen);
+  const analyticsOpen = useUIStore((s) => s.analyticsOpen);
+  const briefingOpen = useUIStore((s) => s.briefingOpen);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -186,14 +221,14 @@ export default function Home() {
       if ((e.ctrlKey || e.metaKey) && e.key === "m") { e.preventDefault(); jarvis.toggleListening(); return; }
       if ((e.ctrlKey || e.metaKey) && e.key === "n") { e.preventDefault(); jarvis.newConversation(); return; }
       if (e.key === "Escape") {
-        if (paletteOpen || settingsOpen || notesOpen || markdownOpen || agentOpen || pluginOpen || layoutOpen || notifOpen) { closeAllPanels(); return; }
+        if (paletteOpen || settingsOpen || notesOpen || markdownOpen || agentOpen || pluginOpen || layoutOpen || notifOpen || analyticsOpen || briefingOpen) { closeAllPanels(); return; }
         if (jarvis.state === "speaking") { jarvis.stopSpeaking(); return; }
       }
       if (e.key === "F11") { e.preventDefault(); void toggleFullscreen(); return; }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [jarvis, closeAllPanels, paletteOpen, settingsOpen, notesOpen, markdownOpen, agentOpen, pluginOpen, layoutOpen, notifOpen, toggleFullscreen, setPaletteOpen]);
+  }, [jarvis, closeAllPanels, paletteOpen, settingsOpen, notesOpen, markdownOpen, agentOpen, pluginOpen, layoutOpen, notifOpen, analyticsOpen, briefingOpen, toggleFullscreen, setPaletteOpen]);
 
   // Build commands for palette
   const commands = useMemo(
@@ -203,14 +238,19 @@ export default function Home() {
       setTheme: (id: string) => { document.documentElement.setAttribute("data-theme", id); localStorage.setItem("jarvis-theme", id); },
       toggleCalculator: () => toggleCalc(), captureScreen: () => { if (jarvis.captureScreen) void jarvis.captureScreen(); },
       toggleWakeWord: () => setWakeWordEnabled((v: boolean) => !v),
+      toggleQuietMode: () => useUIStore.getState().toggleQuietMode(),
+      toggleIncognitoMode: () => useUIStore.getState().toggleIncognitoMode(),
+      openAnalytics: () => { playSound("click"); setAnalyticsOpen(true); },
+      openBriefing: () => { playSound("click"); setBriefingOpen(true); },
     }),
-    [toggleFullscreen, toggleNotes, toggleTimer, toggleCalc, setSettingsOpen, setWakeWordEnabled, jarvis.newConversation, jarvis.toggleListening, jarvis.captureScreen]
+    [toggleFullscreen, toggleNotes, toggleTimer, toggleCalc, setSettingsOpen, setWakeWordEnabled, setAnalyticsOpen, setBriefingOpen, jarvis.newConversation, jarvis.toggleListening, jarvis.captureScreen]
   );
 
   const activeTitle = jarvis.conversations.find((c) => c.id === jarvis.activeConvoId)?.title;
 
   return (
     <div className="jarvis-desktop-no-scroll jarvis-no-select jarvis-smooth-resize flex min-h-screen flex-col bg-background text-foreground">
+      <PrivacyWizard />
       <JarvisOverlays jarvis={jarvis} commands={commands} lastCommand={lastCommand} onBootComplete={handleBootComplete} />
 
       <AnimatePresence>
@@ -250,7 +290,7 @@ export default function Home() {
                           )}
                         </div>
                       </div>
-                      <div className="flex flex-col items-center sm:items-end"><VoiceControl jarvis={jarvis} /></div>
+                      <div className="flex flex-col items-center sm:items-end"><VoiceControl jarvis={jarvis} pushToTalkActive={pushToTalkActive} /></div>
                     </div>
                     <div className="relative mt-4 border-t jarvis-border-cyan pt-3">
                       <QuickCommands onPick={(p) => jarvis.sendText(p, "text")} onImageGen={(p) => jarvis.generateImage(p)} />
@@ -285,6 +325,9 @@ export default function Home() {
               { icon: Bot, label: "Агент", onClick: () => setAgentOpen((v: boolean) => !v) },
               { icon: Puzzle, label: "Плагины", onClick: () => setPluginOpen((v: boolean) => !v) },
               { icon: LayoutGrid, label: "Раскладка", onClick: () => setLayoutOpen((v: boolean) => !v) },
+              { icon: Moon, label: "Не беспокоить", onClick: () => useUIStore.getState().toggleQuietMode() },
+              { icon: EyeOff, label: "Инкогнито", onClick: () => useUIStore.getState().toggleIncognitoMode() },
+              { icon: BarChart3, label: "Статистика", onClick: () => { playSound("click"); setAnalyticsOpen(true); } },
               { icon: Settings, label: "Настройки", onClick: () => { playSound("click"); setSettingsOpen(true); } },
             ] as QuickAction[]} />
 

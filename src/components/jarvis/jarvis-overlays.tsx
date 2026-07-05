@@ -18,7 +18,7 @@ import { showNotification, NotificationToastContainer } from "@/components/jarvi
 import {
   LazyAgentPanel, LazyPluginPanel, LazyLayoutCustomizer,
   LazyNotificationCenter, LazySettingsPanel, LazyMarkdownWidget,
-  LazyThemeEditor,
+  LazyThemeEditor, LazyAnalyticsWidget, LazyDailyBriefing,
   JarvisSuspense,
 } from "@/lib/lazy-components";
 
@@ -39,6 +39,8 @@ export function JarvisOverlays({ jarvis, commands, lastCommand, onBootComplete }
   const layoutOpen = useUIStore((s) => s.layoutOpen);
   const notifOpen = useUIStore((s) => s.notifOpen);
   const themeEditorOpen = useUIStore((s) => s.themeEditorOpen);
+  const analyticsOpen = useUIStore((s) => s.analyticsOpen);
+  const briefingOpen = useUIStore((s) => s.briefingOpen);
 
   const setPaletteOpen = useUIStore((s) => s.setPaletteOpen);
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
@@ -50,6 +52,8 @@ export function JarvisOverlays({ jarvis, commands, lastCommand, onBootComplete }
   const setNotifOpen = useUIStore((s) => s.setNotifOpen);
   const setJarvisSettings = useUIStore((s) => s.setJarvisSettings);
   const setThemeEditorOpen = useUIStore((s) => s.setThemeEditorOpen);
+  const setAnalyticsOpen = useUIStore((s) => s.setAnalyticsOpen);
+  const setBriefingOpen = useUIStore((s) => s.setBriefingOpen);
 
   // Error flash — key changes on each new error message
   const errorFlashKey = jarvis.state === "error" ? jarvis.error ?? "err" : 0;
@@ -135,6 +139,16 @@ export function JarvisOverlays({ jarvis, commands, lastCommand, onBootComplete }
 
       {/* Theme Editor Overlay */}
       <JarvisSuspense><LazyThemeEditor open={themeEditorOpen} onOpenChange={setThemeEditorOpen} /></JarvisSuspense>
+
+      {/* Analytics Overlay */}
+      <JarvisSuspense><LazyAnalyticsWidget open={analyticsOpen} onClose={() => setAnalyticsOpen(false)} /></JarvisSuspense>
+
+      {/* Daily Briefing Overlay */}
+      <AnimatePresence>
+        {briefingOpen && (
+          <JarvisSuspense><LazyDailyBriefing onClose={() => setBriefingOpen(false)} /></JarvisSuspense>
+        )}
+      </AnimatePresence>
     </>
   );
 }

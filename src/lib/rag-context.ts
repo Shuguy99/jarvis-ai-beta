@@ -12,6 +12,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { searchFTS5, ensureFTS5, isFTS5Ready } from "./rag-fts5";
+import { useUIStore } from "./ui-store";
 
 const prisma = new PrismaClient();
 
@@ -41,6 +42,11 @@ export interface RAGContext {
  */
 export async function buildRAGContext(query: string, maxChunks = 5): Promise<RAGContext> {
   if (!query || query.trim().length < 2) {
+    return { hasContext: false, injectedChunks: 0, contextText: "", sources: [] };
+  }
+
+  // Incognito mode: skip RAG search
+  if (typeof window !== "undefined" && useUIStore.getState().incognitoMode) {
     return { hasContext: false, injectedChunks: 0, contextText: "", sources: [] };
   }
 
