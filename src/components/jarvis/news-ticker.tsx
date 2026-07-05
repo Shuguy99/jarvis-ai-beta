@@ -76,12 +76,6 @@ export function NewsTicker() {
           {doubled}
         </div>
       </div>
-      <style jsx>{`
-        @keyframes ticker-scroll {
-          from { transform: translateX(0); }
-          to { transform: translateX(-50%); }
-        }
-      `}</style>
     </div>
   );
 }

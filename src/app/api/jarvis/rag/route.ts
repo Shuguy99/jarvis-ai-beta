@@ -1,10 +1,8 @@
 import { json } from "@/lib/json-response";
 import { promises as fs } from "fs";
 import path from "path";
-import { PrismaClient } from "@prisma/client";
+import { db } from "@/lib/db";
 import { searchFTS5, ensureFTS5 } from "@/lib/rag-fts5";
-
-const prisma = new PrismaClient();
 
 const UPLOAD_DIR = process.env.RAG_UPLOAD_DIR || "/tmp/jarvis-rag";
 const CHUNK_SIZE = 500;
@@ -43,7 +41,7 @@ export async function POST(req: Request) {
 
     const chunks = chunkText(text, CHUNK_SIZE, CHUNK_OVERLAP);
 
-    const doc = await prisma.document.create({
+    const doc = await db.document.create({
       data: {
         filename: file.name,
         chunks: {
@@ -66,26 +64,31 @@ export async function POST(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const action = url.searchParams.get("action");
+  try {
+    const url = new URL(req.url);
+    const action = url.searchParams.get("action");
 
-  if (action === "search") {
-    return handleSearch(req);
+    if (action === "search") {
+      return handleSearch(req);
+    }
+
+    const docs = await db.document.findMany({
+      orderBy: { uploadedAt: "desc" },
+      include: { chunks: { select: { id: true } } },
+    });
+
+    return json({
+      documents: docs.map((d) => ({
+        id: d.id,
+        filename: d.filename,
+        uploadedAt: d.uploadedAt,
+        chunkCount: d.chunks.length,
+      })),
+    });
+  } catch (error) {
+    console.error("Failed to load RAG documents:", error);
+    return json({ error: "Failed to load RAG documents" }, 500);
   }
-
-  const docs = await prisma.document.findMany({
-    orderBy: { uploadedAt: "desc" },
-    include: { chunks: { select: { id: true } } },
-  });
-
-  return json({
-    documents: docs.map((d) => ({
-      id: d.id,
-      filename: d.filename,
-      uploadedAt: d.uploadedAt,
-      chunkCount: d.chunks.length,
-    })),
-  });
 }
 
 export async function DELETE(req: Request) {
@@ -97,7 +100,7 @@ export async function DELETE(req: Request) {
   }
 
   try {
-    const deleted = await prisma.document.delete({ where: { id: docId } });
+    const deleted = await db.document.delete({ where: { id: docId } });
     return json({ success: true, documentId: deleted.id });
   } catch {
     return json({ error: "Document not found" }, 404);

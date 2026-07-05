@@ -17,13 +17,18 @@ const PROVIDER_CATALOG: Array<{
 ];
 
 export async function GET() {
-  const available = ai.getAvailableProviders();
-  const active = await ai.getActiveProviderInfo();
+  try {
+    const available = ai.getAvailableProviders();
+    const active = await ai.getActiveProviderInfo();
 
-  const catalog = PROVIDER_CATALOG.map((p) => ({
-    ...p,
-    configured: available.some((a) => a.id === p.id),
-  }));
+    const catalog = PROVIDER_CATALOG.map((p) => ({
+      ...p,
+      configured: available.some((a) => a.id === p.id),
+    }));
 
-  return json({ catalog, active });
+    return json({ catalog, active });
+  } catch (error) {
+    console.error("Failed to load providers:", error);
+    return json({ error: "Failed to load providers" }, 500);
+  }
 }

@@ -74,9 +74,9 @@ let _cachedSettings: Record<string, string> | null = null;
 async function getProviderSettings(): Promise<Record<string, string>> {
   if (_cachedSettings !== null) return _cachedSettings;
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL
-      ? `${process.env.NEXT_PUBLIC_APP_URL}/api/jarvis/settings`
-      : "http://localhost:3000/api/jarvis/settings";
+    const baseUrl = process.env.VITE_API_URL
+      ? `${process.env.VITE_API_URL}/api/jarvis/settings`
+      : "http://localhost:3001/api/jarvis/settings";
     const res = await fetch(baseUrl, { signal: AbortSignal.timeout(2000) });
     if (res.ok) {
       const data = await res.json();
@@ -540,10 +540,10 @@ function createGeminiProvider(settings: Record<string, string>) {
     }
 
     const res = await timedFetch(
-      `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      `${baseUrl}/v1beta/models/${model}:generateContent`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         body: JSON.stringify(body),
       }
     );
@@ -568,10 +568,10 @@ function createGeminiProvider(settings: Record<string, string>) {
     }
 
     const res = await timedFetch(
-      `${baseUrl}/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`,
+      `${baseUrl}/v1beta/models/${model}:streamGenerateContent?alt=sse`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         body: JSON.stringify(body),
       }
     );
@@ -601,10 +601,10 @@ function createGeminiProvider(settings: Record<string, string>) {
     };
 
     const res = await timedFetch(
-      `${baseUrl}/v1beta/models/${visionModel}:generateContent?key=${apiKey}`,
+      `${baseUrl}/v1beta/models/${visionModel}:generateContent`,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
         body: JSON.stringify(body),
       },
       AI_OTHER_TIMEOUT_MS
@@ -825,6 +825,50 @@ async function* parseSSEStream(res: Response): AsyncGenerator<string> {
   }
 }
 
+// ─── Retry fetch helper (transient error recovery) ────────────────
+
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+const RETRYABLE_ERRORS = new Set(["ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "EPIPE"]);
+
+export async function retryFetch(
+  url: string,
+  init: RequestInit,
+  retries = 2,
+  baseDelay = 500
+): Promise<Response> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url, init);
+
+      if (RETRYABLE_STATUS_CODES.has(res.status) && attempt < retries) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.warn(`[AI] Retryable status ${res.status}, attempt ${attempt + 1}/${retries + 1}, waiting ${delay}ms`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+
+      return res;
+    } catch (err) {
+      lastError = err as Error;
+      const msg = (err as Error).message || "";
+      const isRetryable = [...RETRYABLE_ERRORS].some((code: string) => msg.includes(code));
+
+      if (isRetryable && attempt < retries) {
+        const delay = baseDelay * Math.pow(2, attempt);
+        console.warn(`[AI] Retryable error: ${msg}, attempt ${attempt + 1}/${retries + 1}, waiting ${delay}ms`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+
+      throw err;
+    }
+  }
+
+  throw lastError || new Error("Retry failed");
+}
+
 // ─── Timeout fetch helper (used by all providers) ────────────────
 
 async function timedFetch(
@@ -838,7 +882,8 @@ async function timedFetch(
     ? AbortSignal.any([init.signal, controller.signal])
     : controller.signal;
   try {
-    return await fetch(url, { ...init, signal: mergedSignal });
+    const urlStr = typeof url === "string" ? url : url instanceof URL ? url.href : (url as Request).url;
+    return await retryFetch(urlStr, { ...init, signal: mergedSignal });
   } finally {
     clearTimeout(timer);
   }
@@ -852,7 +897,7 @@ async function ollamaFetch(url: string, body: unknown): Promise<Response> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), AI_CHAT_TIMEOUT_MS);
     try {
-      res = await fetch(url, {
+      res = await retryFetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

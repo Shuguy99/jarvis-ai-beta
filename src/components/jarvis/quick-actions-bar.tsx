@@ -80,7 +80,7 @@ function ActionBar({
   return (
     <motion.div
       layout
-      className="jarvis-box-glow flex items-center backdrop-blur-xl bg-card/60 border border-primary/20 rounded-full px-3 py-2 overflow-x-auto jarvis-desktop-no-scroll max-w-full"
+      className="jarvis-box-glow flex flex-nowrap items-center backdrop-blur-xl bg-card/60 border border-primary/20 rounded-full px-3 py-2 overflow-x-auto jarvis-desktop-no-scroll max-w-full"
     >
       <AnimatePresence mode="popLayout">
         {!collapsed &&

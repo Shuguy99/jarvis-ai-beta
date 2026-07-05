@@ -1,5 +1,3 @@
-
-
 import { useCallback, useEffect, useRef } from "react";
 import type { ChatMessage, Conversation } from "@/lib/types";
 import type { PersonaId, ResponseStyle } from "@/components/jarvis/settings-panel";
@@ -15,6 +13,9 @@ import {
 import { playSound } from "@/lib/sounds";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";
 import { publishChatMessage } from "@/lib/context-bus";
+import { useTTS } from "@/hooks/use-tts";
+import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
+import { processLocalCommand } from "@/hooks/use-local-commands";
 
 // ── Re-exports for backward compatibility ─────────────────────
 export type { JarvisState, CommandHandlers, JarvisSettings };
@@ -31,35 +32,6 @@ interface UseJarvisOptions {
   commandHandlers?: CommandHandlers;
 }
 
-// ── Browser-API helpers (non-serializable, stay in hook) ─────
-
-function pickRussianVoice(): SpeechSynthesisVoice | null {
-  const synth = window.speechSynthesis;
-  if (!synth) return null;
-  const voices = synth.getVoices();
-  if (!voices.length) return null;
-
-  const ruVoices = voices.filter((v) => v.lang.startsWith("ru"));
-  if (!ruVoices.length) return null;
-
-  const preferred = ["Microsoft Irina", "Microsoft Pavel", "Google русский", "Yandex"];
-  for (const name of preferred) {
-    const found = ruVoices.find((v) => v.name.includes(name));
-    if (found) return found;
-  }
-
-  const exact = ruVoices.find((v) => v.lang === "ru-RU");
-  if (exact) return exact;
-  const local = ruVoices.find((v) => v.localService);
-  if (local) return local;
-  return ruVoices[0];
-}
-
-function getSpeechRecognition(): SpeechRecognitionConstructor | null {
-  if (typeof window === "undefined") return null;
-  return window.SpeechRecognition ?? window.webkitSpeechRecognition ?? null;
-}
-
 // ── Hook ──────────────────────────────────────────────────────
 
 export function useJarvis(opts: UseJarvisOptions = {}) {
@@ -73,35 +45,25 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
   const searchedSources = useJarvisStore((s) => s.searchedSources);
   const conversations = useJarvisStore((s) => s.conversations);
   const activeConvoId = useJarvisStore((s) => s.activeConvoId);
-  const isRecording = useJarvisStore((s) => s.isRecording);
-  const audioLevel = useJarvisStore((s) => s.audioLevel);
   const continuousMode = useJarvisStore((s) => s.continuousMode);
 
   // ── Browser-only refs ─────────────────────────────────────
-  const ttsRateRef = useRef(ttsRate);
-  const ttsPitchRef = useRef(ttsPitch);
-  const volumeRef = useRef(volume);
   const behaviorRef = useRef<Partial<JarvisSettings>>({});
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const streamRef = useRef<MediaStream | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const speechRecognitionRef = useRef<SpeechRecognition | null>(null);
-  const speakingAbortRef = useRef<boolean>(false);
-  const russianVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const commandHandlersRef = useRef<CommandHandlers>(opts.commandHandlers ?? {});
 
-  // Sync TTS/behavior refs when props change
+  // Sync behavior ref when settings change
   useEffect(() => {
     if (externalSettings) {
-      ttsRateRef.current = externalSettings.ttsRate ?? ttsRate;
-      ttsPitchRef.current = externalSettings.ttsPitch ?? ttsPitch;
-      volumeRef.current = externalSettings.volume ?? volume;
       behaviorRef.current = externalSettings;
     }
-  }, [externalSettings, ttsRate, ttsPitch, volume]);
+  }, [externalSettings]);
+
+  // ── TTS (extracted hook) ──────────────────────────────────
+  const { speak, stopSpeaking, updateTTSSettings } = useTTS({
+    ttsRate,
+    ttsPitch,
+    volume,
+  });
 
   // ── Conversation persistence ──────────────────────────────
 
@@ -191,229 +153,9 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     }
   }, [newConversation]);
 
-  // ── TTS (browser SpeechSynthesis) ─────────────────────────
-
-  useEffect(() => {
-    const synth = window.speechSynthesis;
-    if (!synth) return;
-    const load = () => {
-      russianVoiceRef.current = pickRussianVoice();
-    };
-    load();
-    synth.addEventListener("voiceschanged", load);
-    return () => synth.removeEventListener("voiceschanged", load);
-  }, []);
-
-  const stopSpeaking = useCallback(() => {
-    speakingAbortRef.current = true;
-    const synth = window.speechSynthesis;
-    if (synth) synth.cancel();
-    const st = useJarvisStore.getState().jarvisState;
-    if (st === "speaking") useJarvisStore.getState().setJarvisState("idle");
-  }, []);
-
-  const speak = useCallback(
-    (text: string) => {
-      if (!text.trim()) return;
-      const synth = window.speechSynthesis;
-      if (!synth) {
-        useJarvisStore.getState().setJarvisState("idle");
-        return;
-      }
-
-      speakingAbortRef.current = false;
-      useJarvisStore.getState().setJarvisState("speaking");
-      addActivityEvent({ severity: "info", category: "voice", message: "Озвучка ответа..." });
-      synth.cancel();
-
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "ru-RU";
-      utterance.rate = ttsRateRef.current;
-      utterance.pitch = ttsPitchRef.current;
-      utterance.volume = volumeRef.current;
-
-      const voice = russianVoiceRef.current || pickRussianVoice();
-      if (voice) utterance.voice = voice;
-
-      utterance.onend = () => {
-        if (!speakingAbortRef.current) useJarvisStore.getState().setJarvisState("idle");
-      };
-      utterance.onerror = (e) => {
-        if (e.error !== "canceled") {
-          console.error("SpeechSynthesis error", e);
-        }
-        useJarvisStore.getState().setJarvisState("idle");
-      };
-
-      // Chrome workaround: long text can stop mid-speech
-      utterance.onpause = () => {
-        if (!speakingAbortRef.current) {
-          setTimeout(() => {
-            if (synth.speaking && !synth.pending && !speakingAbortRef.current) {
-              synth.resume();
-            }
-          }, 100);
-        }
-      };
-
-      synth.speak(utterance);
-    },
-    []
-  );
-
-  // ── Command parser (local commands) ───────────────────────
+  // ── Command parser (local commands, extracted) ────────────
   const processCommand = useCallback(
-    async (text: string): Promise<{ handled: boolean; response?: string } | null> => {
-      const cmd = text.trim().toLowerCase();
-      const handlers = commandHandlersRef.current;
-
-      // Create note
-      const noteMatch =
-        cmd.match(/^(?:запиши|создай заметку|заметка|добавь заметку|новая заметка)[:\s]+(.+)/i);
-      if (noteMatch) {
-        const noteText = noteMatch[1].trim();
-        try {
-          const res = await fetch("/api/jarvis/notes", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title: noteText, content: noteText }),
-          });
-          const data = await res.json();
-          if (data.note) {
-            return { handled: true, response: `Заметка сохранена, сэр: «${noteText}»` };
-          }
-        } catch {
-          /* ignore */
-        }
-        return { handled: true, response: "Не удалось сохранить заметку, сэр." };
-      }
-
-      // List notes
-      if (/^(какие заметки|покажи заметк|список заметок|мои заметки|что в замет)/i.test(cmd)) {
-        try {
-          const res = await fetch("/api/jarvis/notes");
-          const data = await res.json();
-          const notes = data.notes ?? [];
-          if (notes.length === 0) {
-            return { handled: true, response: "У вас пока нет заметок, сэр." };
-          }
-          const lines = notes
-            .slice(0, 10)
-            .map(
-              (n: { done: boolean; title: string }, i: number) =>
-                `${n.done ? "\u2611" : "\u2610"} ${i + 1}. ${n.title}`
-            )
-            .join("\n");
-          return {
-            handled: true,
-            response: `Ваши заметки (${notes.length}):\n${lines}${notes.length > 10 ? `\n\u2026 и ещё ${notes.length - 10}` : ""}`,
-          };
-        } catch {
-          return { handled: true, response: "Не удалось загрузить заметки, сэр." };
-        }
-      }
-
-      // Delete all notes
-      if (/^(удали все заметки|удали заметки|очисти заметки|удали все задачи)/i.test(cmd)) {
-        try {
-          await fetch("/api/jarvis/notes", {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id: "all" }),
-          });
-          return { handled: true, response: "Все заметки удалены, сэр." };
-        } catch {
-          return { handled: true, response: "Не удалось удалить заметки, сэр." };
-        }
-      }
-
-      // Timer
-      const timerMatch = cmd.match(
-        /(?:таймер|таймер на|поставь таймер|установи таймер|заведи таймер)\s+(\d+(?:[.,]\d+)?)\s*(?:минут|мин|minutes?|m|секунд|сек|seconds?|s)?/i
-      );
-      if (timerMatch) {
-        const num = parseFloat(timerMatch[1].replace(",", "."));
-        const hasSec = /секунд|сек|seconds?|s/i.test(cmd);
-        const seconds = hasSec ? Math.round(num) : Math.round(num * 60);
-        if (seconds > 0 && handlers.startTimer) {
-          handlers.startTimer(seconds);
-          const mins = Math.floor(seconds / 60);
-          const secs = seconds % 60;
-          const display = mins > 0 ? `${mins} мин${secs > 0 ? ` ${secs} сек` : ""}` : `${secs} сек`;
-          return { handled: true, response: `Таймер установлен на ${display}, сэр.` };
-        }
-        return { handled: true, response: "Таймер недоступен, сэр." };
-      }
-
-      // Stop/reset timer
-      if (/^(стоп таймер|сбрось таймер|останови таймер|отмени таймер)/i.test(cmd)) {
-        if (handlers.stopTimer) handlers.stopTimer();
-        if (handlers.resetTimer) handlers.resetTimer();
-        return { handled: true, response: "Таймер остановлен, сэр." };
-      }
-
-      // Calculator
-      if (/^(калькулятор|открой калькулятор|покажи калькулятор|посчитай)/i.test(cmd)) {
-        if (handlers.toggleCalculator) handlers.toggleCalculator();
-        return { handled: true, response: "Калькулятор активирован, сэр." };
-      }
-
-      // Notes
-      if (/^(заметки|открой заметки|покажи заметки|мои записи)/i.test(cmd)) {
-        if (handlers.openNotes) handlers.openNotes();
-        return { handled: true, response: "Панель заметок открыта, сэр." };
-      }
-
-      // Fullscreen
-      if (/^(полный экран|фуллскрин|во весь экран|fullscreen)/i.test(cmd)) {
-        if (handlers.toggleFullscreen) handlers.toggleFullscreen();
-        return { handled: true, response: "Полноэкранный режим активирован, сэр." };
-      }
-
-      // Settings
-      if (/^(настройки|параметры|открой настройки|settings)/i.test(cmd)) {
-        if (handlers.openSettings) handlers.openSettings();
-        return { handled: true, response: "Панель настроек открыта, сэр." };
-      }
-
-      // Screen capture
-      if (/^(скриншот|захват экрана|покажи экран|сделай скриншот|screen capture)/i.test(cmd)) {
-        if (handlers.captureScreen) handlers.captureScreen();
-        return { handled: true, response: "Инициализирую захват экрана, сэр." };
-      }
-
-      // Theme
-      const themeMatch = cmd.match(/(?:марк|mark|тема|theme)\s+(1|42|50)/i);
-      if (themeMatch) {
-        const themeId = `mark-${themeMatch[1]}`;
-        if (handlers.setTheme) handlers.setTheme(themeId);
-        return { handled: true, response: `Костюм Mark ${themeMatch[1]} активирован, сэр.` };
-      }
-
-      // Mute/unmute
-      if (/^(тихо|замолчи|молчи|выключи голос|mute)/i.test(cmd)) {
-        useJarvisStore.getState().setAutoSpeakOn(false);
-        return { handled: true, response: "Режим молчания активирован, сэр." };
-      }
-      if (/^(говори|голос|включи голос|звук|unmute)/i.test(cmd)) {
-        useJarvisStore.getState().setAutoSpeakOn(true);
-        return { handled: true, response: "Голосовой вывод восстановлен, сэр." };
-      }
-
-      // New chat — uses store directly, no TDZ issue
-      if (/^(новый чат|новый разговор|очисти чат|новая сессия|новый диалог)/i.test(cmd)) {
-        useJarvisStore.getState().clearChat();
-        useJarvisStore.getState().setActiveConvoId(null);
-        return { handled: true, response: "Новая сессия инициализирована, сэр." };
-      }
-
-      // Weather — delegate to LLM
-      if (/^(погода|какая погода|прогноз|покажи погоду)/i.test(cmd)) {
-        return { handled: false };
-      }
-
-      return null;
-    },
+    async (text: string) => processLocalCommand(text, commandHandlersRef.current),
     []
   );
 
@@ -584,212 +326,14 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     [ensureConversation, persistMessage, speak, stopSpeaking, processCommand]
   );
 
-  // ── Voice recording (ASR) ────────────────────────────────
-
-  const cleanupRecording = useCallback(() => {
-    if (speechRecognitionRef.current) {
-      try { speechRecognitionRef.current.abort(); } catch { /* ignore */ }
-      speechRecognitionRef.current = null;
-    }
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      try { mediaRecorderRef.current.stop(); } catch { /* ignore */ }
-    }
-    if (rafRef.current) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    if (audioCtxRef.current) {
-      audioCtxRef.current.close().catch(() => {});
-      audioCtxRef.current = null;
-    }
-    analyserRef.current = null;
-    useJarvisStore.getState().setAudioLevel(0);
-  }, []);
-
-  const startListening = useCallback(async () => {
-    const { isRecording: rec, jarvisState: st } = useJarvisStore.getState();
-    if (rec || st === "thinking") return;
-    useJarvisStore.getState().setError(null);
-    stopSpeaking();
-
-    // ─── Method 1: Browser Web Speech API (primary) ───
-    const SpeechRecognition = getSpeechRecognition();
-    if (SpeechRecognition) {
-      try {
-        const recognition = new SpeechRecognition();
-        recognition.lang = "ru-RU";
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-        recognition.continuous = false;
-
-        const levelInterval = setInterval(() => {
-          useJarvisStore.getState().setAudioLevel((prev) => 0.3 + Math.random() * 0.5);
-        }, 150);
-
-        recognition.onresult = (event: SpeechRecognitionEvent) => {
-          clearInterval(levelInterval);
-          useJarvisStore.getState().setAudioLevel(0);
-          const transcript = event.results[0]?.[0]?.transcript?.trim();
-          if (transcript) {
-            addActivityEvent({ severity: "success", category: "voice", message: `Распознано: ${trunc(transcript)}` });
-            useJarvisStore.getState().setIsRecording(false);
-            useJarvisStore.getState().setJarvisState("idle");
-            void sendText(transcript, "voice");
-          } else {
-            useJarvisStore.getState().setIsRecording(false);
-            useJarvisStore.getState().setJarvisState("idle");
-          }
-        };
-
-        recognition.onerror = (event) => {
-          clearInterval(levelInterval);
-          useJarvisStore.getState().setAudioLevel(0);
-          useJarvisStore.getState().setIsRecording(false);
-          if (event.error === "no-speech") {
-            useJarvisStore.getState().setJarvisState("idle");
-          } else if (event.error === "not-allowed") {
-            useJarvisStore.getState().setError("Нет доступа к микрофону. Разрешите доступ в настройках браузера.");
-            useJarvisStore.getState().setJarvisState("error");
-          } else {
-            useJarvisStore.getState().setError(`Ошибка распознавания: ${event.error}`);
-            useJarvisStore.getState().setJarvisState("error");
-          }
-        };
-
-        recognition.onend = () => {
-          clearInterval(levelInterval);
-          useJarvisStore.getState().setAudioLevel(0);
-          useJarvisStore.getState().setIsRecording(false);
-          const currentState = useJarvisStore.getState().jarvisState;
-          if (currentState !== "thinking" && currentState !== "speaking") {
-            useJarvisStore.getState().setJarvisState("idle");
-          }
-        };
-
-        speechRecognitionRef.current = recognition;
-        recognition.start();
-        useJarvisStore.getState().setIsRecording(true);
-        useJarvisStore.getState().setJarvisState("listening");
-        addActivityEvent({ severity: "info", category: "voice", message: "Голосовой ввод активирован" });
-        playSound("voice-activate");
-        return;
-      } catch (e) {
-        console.error("SpeechRecognition failed, falling back to MediaRecorder:", e);
-      }
-    }
-
-    // ─── Method 2: MediaRecorder + Server-side ZAI ASR (fallback) ───
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      streamRef.current = stream;
-
-      const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
-      audioCtxRef.current = ctx;
-      const sourceNode = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      sourceNode.connect(analyser);
-      analyserRef.current = analyser;
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      const tick = () => {
-        analyser.getByteFrequencyData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) sum += data[i];
-        const avg = sum / data.length;
-        useJarvisStore.getState().setAudioLevel(Math.min(1, avg / 90));
-        rafRef.current = requestAnimationFrame(tick);
-      };
-      tick();
-
-      const mr = new MediaRecorder(stream);
-      mediaRecorderRef.current = mr;
-      chunksRef.current = [];
-      mr.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      mr.onstop = async () => {
-        cleanupRecording();
-        useJarvisStore.getState().setIsRecording(false);
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        if (blob.size < 200) {
-          useJarvisStore.getState().setJarvisState("idle");
-          return;
-        }
-        useJarvisStore.getState().setJarvisState("thinking");
-        try {
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const base64 = reader.result as string;
-            try {
-              const res = await fetch("/api/jarvis/asr", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ audio: base64 }),
-              });
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error || "ASR failed");
-              const text = (data.text || "").trim();
-              if (text) {
-                addActivityEvent({ severity: "success", category: "voice", message: `Распознано: ${trunc(text)}` });
-                await sendText(text, "voice");
-              } else {
-                useJarvisStore.getState().setJarvisState("idle");
-              }
-            } catch (err) {
-              useJarvisStore.getState().setError(err instanceof Error ? err.message : "Распознавание не удалось");
-              useJarvisStore.getState().setJarvisState("error");
-            }
-          };
-          reader.readAsDataURL(blob);
-        } catch (err) {
-          useJarvisStore.getState().setError(err instanceof Error ? err.message : "Ошибка записи");
-          useJarvisStore.getState().setJarvisState("error");
-        }
-      };
-
-      mr.start();
-      useJarvisStore.getState().setIsRecording(true);
-      useJarvisStore.getState().setJarvisState("listening");
-      addActivityEvent({ severity: "info", category: "voice", message: "Голосовой ввод активирован" });
-    } catch (e) {
-      useJarvisStore.getState().setError(
-        e instanceof Error
-          ? `Нет доступа к микрофону: ${e.message}`
-          : "Микрофон недоступен"
-      );
-      useJarvisStore.getState().setJarvisState("error");
-      cleanupRecording();
-    }
-  }, [sendText, stopSpeaking, cleanupRecording]);
-
-  const stopListening = useCallback(() => {
-    if (speechRecognitionRef.current) {
-      try { speechRecognitionRef.current.stop(); } catch { /* ignore */ }
-    }
-    const { isRecording: rec } = useJarvisStore.getState();
-    if (mediaRecorderRef.current && rec) {
-      mediaRecorderRef.current.stop();
-    }
-  }, []);
-
-  const toggleListening = useCallback(() => {
-    const { isRecording: rec } = useJarvisStore.getState();
-    if (rec) stopListening();
-    else void startListening();
-  }, [startListening, stopListening]);
-
-  // cleanup on unmount
-  useEffect(() => {
-    return () => {
-      cleanupRecording();
-      const synth = window.speechSynthesis;
-      if (synth) synth.cancel();
-    };
-  }, [cleanupRecording]);
+  // ── Voice recording (extracted hook) ──────────────────────
+  const {
+    isRecording,
+    audioLevel,
+    startListening,
+    stopListening,
+    toggleListening,
+  } = useVoiceRecorder({ sendText, stopSpeaking });
 
   // load conversations on mount
   useEffect(() => {
@@ -1032,11 +576,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
     speak,
     stopSpeaking,
     setAutoSpeakOn: (v: boolean) => useJarvisStore.getState().setAutoSpeakOn(v),
-    updateTTSSettings: (rate: number, pitch: number, vol: number) => {
-      ttsRateRef.current = rate;
-      ttsPitchRef.current = pitch;
-      volumeRef.current = vol;
-    },
+    updateTTSSettings,
     clearMessages: () => useJarvisStore.getState().clearChat(),
     newConversation,
     selectConversation,

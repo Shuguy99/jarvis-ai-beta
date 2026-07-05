@@ -4,8 +4,8 @@
  * Usage:  import { json } from "@/lib/json-response";
  *         return json({ error: "Not found" }, 404);
  */
-export function json(
-  data: unknown,
+export function json<T = unknown>(
+  data: T,
   statusOrInit?: number | { status?: number; headers?: Record<string, string> },
   extraHeaders?: Record<string, string>,
 ): Response {

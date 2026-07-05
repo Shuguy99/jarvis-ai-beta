@@ -1,59 +1,8 @@
 
 
-import { useState, useCallback } from "react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { useState, useCallback, useEffect } from "react";
 import { Copy, Check, Terminal } from "lucide-react";
 import { playSound } from "@/lib/sounds";
-
-// Custom JARVIS-themed dark theme for Prism
-const jarvisTheme: Record<string, React.CSSProperties> = {
-  'pre[class*="language-"]': {
-    background: "oklch(0.12 0.03 250)",
-    color: "oklch(0.85 0.19 193)",
-    fontFamily: "ui-monospace, monospace",
-    fontSize: "0.6875rem",
-    lineHeight: "1.6",
-    margin: 0,
-    padding: "0.75rem 0",
-    overflow: "auto",
-  },
-  'code[class*="language-"]': {
-    background: "oklch(0.12 0.03 250)",
-    color: "oklch(0.85 0.19 193)",
-    fontFamily: "ui-monospace, monospace",
-    fontSize: "0.6875rem",
-    lineHeight: "1.6",
-  },
-  comment: { color: "oklch(0.5 0.02 250)" },
-  prolog: { color: "oklch(0.5 0.02 250)" },
-  doctype: { color: "oklch(0.5 0.02 250)" },
-  cdata: { color: "oklch(0.5 0.02 250)" },
-  punctuation: { color: "oklch(0.7 0.05 193)" },
-  property: { color: "oklch(0.85 0.19 193)" },
-  tag: { color: "oklch(0.8 0.16 80)" },
-  boolean: { color: "oklch(0.8 0.18 50)" },
-  number: { color: "oklch(0.8 0.18 50)" },
-  constant: { color: "oklch(0.8 0.18 50)" },
-  symbol: { color: "oklch(0.8 0.18 50)" },
-  selector: { color: "oklch(0.75 0.15 150)" },
-  "attr-name": { color: "oklch(0.75 0.15 150)" },
-  string: { color: "oklch(0.75 0.15 150)" },
-  char: { color: "oklch(0.75 0.15 150)" },
-  builtin: { color: "oklch(0.85 0.15 280)" },
-  inserted: { color: "oklch(0.75 0.15 150)" },
-  operator: { color: "oklch(0.8 0.16 80)" },
-  entity: { color: "oklch(0.8 0.16 80)" },
-  url: { color: "oklch(0.85 0.19 193)" },
-  atrule: { color: "oklch(0.85 0.15 280)" },
-  "attr-value": { color: "oklch(0.75 0.15 150)" },
-  keyword: { color: "oklch(0.8 0.16 80)" },
-  function: { color: "oklch(0.85 0.15 280)" },
-  "class-name": { color: "oklch(0.85 0.15 280)" },
-  regex: { color: "oklch(0.75 0.12 60)" },
-  important: { color: "oklch(0.8 0.16 80)" },
-  variable: { color: "oklch(0.85 0.19 193)" },
-  deleted: { color: "oklch(0.7 0.15 25)" },
-};
 
 // Language display names
 const LANG_NAMES: Record<string, string> = {
@@ -95,6 +44,34 @@ const LANG_NAMES: Record<string, string> = {
 interface CodeBlockProps {
   language: string;
   code: string;
+}
+
+function CodeHighlighter({ language, children, style }: { language: string; children: string; style: React.CSSProperties }) {
+  const [Highlighter, setHighlighter] = useState<React.ComponentType<any> | null>(null);
+  const [theme, setTheme] = useState<Record<string, React.CSSProperties> | null>(null);
+
+  useEffect(() => {
+    import("react-syntax-highlighter/dist/esm/prism").then((mod: any) => {
+      setHighlighter(() => mod.Prism);
+    });
+    import("react-syntax-highlighter/dist/esm/styles/prism").then(mod => {
+      setTheme(mod.oneDark);
+    });
+  }, []);
+
+  if (!Highlighter || !theme) {
+    return (
+      <pre style={{ background: "#282c34", color: "#abb2bf", padding: "1rem", borderRadius: "0.5rem", overflow: "auto", fontSize: "0.85rem", ...style }}>
+        <code>{children}</code>
+      </pre>
+    );
+  }
+
+  return (
+    <Highlighter language={language} style={theme} customStyle={{ background: "transparent", fontSize: "0.85rem" }}>
+      {children}
+    </Highlighter>
+  );
 }
 
 export function CodeBlock({ language, code }: CodeBlockProps) {
@@ -162,25 +139,9 @@ export function CodeBlock({ language, code }: CodeBlockProps) {
 
       {/* Code content */}
       <div className="max-h-[400px] overflow-auto jarvis-scroll">
-        <SyntaxHighlighter
-          language={language}
-          style={jarvisTheme}
-          showLineNumbers
-          lineNumberStyle={{
-            color: "oklch(0.5 0.02 250 / 50%)",
-            minWidth: "2.5em",
-            fontSize: "0.625rem",
-            userSelect: "none",
-            paddingRight: "0.75em",
-          }}
-          customStyle={{
-            margin: 0,
-            borderRadius: 0,
-            fontSize: "0.6875rem",
-          }}
-        >
+        <CodeHighlighter language={language} style={{ margin: 0, borderRadius: 0, fontSize: "0.6875rem" }}>
           {code}
-        </SyntaxHighlighter>
+        </CodeHighlighter>
       </div>
     </div>
   );
@@ -190,7 +151,7 @@ export function CodeBlock({ language, code }: CodeBlockProps) {
 export function getMarkdownComponents() {
   return {
     a: ({ ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-      <a target="_blank" rel="noreferrer" {...props} />
+      <a target="_blank" rel="noreferrer noopener" {...props} />
     ),
     code({
       className,

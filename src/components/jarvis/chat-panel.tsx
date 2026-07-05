@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import ReactMarkdown from "react-markdown";
+// ReactMarkdown is lazy-loaded below via LazyMarkdown wrapper
 import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Monitor } from "lucide-react";
 import type { ChatMessage } from "@/lib/types";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
@@ -12,6 +12,16 @@ import { getMarkdownComponents } from "@/components/jarvis/code-block";
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
 const mdComponents = getMarkdownComponents();
+
+// Lazy-load ReactMarkdown to keep it out of the main bundle
+function LazyMarkdown({ children, components }: { children: string; components: ReturnType<typeof getMarkdownComponents> }) {
+  const [Md, setMd] = useState<React.ComponentType<{ children: string; components: any }> | null>(null);
+  useEffect(() => { import("react-markdown").then(mod => setMd(() => mod.default)); }, []);
+  if (!Md) {
+    return <span style={{ opacity: 0.7 }}>{children}</span>;
+  }
+  return <Md components={components}>{children}</Md>;
+}
 
 interface ChatPanelProps {
   jarvis: UseJarvisReturn;
@@ -171,9 +181,9 @@ function TypewriterText({ text, speed = 25, onDone, onScroll }: { text: string; 
   // Completed: full markdown
   if (done) {
     const md = (
-      <ReactMarkdown components={mdComponents}>
+      <LazyMarkdown components={mdComponents}>
         {text}
-      </ReactMarkdown>
+      </LazyMarkdown>
     );
     // Short text gets a fade-in wrapper
     if (text.length < 40) {
@@ -271,9 +281,9 @@ function MessageBubble({ msg, onSpeak, isLatest, onScroll }: { msg: ChatMessage;
         ) : isStreaming ? (
           <>
             <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-p:leading-relaxed prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-headings:my-2 prose-code:text-primary prose-code:before:hidden prose-code:after:hidden prose-code:rounded prose-code:bg-primary/10 prose-code:px-1 prose-pre:bg-transparent prose-pre:p-0 prose-a:text-primary">
-              <ReactMarkdown components={mdComponents}>
+              <LazyMarkdown components={mdComponents}>
                 {msg.content}
-              </ReactMarkdown>
+              </LazyMarkdown>
             </div>
             <span className="inline-block h-[1em] w-[2px] animate-pulse bg-primary/90 ml-0.5 align-text-bottom rounded-sm" />
           </>
@@ -283,9 +293,9 @@ function MessageBubble({ msg, onSpeak, isLatest, onScroll }: { msg: ChatMessage;
               {isTypewriterTarget ? (
                 <TypewriterText text={msg.content} speed={25} onDone={handleTwDone} onScroll={onScroll} />
               ) : (
-                <ReactMarkdown components={mdComponents}>
+                <LazyMarkdown components={mdComponents}>
                   {msg.content}
-                </ReactMarkdown>
+                </LazyMarkdown>
               )}
             </div>
             {/* Generated image display */}

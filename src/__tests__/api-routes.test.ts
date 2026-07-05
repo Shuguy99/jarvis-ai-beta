@@ -65,6 +65,11 @@ vi.mock("@/lib/db", () => ({
       findUnique: mockPluginFindUnique,
       update: mockPluginUpdate,
     },
+    document: {
+      create: mockPrismaDocumentCreate,
+      findMany: mockPrismaDocumentFindMany,
+      delete: mockPrismaDocumentDelete,
+    },
   },
 }));
 

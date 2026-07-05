@@ -6,7 +6,7 @@
 //   jarvis-footer, jarvis-overlays
 // Токены ~2.5k, время монтирования ~10ms
 
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mic, Search, Monitor, FileText, FileCode, Bot, Puzzle, LayoutGrid, Settings, AlertTriangle } from "lucide-react";
 
@@ -44,12 +44,22 @@ export default function Home() {
   const wakeWordEnabled = useUIStore((s) => s.wakeWordEnabled);
   const jarvisSettings = useUIStore((s) => s.jarvisSettings);
 
-  const {
-    setBooted, setWakeWordEnabled, toggleNotes, setNotesOpen,
-    setTimerVisible, toggleTimer, setCalcVisible, toggleCalc,
-    setPaletteOpen, setSettingsOpen, setMarkdownOpen,
-    setAgentOpen, setPluginOpen, setLayoutOpen, closeAllPanels, setJarvisSettings,
-  } = useUIStore();
+  const setBooted = useUIStore(s => s.setBooted);
+  const setWakeWordEnabled = useUIStore(s => s.setWakeWordEnabled);
+  const toggleNotes = useUIStore(s => s.toggleNotes);
+  const setNotesOpen = useUIStore(s => s.setNotesOpen);
+  const setTimerVisible = useUIStore(s => s.setTimerVisible);
+  const toggleTimer = useUIStore(s => s.toggleTimer);
+  const setCalcVisible = useUIStore(s => s.setCalcVisible);
+  const toggleCalc = useUIStore(s => s.toggleCalc);
+  const setPaletteOpen = useUIStore(s => s.setPaletteOpen);
+  const setSettingsOpen = useUIStore(s => s.setSettingsOpen);
+  const setMarkdownOpen = useUIStore(s => s.setMarkdownOpen);
+  const setAgentOpen = useUIStore(s => s.setAgentOpen);
+  const setPluginOpen = useUIStore(s => s.setPluginOpen);
+  const setLayoutOpen = useUIStore(s => s.setLayoutOpen);
+  const closeAllPanels = useUIStore(s => s.closeAllPanels);
+  const setJarvisSettings = useUIStore(s => s.setJarvisSettings);
 
   const timerRef = useRef<TimerHandle>(null);
 
@@ -186,13 +196,16 @@ export default function Home() {
   }, [jarvis, closeAllPanels, paletteOpen, settingsOpen, notesOpen, markdownOpen, agentOpen, pluginOpen, layoutOpen, notifOpen, toggleFullscreen, setPaletteOpen]);
 
   // Build commands for palette
-  const commands = buildDefaultCommands({
-    newConversation: () => jarvis.newConversation(), toggleListening: () => jarvis.toggleListening(), toggleFullscreen,
-    openSettings: () => { playSound("click"); setSettingsOpen(true); }, toggleNotes: () => toggleNotes(), toggleTimer: () => toggleTimer(),
-    setTheme: (id: string) => { document.documentElement.setAttribute("data-theme", id); localStorage.setItem("jarvis-theme", id); },
-    toggleCalculator: () => toggleCalc(), captureScreen: () => { if (jarvis.captureScreen) void jarvis.captureScreen(); },
-    toggleWakeWord: () => setWakeWordEnabled((v: boolean) => !v),
-  });
+  const commands = useMemo(
+    () => buildDefaultCommands({
+      newConversation: () => jarvis.newConversation(), toggleListening: () => jarvis.toggleListening(), toggleFullscreen,
+      openSettings: () => { playSound("click"); setSettingsOpen(true); }, toggleNotes: () => toggleNotes(), toggleTimer: () => toggleTimer(),
+      setTheme: (id: string) => { document.documentElement.setAttribute("data-theme", id); localStorage.setItem("jarvis-theme", id); },
+      toggleCalculator: () => toggleCalc(), captureScreen: () => { if (jarvis.captureScreen) void jarvis.captureScreen(); },
+      toggleWakeWord: () => setWakeWordEnabled((v: boolean) => !v),
+    }),
+    [toggleFullscreen, toggleNotes, toggleTimer, toggleCalc, setSettingsOpen, setWakeWordEnabled, jarvis.newConversation, jarvis.toggleListening, jarvis.captureScreen]
+  );
 
   const activeTitle = jarvis.conversations.find((c) => c.id === jarvis.activeConvoId)?.title;
 
@@ -209,7 +222,7 @@ export default function Home() {
             <main className="relative flex-1 overflow-hidden">
               <JarvisParticles count={40} />
               <div className="pointer-events-none absolute inset-0 jarvis-grid-bg opacity-30" />
-              <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 lg:grid-cols-12 lg:gap-4 lg:p-4">
+              <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 md:grid-cols-12 md:gap-4 md:p-4">
                 <JarvisLeftSidebar jarvis={jarvis} />
 
                 {/* Center column */}

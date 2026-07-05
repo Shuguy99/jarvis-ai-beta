@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import ReactMarkdown from "react-markdown";
 import { FileCode, Bold, Italic, Code2, Link, X } from "lucide-react";
 import { playSound } from "@/lib/sounds";
 import { getMarkdownComponents } from "@/components/jarvis/code-block";
@@ -11,6 +10,21 @@ const STORAGE_KEY = "jarvis-markdown-content";
 const mdComponents = getMarkdownComponents();
 
 type Mode = "edit" | "preview";
+
+// Lazy-loaded ReactMarkdown wrapper — only loads when preview mode is activated
+function LazyMarkdown({ children, components }: { children: string; components: ReturnType<typeof getMarkdownComponents> }) {
+  const [Md, setMd] = useState<React.ComponentType<{ children: string; components: any }> | null>(null);
+
+  useEffect(() => {
+    import("react-markdown").then(mod => setMd(() => mod.default));
+  }, []);
+
+  if (!Md) {
+    return <p className="text-muted-foreground/50 font-mono text-[11px]">Loading preview…</p>;
+  }
+
+  return <Md components={components}>{children}</Md>;
+}
 
 const TOOLBAR_BUTTONS = [
   { icon: Bold, label: "B", before: "**", after: "**", placeholder: "жирный" },
@@ -159,9 +173,9 @@ export function MarkdownWidget({ onClose }: MarkdownWidgetProps) {
         ) : (
           <div className="w-full h-full overflow-auto jarvis-scroll bg-background/60 border border-primary/10 rounded-lg p-3 prose prose-invert prose-sm max-w-none">
             {content.trim() ? (
-              <ReactMarkdown components={mdComponents}>
+              <LazyMarkdown components={mdComponents}>
                 {content}
-              </ReactMarkdown>
+              </LazyMarkdown>
             ) : (
               <p className="text-muted-foreground/50 font-mono text-[11px]">
                 Нет содержимого для предпросмотра

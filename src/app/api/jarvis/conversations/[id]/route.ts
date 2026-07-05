@@ -1,5 +1,6 @@
 import { json } from "@/lib/json-response";
 import { db } from "@/lib/db";
+import { parseJsonBody, MAX_BODY_BYTES_CHAT, BodyLimitError } from "@/lib/body-limit";
 
 export async function GET(
   _req: Request,
@@ -25,7 +26,7 @@ export async function POST(
 ) {
   try {
     const { id } = params;
-    const { role, content } = await req.json();
+    const { role, content } = await parseJsonBody<{ role: string; content: string }>(req, MAX_BODY_BYTES_CHAT);
     if (!role || !content) {
       return json({ error: "role и content обязательны." }, 400);
     }
@@ -36,6 +37,9 @@ export async function POST(
     await db.conversation.update({ where: { id }, data: { updatedAt: new Date() } });
     return json({ message: msg });
   } catch (error) {
+    if (error instanceof BodyLimitError) {
+      return json({ error: error.message }, 413);
+    }
     console.error("append message error:", error);
     return json({ error: "Ошибка." }, 500);
   }

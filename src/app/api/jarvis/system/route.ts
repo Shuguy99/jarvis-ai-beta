@@ -99,70 +99,75 @@ function getNetworkInterfaces(): NetworkInterfaceInfo[] {
 }
 
 export async function GET() {
-  const cpus = os.cpus();
-  const totalMem = os.totalmem();
-  const freeMem = os.freemem();
-  const usedMem = totalMem - freeMem;
-  const loadAvg = os.loadavg();
-  const uptime = os.uptime();
-
-  const cpuLoad = Math.min(100, Math.max(0, Math.round((loadAvg[0] / cpus.length) * 100)));
-  const memPct = Math.round((usedMem / totalMem) * 100);
-  const { netSpeedIn, netSpeedOut } = await getNetworkThroughput();
-  const netThroughput = Math.round(netSpeedIn + netSpeedOut);
-
-  const disk = await getDiskStats();
-  let processes = 0;
   try {
-    const { execFile: cpExec } = await import("child_process");
-    const { promisify } = await import("util");
-    const execFileAsync = promisify(cpExec);
-    const { stdout } = await execFileAsync("sh", ["-c", "ls -1 /proc | grep -c '^[0-9]'"], { timeout: 3000 });
-    processes = parseInt(stdout.trim(), 10) || 0;
-  } catch {
-    processes = Math.round(loadAvg[0] * 10) + 50;
+    const cpus = os.cpus();
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const usedMem = totalMem - freeMem;
+    const loadAvg = os.loadavg();
+    const uptime = os.uptime();
+
+    const cpuLoad = Math.min(100, Math.max(0, Math.round((loadAvg[0] / cpus.length) * 100)));
+    const memPct = Math.round((usedMem / totalMem) * 100);
+    const { netSpeedIn, netSpeedOut } = await getNetworkThroughput();
+    const netThroughput = Math.round(netSpeedIn + netSpeedOut);
+
+    const disk = await getDiskStats();
+    let processes = 0;
+    try {
+      const { execFile: cpExec } = await import("child_process");
+      const { promisify } = await import("util");
+      const execFileAsync = promisify(cpExec);
+      const { stdout } = await execFileAsync("sh", ["-c", "ls -1 /proc | grep -c '^[0-9]'"], { timeout: 3000 });
+      processes = parseInt(stdout.trim(), 10) || 0;
+    } catch {
+      processes = Math.round(loadAvg[0] * 10) + 50;
+    }
+
+    let temp = 0;
+    try {
+      const tempContent = await readFile("/sys/class/thermal/thermal_zone0/temp", "utf-8");
+      temp = Math.round(parseInt(tempContent.trim(), 10) / 1000);
+    } catch {
+      temp = Math.round(35 + cpuLoad * 0.4);
+    }
+
+    const networkInterfaces = getNetworkInterfaces();
+    const memUsage = process.memoryUsage();
+    const processMemory = {
+      rss: memUsage.rss,
+      heapUsed: memUsage.heapUsed,
+      heapTotal: memUsage.heapTotal,
+    };
+
+    return json({
+      hostname: os.hostname(),
+      platform: `${os.type()} ${os.release()}`,
+      arch: os.arch(),
+      cpus: cpus.length,
+      cpuModel: cpus[0]?.model ?? "Unknown",
+      cpuLoad,
+      memPct,
+      memUsed: usedMem,
+      memTotal: totalMem,
+      netThroughput,
+      netSpeedIn,
+      netSpeedOut,
+      processes,
+      temp,
+      uptime,
+      loadAvg: loadAvg.map((n) => Number(n.toFixed(2))),
+      timestamp: new Date().toISOString(),
+      cores: cpus.map((c, i) => ({
+        id: i,
+        load: Math.min(100, Math.max(0, Math.round(cpuLoad + (Math.random() - 0.5) * 10))),
+      })),
+      ...disk,
+      networkInterfaces,
+      processMemory,
+    });
+  } catch (error) {
+    console.error("System info unavailable:", error);
+    return json({ error: "System info unavailable" }, 500);
   }
-
-  let temp = 0;
-  try {
-    const tempContent = await readFile("/sys/class/thermal/thermal_zone0/temp", "utf-8");
-    temp = Math.round(parseInt(tempContent.trim(), 10) / 1000);
-  } catch {
-    temp = Math.round(35 + cpuLoad * 0.4);
-  }
-
-  const networkInterfaces = getNetworkInterfaces();
-  const memUsage = process.memoryUsage();
-  const processMemory = {
-    rss: memUsage.rss,
-    heapUsed: memUsage.heapUsed,
-    heapTotal: memUsage.heapTotal,
-  };
-
-  return json({
-    hostname: os.hostname(),
-    platform: `${os.type()} ${os.release()}`,
-    arch: os.arch(),
-    cpus: cpus.length,
-    cpuModel: cpus[0]?.model ?? "Unknown",
-    cpuLoad,
-    memPct,
-    memUsed: usedMem,
-    memTotal: totalMem,
-    netThroughput,
-    netSpeedIn,
-    netSpeedOut,
-    processes,
-    temp,
-    uptime,
-    loadAvg: loadAvg.map((n) => Number(n.toFixed(2))),
-    timestamp: new Date().toISOString(),
-    cores: cpus.map((c, i) => ({
-      id: i,
-      load: Math.min(100, Math.max(0, Math.round(cpuLoad + (Math.random() - 0.5) * 10))),
-    })),
-    ...disk,
-    networkInterfaces,
-    processMemory,
-  });
 }

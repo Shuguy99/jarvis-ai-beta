@@ -1,7 +1,6 @@
 import { ai } from "@/lib/ai-provider";
 import { executeTool, getToolDefinitionsForFunctionCalling } from "@/lib/agent-tools";
 import { parseJsonBody, BodyLimitError } from "@/lib/body-limit";
-import { checkRateLimit } from "@/lib/rate-limit";
 
 interface AgentRequestBody {
   task: string;
@@ -12,15 +11,6 @@ const MAX_TOOL_CALLS = 5;
 
 export async function POST(req: Request) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-    const { allowed, retryAfterMs } = checkRateLimit(ip, 15, 60_000);
-    if (!allowed) {
-      return new Response(JSON.stringify({ error: "Rate limit exceeded", retryAfterMs }), {
-        status: 429,
-        headers: { "Content-Type": "application/json", "Retry-After": String(Math.ceil(retryAfterMs / 1000)) },
-      });
-    }
-
     const body = await parseJsonBody<AgentRequestBody>(req);
     const { task, tools: enabledTools } = body;
 

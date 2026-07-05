@@ -53,7 +53,7 @@ const CONFIRMATIONS: Record<string, (params: Record<string, string>) => string> 
 };
 
 export function useVoiceCommands(
-  handlers: Record<string, (...args: any[]) => void>,
+  handlers: Record<string, (params: Record<string, string>) => void>,
   options?: { speak?: (text: string) => void }
 ) {
   const [lastCommand, setLastCommand] = useState<ParsedCommand | null>(null);
