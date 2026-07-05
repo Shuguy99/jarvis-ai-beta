@@ -1,25 +1,36 @@
-# J.A.R.V.I.S. — AI Assistant
+# J.A.R.V.I.S. — AI Desktop Assistant
 
-Tony Stark HUD-стиль интерфейс ИИ-ассистента. Работает полностью **локально** на Windows 11 64-bit без каких-либо API ключей.
+Tony Stark HUD-стиль интерфейс ИИ-ассистента. Нативное **десктоп-приложение** на Electron — браузер не нужен. Работает полностью **локально** без каких-либо API ключей.
 
 ![J.A.R.V.I.S.](https://img.shields.io/badge/J.A.R.V.I.S.-AI%20Assistant-00d4ff?style=for-the-badge)
-![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)
+![Vite](https://img.shields.io/badge/Vite-7-646cff?style=flat-square&logo=vite)
+![Electron](https://img.shields.io/badge/Electron-43-47848f?style=flat-square&logo=electron)
+![Hono](https://img.shields.io/badge/Hono-API-e3602b?style=flat-square)
+![React](https://img.shields.io/badge/React-19-61dafb?style=flat-square&logo=react)
 ![Ollama](https://img.shields.io/badge/Ollama-Local_AI-000?style=flat-square&logo=ollama)
 
 ## Возможности
 
-- 💬 **Чат с ИИ** — через Ollama (бесплатный локальный LLM)
-- 👁 **Анализ изображений** — через vision-модели Ollama (llava)
-- 🎙 **Голосовой ввод** — через микрофон браузера (Web Speech API)
-- 🔊 **Озвучка ответов** — через синтез речи браузера
+- 🖥 **Десктоп-приложение** — Electron, запуск без браузера, сворачивание в трей
+- 💬 **Чат с ИИ** — 5 провайдеров: Ollama, OpenAI, Anthropic, Gemini, OpenRouter
+- 👁 **Анализ изображений** — vision-модели (llava, GPT-4o, Claude и др.)
+- 🎙 **Голосовой ввод** — Web Speech API
+- 🔊 **Озвучка ответов** — синтез речи (TTS)
 - 🧠 **Настройки модели поведения** — 6 пресетов персон, формальность, юмор, стиль ответов, кастомный промт
-- 📝 **Заметки и TODO** — локальное хранение
-- ⏱ **Таймер / Секундомер**
+- 📝 **Заметки и TODO** — локальное хранение в SQLite
+- ⏱ **Таймер / Секундомер / Помодоро**
 - 🖥 **HUD интерфейс** — в стиле JARVIS из Железного Человека
 - ⌨ **Командная палитра** — `Ctrl+K`
-- 🎨 **Тёмная/светлая тема** + цветовые схемы (MARK 1 / 42 / 50)
-- 📂 **История диалогов** — сохраняется в SQLite
+- 🎨 **Темы** — тёмная/светлая + 3 встроенные цветовые схемы (MARK 1/42/50) + кастомный редактор тем
+- 📂 **История диалогов** — SQLite, экспорт в JSON
 - 🌐 **Мониторинг системы** — CPU, RAM, сеть в реальном времени
+- 🔍 **RAG-поиск по контексту** — FTS5 + BM25 ранжирование
+- 🤖 **Агент-система** — инструменты ИИ-агента (веб-поиск, файлы, GitHub, погода, калькулятор)
+- 🧩 **Плагин-система** — расширение функциональности через плагины
+- ⚡ **Rate limiting** — защита API от перегрузки (sliding window)
+- 🪟 **Управление окном** — прозрачность, поверх всех окон, полный экран, автосохранение позиции
+- 🔗 **Протокол jarvis://** — глубокие ссылки на функции JARVIS
+- ⌨ **Горячие клавиши** — `Ctrl+Shift+J` — показать/скрыть окно из любого места
 
 ## Системные требования
 
@@ -58,15 +69,9 @@ ollama pull llava
 
 > Убедитесь, что Ollama запущен (значок в трее). Проверить: `ollama list`
 
-### 2. Установите Node.js или Bun
+### 2. Установите Node.js
 
-**Вариант A — Node.js (рекомендуется для новичков):**
 Скачайте с [nodejs.org](https://nodejs.org) (LTS версию).
-
-**Вариант B — Bun (быстрее):**
-```powershell
-powershell -c "irm bun.sh/install.ps1 | iex"
-```
 
 ### 3. Клонируйте и запустите
 
@@ -78,18 +83,51 @@ cd jarvis-ai-beta
 npm install
 
 # Настройте базу данных и сгенерируйте Prisma клиент
-npx prisma generate
-npx prisma db push
+npm run setup
 
-# Запустите!
+# Запустите веб-версию (Vite + Hono)
 npm run dev
 ```
 
-Откройте **http://localhost:3000** в браузере (рекомендуется **Google Chrome**).
+Откройте **http://localhost:5173** в браузере.
+
+### 4. Десктоп-приложение (Electron)
+
+```powershell
+# Запуск в режиме разработки (Vite + Hono + Electron)
+npm run electron:dev
+
+# Сборка установщика Windows
+npm run electron:build
+```
+
+При сборке создаётся `.exe` установщик в папке `dist-electron/`.
+
+## Режимы запуска
+
+| Команда | Режим | Описание |
+|---------|-------|----------|
+| `npm run dev` | Веб | Vite dev-server (порт 5173) + Hono API (порт 3001) |
+| `npm run electron:dev` | Десктоп | Vite + Hono + Electron окно |
+| `npm run electron:build` | Сборка | Собираёт установщик для Windows/macOS/Linux |
+| `npm run electron:preview` | Превью | Собираёт и запускает без установщика |
+| `npm test` | Тесты | Запуск всех тестов (Vitest) |
+
+## AI-провайдеры
+
+JARVIS поддерживает 5 провайдеров. Настройте через интерфейс (⚙️ Настройки → Провайдеры):
+
+| Провайдер | Требует API-ключ | Описание |
+|-----------|-------------------|----------|
+| **Ollama** | Нет | Локальный LLM, работает без интернета |
+| **OpenAI** | Да | GPT-4o, GPT-4, GPT-3.5 и др. |
+| **Anthropic** | Да | Claude 4, Claude 3.5 и др. |
+| **Gemini** | Да | Google Gemini Pro / Flash |
+| **OpenRouter** | Да | Единый API к 200+ моделям |
 
 ## Настройка поведения JARVIS
 
-Нажмите кнопку **«Настройки»** (⚙️) в интерфейсе. Две вкладки:
+Нажмите кнопку **«Настройки»** (⚙️) в интерфейсе.
 
 ### 🧠 Модель поведения
 | Параметр | Описание |
@@ -104,12 +142,18 @@ npm run dev
 | **Окно контекста** | Сколько сообщений помнит: 4 — 50 |
 | **Кастомный промт** | Полностью переопределяет личность JARVIS |
 
+### 🎨 Темы
+- 3 встроенные схемы: **MARK 1** (cyan), **MARK 42** (red/gold), **MARK 50** (nanotech blue)
+- Тёмная / светлая тема
+- **Кастомный редактор тем** — настройка цветов, прозрачности, скруглений
+- Темы сохраняются в localStorage
+
 ### 🔊 Голос и система
 - Скорость, тон и громкость TTS
 - Авто-озвучка ответов
 - Язык интерфейса (RU/EN)
 
-## Переменные окружения (опционально)
+## Переменные окружения
 
 Скопируйте `.env.example` как `.env`:
 
@@ -124,6 +168,14 @@ OLLAMA_MODEL=llama3.1
 OLLAMA_VISION_MODEL=llava
 ```
 
+Для облачных провайдеров добавьте API-ключи:
+```env
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=...
+OPENROUTER_API_KEY=sk-or-...
+```
+
 ## Рекомендуемые модели Ollama
 
 | Модель | RAM | Назначение | Установка |
@@ -134,63 +186,101 @@ OLLAMA_VISION_MODEL=llava
 | `phi3` | 2.3 GB | Лёгкий чат | `ollama pull phi3` |
 | `llava` | 4.7 GB | Анализ изображений | `ollama pull llava` |
 
-## Голосовой ввод
-
-Работает через **Web Speech API** браузера:
-- ✅ **Google Chrome** — полная поддержка
-- ⚠️ **Microsoft Edge** — может работать
-- ❌ **Firefox** — не поддерживается
-
 ## Структура проекта
 
 ```
-src/
-├── app/
-│   ├── api/jarvis/     # API-маршруты (chat, vision, settings, notes, etc.)
-│   ├── globals.css     # Стили JARVIS HUD (cyan neon cyberpunk)
-│   ├── layout.tsx      # Корневой layout
-│   └── page.tsx        # Главная страница (3-колоночный HUD)
-├── components/
-│   ├── jarvis/         # JARVIS-компоненты (arc-reactor, chat, voice, settings, etc.)
-│   └── ui/             # Базовые UI-компоненты (shadcn/ui)
-├── hooks/
-│   └── use-jarvis.ts   # Основной хук JARVIS (состояние, голос, TTS)
-└── lib/
-    ├── ai-provider.ts  # Провайдер ИИ (Ollama, OpenAI-совместимый API)
-    ├── db.ts           # Prisma клиент (SQLite)
-    ├── jarvis.ts       # Динамический системный промпт + пресеты
-    ├── sounds.ts       # Звуковые эффекты (Web Audio API)
-    ├── types.ts        # TypeScript типы
-    └── utils.ts        # Утилиты (cn, etc.)
-prisma/
-└── schema.prisma       # БД схема (Conversation, Message, Note, Setting)
+├── electron/                # Electron — десктоп-обёртка
+│   ├── src/
+│   │   ├── main.ts          # Главный процесс (окно, трей, IPC)
+│   │   └── preload.ts       # Preload-скрипт (context bridge)
+│   └── resources/           # Иконки для сборки
+├── server/                  # Hono — бэкенд API
+│   ├── index.ts             # Все 25 API-маршрутов
+│   └── tsconfig.json
+├── src/                     # React-фронтенд (Vite)
+│   ├── app/
+│   │   ├── api/jarvis/      # Legacy Next.js маршруты (не используются)
+│   │   ├── globals.css      # Стили JARVIS HUD (cyan neon cyberpunk)
+│   │   ├── layout.tsx       # Корневой layout
+│   │   └── page.tsx         # Главная страница (3-колоночный HUD)
+│   ├── components/
+│   │   ├── jarvis/          # 57 JARVIS-компонентов
+│   │   └── ui/              # Базовые UI-компоненты (shadcn/ui)
+│   ├── hooks/               # 17 хуков (чат, голос, DnD, горячие клавиши)
+│   ├── lib/                 # Модули (AI-провайдер, БД, темы, RAG, rate limit)
+│   └── __tests__/           # 15 тест-файлов (271 тест)
+├── prisma/
+│   └── schema.prisma        # БД схема (Conversation, Message, Note, Setting)
+├── scripts/
+│   └── setup-fts5.js        # Настройка FTS5 для полнотекстового поиска
+├── index.html               # Vite entry point
+├── vite.config.ts           # Vite конфигурация
+└── vitest.config.ts         # Тест-раннер конфигурация
 ```
 
 ## Статус функций
 
 | Функция | Статус | Примечание |
 |---------|--------|------------|
-| Чат с ИИ | ✅ | Через Ollama (любая модель) |
+| Десктоп-приложение (Electron) | ✅ | Трей, прозрачность, автосохранение позиции окна |
+| Чат с ИИ | ✅ | 5 провайдеров (Ollama, OpenAI, Anthropic, Gemini, OpenRouter) |
 | Настройки поведения | ✅ | 6 пресетов + кастомный промт |
-| Анализ изображений | ✅ | Нужна модель llava |
-| Голосовой ввод | ✅ | Chrome Web Speech API |
-| Озвучка ответов | ✅ | Браузерный SpeechSynthesis |
+| Анализ изображений | ✅ | Vision-модели любого провайдера |
+| Голосовой ввод | ✅ | Web Speech API |
+| Озвучка ответов | ✅ | SpeechSynthesis |
 | Заметки / TODO | ✅ | SQLite |
-| Таймер | ✅ | — |
-| Системный монитор | ✅ | CPU, RAM, сеть |
-| История диалогов | ✅ | SQLite + экспорт |
+| Таймер / Помодоро | ✅ | — |
+| Системный монитор | ✅ | CPU, RAM, сеть, история метрик |
+| История диалогов | ✅ | SQLite + экспорт в JSON |
 | Командная палитра | ✅ | Ctrl+K |
+| RAG-поиск | ✅ | FTS5 + BM25 ранжирование |
+| Агент-система | ✅ | Веб-поиск, файлы, GitHub, погода, калькулятор |
+| Плагин-система | ✅ | Расширяемость через плагины |
+| Темы | ✅ | 3 схемы + кастомный редактор + localStorage |
+| Rate limiting | ✅ | Защита 6 эндпоинтов (sliding window) |
+| Протокол jarvis:// | ✅ | Глубокие ссылки |
+| Горячие клавиши | ✅ | Ctrl+Shift+J — показать/скрыть |
 | Веб-поиск | ❌ | Нужен внешний API |
 | Генерация картинок | ❌ | Нужен DALL-E / SD API |
 
 ## Технологии
 
-- **Next.js 16** (App Router, Turbopack)
-- **React 19** + **TypeScript 5**
-- **Tailwind CSS 4** + **shadcn/ui**
-- **Prisma** + **SQLite**
+- **Vite 7** — сборка фронтенда
+- **React 19** + **TypeScript 5** (strict mode)
+- **Hono** — бэкенд API (заменяет Next.js API routes)
+- **Electron 43** — десктоп-обёртка
+- **Tailwind CSS 4** + **shadcn/ui** — UI
+- **Prisma** + **SQLite** (FTS5) — база данных
 - **Framer Motion** — анимации
+- **Zustand** — управление состоянием
+- **Vitest** — тестирование (271 тест)
 - **Ollama** — локальный LLM (OpenAI-совместимый API)
+
+## Тестирование
+
+```powershell
+# Запустить все тесты
+npm test
+
+# Тесты в режиме watch
+npm run test:watch
+```
+
+271 тест покрывают: API-маршруты, агент-систему, плагины, rate limiting, темы, хуки, UI-компоненты.
+
+## Сборка десктоп-приложения
+
+```powershell
+# Windows (NSIS установщик)
+npm run electron:build
+
+# Результат: dist-electron/JARVIS-AI-19.0.0-win-x64-setup.exe
+```
+
+Поддерживаемые платформы:
+- **Windows** — NSIS установщик (.exe)
+- **macOS** — DMG (x64 + ARM64)
+- **Linux** — AppImage + .deb
 
 ## Решение проблем
 
@@ -201,10 +291,16 @@ prisma/
 
 **Ошибка `ECONNREFUSED` при отправке сообщения:**
 - Ollama не запущен. Запустите его и попробуйте снова.
+- При использовании Electron: убедитесь, что Hono сервер запущен (порт 3001)
+
+**Electron не запускается:**
+- Убедитесь, что `npm run dev` работает (Vite + Hono)
+- Проверьте логи в консоли Electron (Ctrl+Shift+I)
+- Для сборки установщика нужен `electron-builder`
 
 **Голос не работает:**
-- Используйте Google Chrome
-- Проверьте разрешения микрофона в настройках браузера
+- В веб-режиме: используйте Google Chrome
+- Проверьте разрешения микрофона
 
 **Модель отвечает медленно:**
 - Попробуйте модель поменьше (`phi3`, `mistral`)
