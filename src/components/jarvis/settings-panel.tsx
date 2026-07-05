@@ -18,8 +18,12 @@ import { playSound } from "@/lib/sounds";
 import { UserProfileSwitcher } from "@/components/jarvis/user-profile-switcher";
 import { BotSettings } from "@/components/jarvis/bot-settings";
 import { AuditLogViewer } from "@/components/jarvis/audit-log-viewer";
+import { NoteIntegrationPanel } from "@/components/jarvis/note-integration-panel";
 import { auditLog } from "@/lib/security-audit";
 import { CommunityThemesGallery } from "@/components/jarvis/community-themes-gallery";
+import { HotkeySettings } from "@/components/jarvis/hotkey-settings";
+import { RemoteAccessPanel } from "@/components/jarvis/remote-access-panel";
+import { ApiAccessPanel, AuthSection } from "@/components/jarvis/api-access-panel";
 import {
   Volume2,
   Cpu,
@@ -39,6 +43,9 @@ import {
   Loader2,
   Shield,
   Bot,
+  Keyboard,
+  Monitor,
+  Key,
 } from "lucide-react";
 
 // ─── Persona presets ──────────────────────────────────────────────
@@ -186,7 +193,7 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<"voice" | "behavior" | "providers" | "integrations" | "security">("behavior");
+  const [activeTab, setActiveTab] = useState<"voice" | "behavior" | "providers" | "integrations" | "security" | "hotkeys">("behavior");
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
   const [providersLoading, setProvidersLoading] = useState(false);
@@ -425,6 +432,17 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
           >
             <Bot className="mr-1.5 inline h-3 w-3" />
             Интеграции
+          </button>
+          <button
+            onClick={() => { setActiveTab("hotkeys"); playSound("click"); }}
+            className={`flex-1 px-4 py-2.5 font-mono text-[10px] uppercase tracking-widest transition ${
+              activeTab === "hotkeys"
+                ? "border-b-2 border-primary text-primary jarvis-glow bg-primary/5"
+                : "text-muted-foreground/60 hover:text-foreground/80"
+            }`}
+          >
+            <Keyboard className="mr-1.5 inline h-3 w-3" />
+            Хоткеи
           </button>
         </div>
 
@@ -797,12 +815,46 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
               >
                 <BotSettings />
               </SettingsSection>
+              <SettingsSection
+                icon={<BookOpen className="h-3.5 w-3.5" />}
+                title="Notes Sync"
+                subtitle="Notion & Obsidian"
+              >
+                <NoteIntegrationPanel />
+              </SettingsSection>
+              <SettingsSection
+                icon={<Monitor className="h-3.5 w-3.5" />}
+                title="Remote Access"
+                subtitle="Remote session management"
+              >
+                <RemoteAccessPanel />
+              </SettingsSection>
+              <SettingsSection
+                icon={<Key className="h-3.5 w-3.5" />}
+                title="API Access"
+                subtitle="Public REST API for external apps"
+              >
+                <ApiAccessPanel />
+              </SettingsSection>
+              <SettingsSection
+                icon={<Shield className="h-3.5 w-3.5" />}
+                title="Authentication"
+                subtitle="OAuth & local user accounts"
+              >
+                <AuthSection />
+              </SettingsSection>
             </div>
           )}
 
           {activeTab === "security" && (
             <div className="space-y-0">
               <AuditLogViewer />
+            </div>
+          )}
+
+          {activeTab === "hotkeys" && (
+            <div className="space-y-0">
+              <HotkeySettings />
             </div>
           )}
         </div>

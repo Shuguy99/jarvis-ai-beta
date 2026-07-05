@@ -20,7 +20,7 @@ import {
   MemoizedMusicPlayer, MemoizedClipboardWidget,
   MemoizedNetworkWidget, MemoizedProcessManagerWidget,
   MemoizedAmbientSoundWidget, MemoizedPomodoroWidget,
-  MemoizedTodoWidget,
+  MemoizedTodoWidget, MemoizedSmartHomePanel,
 } from "@/components/jarvis/memoized-widgets";
 import { TaskPlannerWidget } from "@/components/jarvis/task-planner-widget";
 import { useJarvisStore } from "@/lib/jarvis-store";
@@ -167,6 +167,9 @@ export function JarvisRightSidebar({ jarvis, timerRef, className }: JarvisRightS
                 onClearPlan={() => setTaskPlan(null)}
               />
             </WidgetErrorBoundary>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.47, duration: 0.4 }}>
+            <WidgetErrorBoundary name="Smart Home"><MemoizedSmartHomePanel /></WidgetErrorBoundary>
           </motion.div>
         </>
       )}

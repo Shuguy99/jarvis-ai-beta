@@ -15,11 +15,13 @@ import { SystemAlertsWidget } from "@/components/jarvis/system-alerts-widget";
 import { ShortcutsWidget } from "@/components/jarvis/shortcuts-widget";
 import { FileExplorerWidget } from "@/components/jarvis/file-explorer-widget";
 import { CalendarWidget } from "@/components/jarvis/calendar-widget";
+import { CalendarWidgetEnhanced } from "@/components/jarvis/calendar-widget-enhanced";
 import { ActivityFeed } from "@/components/jarvis/activity-feed";
 import { QuickLaunchWidget } from "@/components/jarvis/quick-launch-widget";
 import { TodoWidget } from "@/components/jarvis/todo-widget";
 import { HoloGlobe } from "@/components/jarvis/holo-globe";
 import { GitHubWidget } from "@/components/jarvis/github-widget";
+import { SmartHomePanel } from "@/components/jarvis/smart-home-panel";
 
 // React.memo wrappers — prevent unnecessary re-renders from parent state changes
 export const MemoizedSystemMonitor = memo(SystemMonitor);
@@ -36,8 +38,10 @@ export const MemoizedSystemAlertsWidget = memo(SystemAlertsWidget);
 export const MemoizedShortcutsWidget = memo(ShortcutsWidget);
 export const MemoizedFileExplorerWidget = memo(FileExplorerWidget);
 export const MemoizedCalendarWidget = memo(CalendarWidget);
+export const MemoizedCalendarWidgetEnhanced = memo(CalendarWidgetEnhanced);
 export const MemoizedActivityFeed = memo(ActivityFeed);
 export const MemoizedQuickLaunchWidget = memo(QuickLaunchWidget);
 export const MemoizedTodoWidget = memo(TodoWidget);
 export const MemoizedHoloGlobe = memo(HoloGlobe);
 export const MemoizedGitHubWidget = memo(GitHubWidget);
+export const MemoizedSmartHomePanel = memo(SmartHomePanel);

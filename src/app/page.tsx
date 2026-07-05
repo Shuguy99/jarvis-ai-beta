@@ -14,6 +14,7 @@ import { useJarvis, type CommandHandlers } from "@/hooks/use-jarvis";
 import { useMobileSidebar } from "@/hooks/use-mobile-sidebar";
 import { useWakeWord } from "@/hooks/use-wake-word";
 import { useHotkeys } from "@/hooks/use-hotkeys";
+import { useGlobalHotkey } from "@/hooks/use-global-hotkey";
 import { usePushToTalk } from "@/hooks/use-push-to-talk";
 import { useSystemAlerts } from "@/hooks/use-system-alerts";
 import { useProactiveEngine } from "@/hooks/use-proactive-engine";
@@ -187,6 +188,28 @@ export default function Home() {
       if (wasActive) showNotification({ title: "Инкогнито отключён", type: "info" });
     },
   });
+
+  // ── Global hotkey registrations (capture-phase, bypass focus) ──
+  useGlobalHotkey(() => {
+    const isRec = jarvis.isRecording;
+    if (isRec) jarvis.stopListening(); else jarvis.startListening();
+  }, [jarvis], { code: "KeyV", ctrlKey: true });
+
+  useGlobalHotkey(() => {
+    useUIStore.getState().setPaletteOpen(true);
+  }, [], { code: "KeyK", ctrlKey: true });
+
+  useGlobalHotkey(() => {
+    useUIStore.getState().setSettingsOpen(true);
+  }, [], { code: "Comma", ctrlKey: true });
+
+  useGlobalHotkey(() => {
+    useUIStore.getState().toggleDnd();
+  }, [], { code: "KeyD", ctrlKey: true });
+
+  useGlobalHotkey(() => {
+    void toggleFullscreen();
+  }, [toggleFullscreen], { code: "KeyF", ctrlKey: true, shiftKey: true });
 
   // Push-to-talk: hold Space to record, release to send
   usePushToTalk({

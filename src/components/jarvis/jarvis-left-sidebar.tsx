@@ -15,6 +15,7 @@ import {
   MemoizedQuickLaunchWidget, MemoizedSystemMonitor,
   MemoizedSessionStatsWidget, MemoizedShortcutsWidget,
   MemoizedFileExplorerWidget, MemoizedCalendarWidget,
+  MemoizedCalendarWidgetEnhanced,
   MemoizedActivityFeed, MemoizedSystemAlertsWidget,
   MemoizedHoloGlobe, MemoizedGitHubWidget,
 } from "@/components/jarvis/memoized-widgets";
@@ -43,7 +44,7 @@ export function JarvisLeftSidebar({ jarvis, className }: JarvisLeftSidebarProps)
       case "session-stats": return <div className={base}><WidgetErrorBoundary name="Session Stats"><MemoizedSessionStatsWidget /></WidgetErrorBoundary></div>;
       case "shortcuts": return <div className={base}><WidgetErrorBoundary name="Shortcuts"><MemoizedShortcutsWidget /></WidgetErrorBoundary></div>;
       case "file-explorer": return <div className={base}><WidgetErrorBoundary name="File Explorer"><MemoizedFileExplorerWidget /></WidgetErrorBoundary></div>;
-      case "calendar": return <div className={base}><WidgetErrorBoundary name="Calendar"><MemoizedCalendarWidget /></WidgetErrorBoundary></div>;
+      case "calendar": return <div className={base}><WidgetErrorBoundary name="Calendar"><MemoizedCalendarWidgetEnhanced /></WidgetErrorBoundary></div>;
       case "github": return <div className={base}><WidgetErrorBoundary name="GitHub"><MemoizedGitHubWidget /></WidgetErrorBoundary></div>;
       default: return null;
     }
@@ -104,7 +105,7 @@ export function JarvisLeftSidebar({ jarvis, className }: JarvisLeftSidebarProps)
 
           {/* Calendar */}
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.39, duration: 0.5 }}>
-            <WidgetErrorBoundary name="Calendar"><MemoizedCalendarWidget /></WidgetErrorBoundary>
+            <WidgetErrorBoundary name="Calendar"><MemoizedCalendarWidgetEnhanced /></WidgetErrorBoundary>
           </motion.div>
         </>
       )}
