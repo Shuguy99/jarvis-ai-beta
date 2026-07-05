@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useMemo } from "react";
 import type { JarvisState } from "@/lib/jarvis-store";
 import { useReducedMotion } from "@/hooks/use-reduced-motion";
+import { HoloAvatar } from "@/components/jarvis/holo-avatar";
 
 interface ArcReactorProps {
   state: JarvisState;
@@ -154,6 +155,11 @@ export function ArcReactor({ state, audioLevel, size = 220 }: ArcReactorProps) {
       style={{ width: size, height: size + 40 }}
       aria-label={`JARVIS core — ${c.label}`}
     >
+      {/* ── Holographic 3D avatar (background layer) ── */}
+      <div className="absolute inset-0 flex items-center justify-center" style={{ top: -10 }}>
+        <HoloAvatar state={state} size={size * 0.85} />
+      </div>
+
       {/* ── 0. Outer glow halo (brighter during thinking) ── */}
       <motion.div
         className="absolute rounded-full pointer-events-none"

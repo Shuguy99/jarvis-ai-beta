@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 // ReactMarkdown is lazy-loaded below via LazyMarkdown wrapper
-import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Monitor, FileCode, SmilePlus } from "lucide-react";
+import { Send, Square, Mic, Volume2, ExternalLink, Search, User, Cpu, ImagePlus, Eye, Monitor, FileCode, FileText, SmilePlus, X } from "lucide-react";
 import type { ChatMessage } from "@/lib/types";
 import type { UseJarvisReturn } from "@/hooks/use-jarvis";
 import { playSound } from "@/lib/sounds";
 import { getMarkdownComponents } from "@/components/jarvis/code-block";
 import { generateConversationHTML, downloadHTML } from "@/lib/export-html";
+import { generateChatPDF, printPDF } from "@/lib/export-pdf";
 import { useJarvisStore } from "@/lib/jarvis-store";
+import { getSuggestions, expandSuggestion } from "@/lib/suggestions";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
@@ -283,6 +285,13 @@ function MessageBubble({ msg, onSpeak, isLatest, onScroll }: { msg: ChatMessage;
               <Eye className="h-2.5 w-2.5" /> vision analysis
             </div>
           )}
+          {msg.imageAttachments && msg.imageAttachments.length > 0 && (
+            <div className="mb-2 flex gap-2">
+              {msg.imageAttachments.map(img => (
+                <img key={img.id} src={img.dataUrl} className="max-h-40 rounded-lg border border-primary/20" alt={img.name} />
+              ))}
+            </div>
+          )}
           {msg.imagePreview && (
             <div className="mb-2 overflow-hidden rounded-lg border jarvis-border-cyan">
               <img src={msg.imagePreview} alt="Загруженное" className="max-h-48 w-auto rounded-lg object-contain" />
@@ -391,6 +400,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
   const { messages, sendText, state, searchedSources, stopSpeaking } = jarvis;
   const [input, setInput] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
+  const [pendingImage, setPendingImage] = useState<{ dataUrl: string; name: string } | null>(null);
   const [screenCaptureOpen, setScreenCaptureOpen] = useState(false);
   const [screenPrompt, setScreenPrompt] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -409,27 +419,43 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
     (e: React.FormEvent) => {
       e.preventDefault();
       const text = input.trim();
-      if (!text || state === "thinking" || state === "speaking") return;
+      if ((!text && !pendingImage) || state === "thinking" || state === "speaking") return;
+      const imageData = pendingImage?.dataUrl;
+      setPendingImage(null);
       setInput("");
       playSound("message-send");
-      void sendText(text, "text");
+      void sendText(text || "Проанализируй это изображение", "text", imageData);
     },
-    [input, state, sendText]
+    [input, state, sendText, pendingImage]
   );
 
   const busy = state === "thinking" || state === "speaking";
+  const suggestions = getSuggestions(
+    messages.filter(m => m.role === "assistant").pop()?.content ?? null,
+    messages.length
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const readFileAsDataUrl = useCallback((file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }, []);
 
   const handleImageUpload = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file || !IMAGE_TYPES.includes(file.type)) return;
       playSound("activate");
-      void jarvis.analyzeImage(file, input.trim() || undefined);
-      setInput("");
+      void readFileAsDataUrl(file).then((dataUrl) => {
+        setPendingImage({ dataUrl, name: file.name });
+      });
       if (fileInputRef.current) fileInputRef.current.value = "";
     },
-    [jarvis, input]
+    [readFileAsDataUrl]
   );
 
   /* ─── Drag & Drop handlers ─── */
@@ -469,11 +495,12 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
       const file = e.dataTransfer.files?.[0];
       if (file && IMAGE_TYPES.includes(file.type)) {
         playSound("activate");
-        void jarvis.analyzeImage(file, input.trim() || undefined);
-        setInput("");
+        void readFileAsDataUrl(file).then((dataUrl) => {
+          setPendingImage({ dataUrl, name: file.name });
+        });
       }
     },
-    [jarvis, input]
+    [readFileAsDataUrl]
   );
 
   return (
@@ -535,6 +562,33 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
         )}
       </div>
 
+      {/* Quick Suggestions */}
+      <AnimatePresence>
+        {messages.length > 0 && !busy && (
+          <motion.div
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            className="flex gap-1.5 overflow-x-auto px-4 py-2 scrollbar-none"
+          >
+            {suggestions.slice(0, 4).map((s) => (
+              <button
+                key={s.id}
+                onClick={() => {
+                  playSound("click");
+                  const expanded = expandSuggestion(s);
+                  void sendText(expanded, "text");
+                }}
+                className="flex flex-shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 font-mono text-[10px] text-primary/80 transition hover:border-primary/40 hover:bg-primary/10 hover:text-primary"
+              >
+                <span>{s.icon}</span>
+                <span>{s.label}</span>
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ─── Drop Zone Overlay ─── */}
       <AnimatePresence>
         {isDragOver && (
@@ -550,7 +604,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
                 <ImagePlus className="h-10 w-10 text-primary anim-pulse-glow" />
               </div>
               <span className="font-mono text-sm uppercase tracking-widest text-primary jarvis-glow">
-                Перетащите изображение для анализа
+                Перетащите изображение для прикрепления
               </span>
               <span className="font-mono text-[10px] text-muted-foreground">
                 PNG, JPEG, GIF, WebP — JARVIS проанализирует содержимое
@@ -577,7 +631,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
             type="button"
             onClick={() => { playSound("click"); fileInputRef.current?.click(); }}
             disabled={busy}
-            className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-card/60 text-primary/80 transition hover:bg-primary/15 hover:text-primary hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex md:h-[44px] md:w-[44px] h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-card/60 text-primary/80 transition hover:bg-primary/15 hover:text-primary hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40"
             title="Загрузить изображение для анализа"
           >
             <ImagePlus className="h-4 w-4" />
@@ -587,7 +641,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
               type="button"
               onClick={() => { playSound("activate"); setScreenCaptureOpen(true); }}
               disabled={busy}
-              className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-card/60 text-primary/80 transition hover:bg-primary/15 hover:text-primary hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex md:h-[44px] md:w-[44px] h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-card/60 text-primary/80 transition hover:bg-primary/15 hover:text-primary hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40"
               title="Показать экран Джарвису"
             >
               <Monitor className="h-4 w-4" />
@@ -605,7 +659,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
               }}
               rows={1}
               placeholder="Введите команду для J.A.R.V.I.S.…"
-              className="jarvis-scroll max-h-32 min-h-[44px] w-full resize-none rounded-lg border jarvis-border-cyan bg-card/60 px-3 py-2.5 pr-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:jarvis-box-glow"
+              className="jarvis-scroll max-h-32 min-h-[48px] w-full resize-none rounded-lg border jarvis-border-cyan bg-card/60 px-3 py-2.5 pr-3 font-mono text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary/50 focus:jarvis-box-glow"
               disabled={state === "thinking"}
             />
           </div>
@@ -613,7 +667,7 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
             <button
               type="button"
               onClick={() => { playSound("click"); stopSpeaking(); }}
-              className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-lg border border-destructive/40 bg-destructive/15 text-destructive transition hover:bg-destructive/25"
+              className="flex md:h-[44px] md:w-[44px] h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border border-destructive/40 bg-destructive/15 text-destructive transition hover:bg-destructive/25"
               title="Остановить"
             >
               <Square className="h-4 w-4" />
@@ -621,14 +675,24 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
           ) : (
             <button
               type="submit"
-              disabled={!input.trim()}
-              className="flex h-[44px] w-[44px] flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-primary/15 text-primary transition hover:bg-primary/25 hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary/15"
+              disabled={!input.trim() && !pendingImage}
+              className="flex md:h-[44px] md:w-[44px] h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg border jarvis-border-cyan bg-primary/15 text-primary transition hover:bg-primary/25 hover:jarvis-box-glow disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-primary/15"
               title="Отправить"
             >
               <Send className="h-4 w-4" />
             </button>
           )}
         </div>
+        {/* Превью прикреплённого изображения */}
+        <AnimatePresence>
+          {pendingImage && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center gap-2 overflow-hidden mt-1">
+              <img src={pendingImage.dataUrl} className="h-12 w-12 rounded border border-primary/30 object-cover" alt={pendingImage.name} />
+              <span className="font-mono text-[10px] text-muted-foreground truncate">{pendingImage.name}</span>
+              <button type="button" onClick={() => { playSound("deactivate"); setPendingImage(null); }} className="ml-auto rounded-md p-1 text-muted-foreground transition hover:text-destructive"><X className="h-3 w-3" /></button>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {/* Screen Capture Modal */}
         <AnimatePresence>
           {screenCaptureOpen && (
@@ -691,10 +755,11 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
         </AnimatePresence>
         <div className="mt-1.5 flex items-center justify-between px-1">
           <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
-            Enter — отправить · Shift+Enter — перенос · Drag & Drop — изображение
+            Enter — отправить · Shift+Enter — перенос · Drag & Drop — прикрепить изображение
           </span>
           <div className="flex items-center gap-2">
             {messages.length > 0 && (
+              <>
               <button
                 type="button"
                 onClick={() => {
@@ -709,6 +774,20 @@ export function ChatPanel({ jarvis }: ChatPanelProps) {
                 <FileCode className="h-2.5 w-2.5" />
                 <span>HTML</span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  playSound("success");
+                  const html = generateChatPDF(messages);
+                  printPDF(html);
+                }}
+                className="flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60 transition hover:text-primary hover:bg-primary/10"
+                title="Экспортировать как PDF"
+              >
+                <FileText className="h-2.5 w-2.5" />
+                <span>PDF</span>
+              </button>
+              </>
             )}
             <span className="font-mono text-[9px] uppercase tracking-wider text-muted-foreground/60">
               {messages.length} сообщ.

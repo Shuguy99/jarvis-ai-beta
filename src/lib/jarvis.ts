@@ -1,5 +1,6 @@
 import type { ChatMessage } from "@/lib/types";
 import type { PersonaId, ResponseStyle } from "@/components/jarvis/settings-panel";
+import { getPersonaSystemPrompt } from "@/lib/personas";
 
 // ─── Behavior settings type (shared between UI and backend) ──────
 
@@ -96,7 +97,7 @@ const STYLE_MODIFIERS: Record<ResponseStyle, string> = {
 
 // ─── Dynamic prompt builder ──────────────────────────────────────
 
-export function buildSystemPrompt(behavior: Partial<BehaviorSettings>): string {
+export function buildSystemPrompt(behavior: Partial<BehaviorSettings>, voicePersonaId?: string): string {
   // If custom prompt is set, use it entirely
   if (behavior.customPrompt && behavior.customPrompt.trim()) {
     return behavior.customPrompt.trim();
@@ -154,6 +155,14 @@ export function buildSystemPrompt(behavior: Partial<BehaviorSettings>): string {
   // Language instruction
   parts.push(`ЯЗЫК: Всегда отвечай на языке пользователя. Русский — по-русски, английский — по-английски.`);
 
+  // Voice persona suffix (if a voice persona is active)
+  if (voicePersonaId) {
+    const voiceSuffix = getPersonaSystemPrompt(voicePersonaId);
+    if (voiceSuffix) {
+      parts.push(voiceSuffix);
+    }
+  }
+
   return parts.join("\n\n");
 }
 
@@ -170,9 +179,10 @@ export function buildChatMessages(
     searchContext?: string;
     imageContext?: string;
     behavior?: Partial<BehaviorSettings>;
+    voicePersonaId?: string;
   } = {}
 ): { role: "assistant" | "user"; content: string }[] {
-  const system = opts.systemOverride ?? buildSystemPrompt(opts.behavior ?? {});
+  const system = opts.systemOverride ?? buildSystemPrompt(opts.behavior ?? {}, opts.voicePersonaId);
   const sysContent = opts.searchContext
     ? `${system}\n\n[АКТУАЛЬНЫЕ ДАННЫЕ ИЗ ВЕБ-ПОИСКА]\n${opts.searchContext}`
     : system;

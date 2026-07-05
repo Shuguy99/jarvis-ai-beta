@@ -12,6 +12,7 @@ export interface ChatMessage {
   hasAudio?: boolean;
   imagePreview?: string;
   generatedImage?: string;
+  imageAttachments?: Array<{ id: string; dataUrl: string; name: string }>;
   reactions?: string[];
   moodEmoji?: string;
 }

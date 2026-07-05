@@ -15,6 +15,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { playSound } from "@/lib/sounds";
+import { UserProfileSwitcher } from "@/components/jarvis/user-profile-switcher";
+import { BotSettings } from "@/components/jarvis/bot-settings";
+import { AuditLogViewer } from "@/components/jarvis/audit-log-viewer";
+import { auditLog } from "@/lib/security-audit";
+import { CommunityThemesGallery } from "@/components/jarvis/community-themes-gallery";
 import {
   Volume2,
   Cpu,
@@ -33,6 +38,7 @@ import {
   WifiOff,
   Loader2,
   Shield,
+  Bot,
 } from "lucide-react";
 
 // ─── Persona presets ──────────────────────────────────────────────
@@ -180,7 +186,7 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<"voice" | "behavior" | "providers">("behavior");
+  const [activeTab, setActiveTab] = useState<"voice" | "behavior" | "providers" | "integrations" | "security">("behavior");
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [activeProviderId, setActiveProviderId] = useState<string | null>(null);
   const [providersLoading, setProvidersLoading] = useState(false);
@@ -256,6 +262,7 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
         body: JSON.stringify({ settings: { aiProvider: providerId } }),
       });
       setActiveProviderId(providerId);
+      auditLog("provider_change", "Провайдер изменён", `New provider: ${providerId}`);
       playSound("success");
     } catch {
       playSound("error");
@@ -315,6 +322,7 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
       if (!res.ok) throw new Error("Save failed");
 
       playSound("success");
+      auditLog("settings_change", "Настройки сохранены");
       setSaved(true);
       onSave?.(settings);
       setTimeout(() => {
@@ -396,12 +404,45 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
             <Shield className="mr-1.5 inline h-3 w-3" />
             AI Провайдеры
           </button>
+          <button
+            onClick={() => { setActiveTab("security"); playSound("click"); }}
+            className={`flex-1 px-4 py-2.5 font-mono text-[10px] uppercase tracking-widest transition ${
+              activeTab === "security"
+                ? "border-b-2 border-primary text-primary jarvis-glow bg-primary/5"
+                : "text-muted-foreground/60 hover:text-foreground/80"
+            }`}
+          >
+            <Shield className="mr-1.5 inline h-3 w-3" />
+            Безопасность
+          </button>
+          <button
+            onClick={() => { setActiveTab("integrations"); playSound("click"); }}
+            className={`flex-1 px-4 py-2.5 font-mono text-[10px] uppercase tracking-widest transition ${
+              activeTab === "integrations"
+                ? "border-b-2 border-primary text-primary jarvis-glow bg-primary/5"
+                : "text-muted-foreground/60 hover:text-foreground/80"
+            }`}
+          >
+            <Bot className="mr-1.5 inline h-3 w-3" />
+            Интеграции
+          </button>
         </div>
 
         {/* ─── Scrollable content ─── */}
         <div className="jarvis-scroll max-h-[60vh] overflow-y-auto p-5">
           {activeTab === "behavior" && (
             <div className="space-y-0">
+              {/* ── User Profiles ── */}
+              <SettingsSection
+                icon={<User className="h-3.5 w-3.5" />}
+                title="Профили пользователей"
+                subtitle="Multi-User Profiles"
+              >
+                <div className="py-1">
+                  <UserProfileSwitcher />
+                </div>
+              </SettingsSection>
+
               {/* ── Persona Presets ── */}
               <SettingsSection
                 icon={<Sparkles className="h-3.5 w-3.5" />}
@@ -560,6 +601,17 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
                     rows={5}
                     className="min-h-[100px] resize-y rounded-md border jarvis-border-cyan bg-muted/20 font-mono text-[11px] text-foreground/90 placeholder:text-muted-foreground/40 focus-visible:border-primary/50 focus-visible:ring-primary/30"
                   />
+                </div>
+              </SettingsSection>
+
+              {/* ── Community Themes ── */}
+              <SettingsSection
+                icon={<Sparkles className="h-3.5 w-3.5" />}
+                title="Темы оформления"
+                subtitle="Community Themes"
+              >
+                <div className="py-1">
+                  <CommunityThemesGallery />
                 </div>
               </SettingsSection>
             </div>
@@ -733,6 +785,24 @@ export function SettingsPanel({ open, onOpenChange, onSave }: SettingsPanelProps
                   </div>
                 )}
               </SettingsSection>
+            </div>
+          )}
+
+          {activeTab === "integrations" && (
+            <div className="space-y-0">
+              <SettingsSection
+                icon={<Bot className="h-3.5 w-3.5" />}
+                title="Бот-интеграции"
+                subtitle="Telegram & Discord"
+              >
+                <BotSettings />
+              </SettingsSection>
+            </div>
+          )}
+
+          {activeTab === "security" && (
+            <div className="space-y-0">
+              <AuditLogViewer />
             </div>
           )}
         </div>

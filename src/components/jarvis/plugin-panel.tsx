@@ -18,7 +18,11 @@ import {
   CircleDot,
   Stethoscope,
   StickyNote,
+  Wrench,
+  Plug,
 } from "lucide-react";
+import { CustomToolsPanel } from "./custom-tools-panel";
+import { MCPPanel } from "./mcp-panel";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { playSound } from "@/lib/sounds";
@@ -54,6 +58,8 @@ const CATEGORIES: CategoryDef[] = [
   { id: "analysis", label: "Анализ", icon: BarChart3 },
   { id: "fun", label: "Развлечения", icon: Gamepad2 },
   { id: "network", label: "Сеть", icon: Wifi },
+  { id: "tools", label: "Тулы", icon: Wrench },
+  { id: "mcp", label: "MCP", icon: Plug },
 ];
 
 // ── Settings Dialog (inline) ──────────────────────────────────────
@@ -432,28 +438,34 @@ export function PluginPanel({ open, onClose }: PluginPanelProps) {
             })}
           </div>
 
-          {/* Plugin list */}
+          {/* Plugin list / Custom Tools */}
           <div className="relative flex-1 overflow-y-auto jarvis-scroll p-3">
-            <AnimatePresence mode="popLayout">
-              {filteredPlugins.length > 0 ? (
-                <div className="flex flex-col gap-3">
-                  {filteredPlugins.map((plugin) => (
-                    <PluginCard key={plugin.id} plugin={plugin} />
-                  ))}
-                </div>
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="flex h-40 flex-col items-center justify-center gap-2"
-                >
-                  <Puzzle className="h-8 w-8 text-muted-foreground/15" />
-                  <span className="font-mono text-xs text-muted-foreground/30">
-                    Нет плагинов в этой категории
-                  </span>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {activeCategory === "tools" ? (
+              <CustomToolsPanel />
+            ) : activeCategory === "mcp" ? (
+              <MCPPanel />
+            ) : (
+              <AnimatePresence mode="popLayout">
+                {filteredPlugins.length > 0 ? (
+                  <div className="flex flex-col gap-3">
+                    {filteredPlugins.map((plugin) => (
+                      <PluginCard key={plugin.id} plugin={plugin} />
+                    ))}
+                  </div>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex h-40 flex-col items-center justify-center gap-2"
+                  >
+                    <Puzzle className="h-8 w-8 text-muted-foreground/15" />
+                    <span className="font-mono text-xs text-muted-foreground/30">
+                      Нет плагинов в этой категории
+                    </span>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
           </div>
 
           {/* Footer */}

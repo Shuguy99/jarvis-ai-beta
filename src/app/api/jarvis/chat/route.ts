@@ -1,5 +1,6 @@
 import { json } from "@/lib/json-response";
 import { ai } from "@/lib/ai-provider";
+import type { ContentPart, LLMMessage } from "@/lib/ai-provider";
 import { buildChatMessages, buildSystemPrompt } from "@/lib/jarvis";
 import type { BehaviorSettings } from "@/lib/jarvis";
 import type { ChatMessage } from "@/lib/types";
@@ -10,12 +11,14 @@ interface ChatRequestBody {
   query: string;
   search?: boolean;
   behavior?: Partial<BehaviorSettings>;
+  imageBase64?: string;
+  voicePersonaId?: string;
 }
 
 export async function POST(req: Request) {
   try {
     const body = await parseJsonBody<ChatRequestBody>(req, MAX_BODY_BYTES_CHAT);
-    const { messages = [], query, behavior } = body;
+    const { messages = [], query, behavior, imageBase64, voicePersonaId } = body;
 
     if (!query || !query.trim()) {
       return json({ error: "Пустой запрос." }, 400);
@@ -28,7 +31,23 @@ export async function POST(req: Request) {
       createdAt: new Date().toISOString(),
     }];
 
-    const llmMessages = buildChatMessages(history, { behavior });
+    const llmMessages: LLMMessage[] = buildChatMessages(history, { behavior, voicePersonaId });
+
+    // Мультимодальный запрос: текст + изображение в последнем сообщении пользователя
+    if (imageBase64) {
+      const imageUrl = imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`;
+      const lastUserIdx = llmMessages.map((m) => m.role).lastIndexOf("user");
+      if (lastUserIdx >= 0) {
+        const prevContent = typeof llmMessages[lastUserIdx].content === "string"
+          ? llmMessages[lastUserIdx].content
+          : "";
+        const parts: ContentPart[] = [
+          { type: "text", text: prevContent },
+          { type: "image_url", image_url: { url: imageUrl } },
+        ];
+        llmMessages[lastUserIdx] = { ...llmMessages[lastUserIdx], content: parts };
+      }
+    }
 
     const reply = await ai.chat(llmMessages, {
       temperature: behavior?.temperature,

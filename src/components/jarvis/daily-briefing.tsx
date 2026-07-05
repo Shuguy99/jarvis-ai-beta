@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Cloud, Cpu, Quote, ListTodo, X, Sparkles } from "lucide-react";
+import { Cloud, Cpu, Quote, ListTodo, X, Sparkles, FileText } from "lucide-react";
+import { playSound } from "@/lib/sounds";
+import { generateBriefingPDF, printPDF } from "@/lib/export-pdf";
 
 interface BriefingData {
   greeting: string;
@@ -90,12 +92,31 @@ export function DailyBriefing({ onClose }: { onClose: () => void }) {
           <h2 className="font-mono text-xs uppercase tracking-widest text-primary/80 flex items-center gap-2">
             <Sparkles className="w-4 h-4" /> Daily Briefing
           </h2>
-          <button
-            onClick={onClose}
-            className="rounded-md p-1.5 border border-primary/20 bg-primary/5 hover:bg-primary/15 transition-colors"
-          >
-            <X className="w-3 h-3 text-primary/70" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                playSound("success");
+                const sections = [
+                  { heading: "Системный статус", content: `CPU: ${data.system.cpuLoad}% · RAM: ${data.system.memPct}%` },
+                  ...(data.weather ? [{ heading: "Погода", content: `${data.weather.location}: ${data.weather.temp}°C, ${data.weather.condition}` }] : []),
+                  ...(data.pendingTodos.length > 0 ? [{ heading: `Активные задачи (${data.pendingTodos.length})`, content: data.pendingTodos.map(t => t.title).join("\n") }] : []),
+                  { heading: "Цитата дня", content: `«${data.quote.text}» — ${data.quote.author}` },
+                ];
+                const html = generateBriefingPDF({ title: "JARVIS Daily Briefing", sections });
+                printPDF(html);
+              }}
+              className="flex items-center gap-1 rounded border border-primary/20 px-2 py-1 font-mono text-[9px] text-primary hover:bg-primary/10 transition-colors"
+            >
+              <FileText className="h-3 w-3" />
+              PDF
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-md p-1.5 border border-primary/20 bg-primary/5 hover:bg-primary/15 transition-colors"
+            >
+              <X className="w-3 h-3 text-primary/70" />
+            </button>
+          </div>
         </div>
 
         {/* Greeting */}

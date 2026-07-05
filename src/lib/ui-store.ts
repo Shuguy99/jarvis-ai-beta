@@ -6,6 +6,7 @@
 
 import { create } from "zustand";
 import type { JarvisSettingsData } from "@/components/jarvis/settings-panel";
+import { PERSONAS, type Persona } from "@/lib/personas";
 
 // ── Panel visibility state ─────────────────────────────────────
 
@@ -33,6 +34,7 @@ interface PanelState {
   jarvisSettings: JarvisSettingsData | null;
   leftWidgetIds: string[];
   rightWidgetIds: string[];
+  activePersonaId: string;
 }
 
 interface PanelActions {
@@ -68,6 +70,8 @@ interface PanelActions {
   setLeftWidgetIds: (ids: string[] | ((prev: string[]) => string[])) => void;
   setRightWidgetIds: (ids: string[] | ((prev: string[]) => string[])) => void;
   closeAllPanels: () => void;
+  setActivePersonaId: (id: string) => void;
+  cyclePersona: () => void;
 }
 
 const DEFAULT_LEFT_WIDGETS = [
@@ -111,6 +115,7 @@ export const useUIStore = create<PanelState & PanelActions>()((set) => ({
   jarvisSettings: null,
   leftWidgetIds: [...DEFAULT_LEFT_WIDGETS],
   rightWidgetIds: [...DEFAULT_RIGHT_WIDGETS],
+  activePersonaId: "classic",
 
   // Actions
   setBooted: (v) => set({ booted: v }),
@@ -148,6 +153,12 @@ export const useUIStore = create<PanelState & PanelActions>()((set) => ({
   setJarvisSettings: (s) => set({ jarvisSettings: s }),
   setLeftWidgetIds: (ids) => set((s) => ({ leftWidgetIds: apply(ids, s.leftWidgetIds) })),
   setRightWidgetIds: (ids) => set((s) => ({ rightWidgetIds: apply(ids, s.rightWidgetIds) })),
+  setActivePersonaId: (id) => set({ activePersonaId: id }),
+  cyclePersona: () => set((s) => {
+    const currentIdx = PERSONAS.findIndex(p => p.id === s.activePersonaId);
+    const nextIdx = (currentIdx + 1) % PERSONAS.length;
+    return { activePersonaId: PERSONAS[nextIdx].id };
+  }),
   closeAllPanels: () => set({
     paletteOpen: false,
     settingsOpen: false,

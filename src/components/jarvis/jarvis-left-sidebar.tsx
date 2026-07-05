@@ -22,9 +22,10 @@ import { LazyMetricsHistoryChart, JarvisSuspense } from "@/lib/lazy-components";
 
 interface JarvisLeftSidebarProps {
   jarvis: UseJarvisReturn;
+  className?: string;
 }
 
-export function JarvisLeftSidebar({ jarvis }: JarvisLeftSidebarProps) {
+export function JarvisLeftSidebar({ jarvis, className }: JarvisLeftSidebarProps) {
   const dndMode = useUIStore((s) => s.dndMode);
   const leftWidgetIds = useUIStore((s) => s.leftWidgetIds);
   const setLeftWidgetIds = useUIStore((s) => s.setLeftWidgetIds);
@@ -49,7 +50,7 @@ export function JarvisLeftSidebar({ jarvis }: JarvisLeftSidebarProps) {
   }, []);
 
   return (
-    <aside className="jarvis-scroll flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
+    <aside className={`jarvis-sidebar-left jarvis-scroll flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto${className ? ` ${className}` : ""}`}>
       {dndMode ? (
         <DndWidgetList widgetIds={leftWidgetIds} onReorder={setLeftWidgetIds} columnId="left">
           {(widgetId) => renderLeftWidget(widgetId)}

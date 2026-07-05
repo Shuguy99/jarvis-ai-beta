@@ -11,12 +11,14 @@ import {
   type CommandHandlers,
 } from "@/lib/jarvis-store";
 import { playSound } from "@/lib/sounds";
+import { parseTaskPlanFromAI, generatePlanPrompt } from "@/lib/task-planner";
 import { useUIStore } from "@/lib/ui-store";
 import { addActivityEvent } from "@/components/jarvis/activity-feed";
 import { publishChatMessage } from "@/lib/context-bus";
 import { useTTS } from "@/hooks/use-tts";
 import { useVoiceRecorder } from "@/hooks/use-voice-recorder";
 import { processLocalCommand } from "@/hooks/use-local-commands";
+import { auditLog } from "@/lib/security-audit";
 
 /** 20% chance to attach a mood emoji based on message content */
 function detectMoodEmoji(text: string): string | undefined {
@@ -177,7 +179,7 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
 
   // ── Chat send (SSE streaming) ─────────────────────────────
   const sendText = useCallback(
-    async (text: string, source: "voice" | "text" = "text") => {
+    async (text: string, source: "voice" | "text" = "text", imageBase64?: string) => {
       const { jarvisState, autoSpeakOn: aso } = useJarvisStore.getState();
       const clean = text.trim();
       if (!clean || jarvisState === "thinking" || jarvisState === "speaking") return;
@@ -192,10 +194,14 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         content: clean,
         createdAt: new Date().toISOString(),
         source,
+        ...(imageBase64 ? {
+          imageAttachments: [{ id: uid(), dataUrl: imageBase64.startsWith("data:") ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`, name: "image" }],
+        } : {}),
       };
       useJarvisStore.getState().addMessage(userMsg);
       publishChatMessage({ messageId: userMsg.id, content: userMsg.content, isUser: true, charCount: userMsg.content.length });
       addActivityEvent({ severity: "info", category: "chat", message: `Сообщение отправлено: ${trunc(clean)}` });
+      auditLog("settings_change", "Отправлено сообщение", `Source: ${source}`);
 
       // Try local command processing first
       const cmdResult = await processCommand(clean);
@@ -254,10 +260,13 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         } : undefined;
 
         // ─── SSE Streaming ───
+        const isPlanRequest = clean.match(/^(спланируй|plan|запланируй|составь план)/i);
+        const effectiveQuery = isPlanRequest ? generatePlanPrompt(clean) : clean;
+        const voicePersonaId = useUIStore.getState().activePersonaId;
         const res = await fetch("/api/jarvis/chat/stream", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: history, query: clean, behavior }),
+          body: JSON.stringify({ messages: history, query: effectiveQuery, behavior, voicePersonaId, ...(imageBase64 ? { imageBase64 } : {}) }),
         });
 
         if (!res.ok) {
@@ -316,6 +325,14 @@ export function useJarvis(opts: UseJarvisOptions = {}) {
         const moodEmoji = detectMoodEmoji(fullContent);
         useJarvisStore.getState().updateMessage(pendingId, { content: fullContent, streaming: false, hasAudio: true, moodEmoji });
         publishChatMessage({ messageId: pendingId, content: fullContent, isUser: false, charCount: fullContent.length });
+
+        // Task planner: detect planning requests and parse AI response
+        if (clean.match(/^(спланируй|plan|запланируй|составь план)/i)) {
+          const plan = parseTaskPlanFromAI(clean, fullContent);
+          if (plan.tasks.length > 0) {
+            useJarvisStore.getState().setTaskPlan(plan);
+          }
+        }
 
         if (convoId) void persistMessage("assistant", fullContent);
 

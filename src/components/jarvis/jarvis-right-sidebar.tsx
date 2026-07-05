@@ -22,10 +22,13 @@ import {
   MemoizedAmbientSoundWidget, MemoizedPomodoroWidget,
   MemoizedTodoWidget,
 } from "@/components/jarvis/memoized-widgets";
+import { TaskPlannerWidget } from "@/components/jarvis/task-planner-widget";
+import { useJarvisStore } from "@/lib/jarvis-store";
 
 interface JarvisRightSidebarProps {
   jarvis: UseJarvisReturn;
   timerRef: RefObject<TimerHandle | null>;
+  className?: string;
 }
 
 // Директивы — внутренний компонент правой панели
@@ -61,7 +64,7 @@ function DirectivesSection() {
   );
 }
 
-export function JarvisRightSidebar({ jarvis, timerRef }: JarvisRightSidebarProps) {
+export function JarvisRightSidebar({ jarvis, timerRef, className }: JarvisRightSidebarProps) {
   const dndMode = useUIStore((s) => s.dndMode);
   const rightWidgetIds = useUIStore((s) => s.rightWidgetIds);
   const setRightWidgetIds = useUIStore((s) => s.setRightWidgetIds);
@@ -69,6 +72,8 @@ export function JarvisRightSidebar({ jarvis, timerRef }: JarvisRightSidebarProps
   const calcVisible = useUIStore((s) => s.calcVisible);
   const setCalcVisible = useUIStore((s) => s.setCalcVisible);
   const toggleNotes = useUIStore((s) => s.toggleNotes);
+  const taskPlan = useJarvisStore((s) => s.taskPlan);
+  const setTaskPlan = useJarvisStore((s) => s.setTaskPlan);
 
   // DnD widget renderer — используется только в режиме перетаскивания
   const renderRightWidget = useCallback((widgetId: string) => {
@@ -88,7 +93,7 @@ export function JarvisRightSidebar({ jarvis, timerRef }: JarvisRightSidebarProps
   }, [toggleNotes]);
 
   return (
-    <aside className="jarvis-scroll flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto">
+    <aside className={`jarvis-sidebar-right jarvis-scroll flex flex-col gap-3 lg:col-span-3 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto${className ? ` ${className}` : ""}`}>
       {/* Capabilities grid */}
       <motion.div
         className="jarvis-box-glow jarvis-corner-brackets relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm"
@@ -153,6 +158,15 @@ export function JarvisRightSidebar({ jarvis, timerRef }: JarvisRightSidebarProps
           </motion.div>
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.45, duration: 0.4 }}>
             <WidgetErrorBoundary name="Tasks"><MemoizedTodoWidget onToggleNotes={() => toggleNotes()} /></WidgetErrorBoundary>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.46, duration: 0.4 }}>
+            <WidgetErrorBoundary name="Task Planner">
+              <TaskPlannerWidget
+                plan={taskPlan}
+                onUpdatePlan={(p) => setTaskPlan(p)}
+                onClearPlan={() => setTaskPlan(null)}
+              />
+            </WidgetErrorBoundary>
           </motion.div>
         </>
       )}

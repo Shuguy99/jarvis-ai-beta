@@ -1508,8 +1508,95 @@ body {
   }
 }
 
+/* ─── Scrollbar None ─────────────────────────────── */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
 /* ─── News Ticker Animation ─────────────────────────────── */
 @keyframes ticker-scroll {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
+}
+
+/* ─── Mobile Responsive ────────────────────────────────── */
+
+/* Mobile sidebar toggle */
+@media (max-width: 768px) {
+  .jarvis-sidebar-left,
+  .jarvis-sidebar-right {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    z-index: 40;
+    width: 280px;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    background: hsl(var(--card));
+    border-right: 1px solid hsl(var(--primary) / 0.2);
+  }
+  
+  .jarvis-sidebar-right {
+    left: auto;
+    right: 0;
+    transform: translateX(100%);
+    border-right: none;
+    border-left: 1px solid hsl(var(--primary) / 0.2);
+  }
+  
+  .jarvis-sidebar-left.sidebar-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.5);
+  }
+  
+  .jarvis-sidebar-right.sidebar-open {
+    transform: translateX(0);
+    box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+  }
+  
+  /* Chat takes full width on mobile */
+  .jarvis-chat-main {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  
+  /* Hide desktop-only elements */
+  .desktop-only {
+    display: none !important;
+  }
+  
+  /* Mobile header adjustments */
+  .jarvis-header-mobile-actions {
+    display: flex !important;
+  }
+  
+  /* Smaller fonts on mobile */
+  .jarvis-mobile-text-sm {
+    font-size: 10px !important;
+  }
+  
+  /* Touch-friendly button sizing */
+  .jarvis-touch-target {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  /* Mobile overlay backdrop */
+  .sidebar-backdrop {
+    display: block !important;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 35;
+    backdrop-filter: blur(4px);
+  }
+}
+
+/* Tablet breakpoint */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .jarvis-sidebar-left {
+    width: 200px !important;
+  }
+  .jarvis-sidebar-right {
+    width: 200px !important;
+  }
 }

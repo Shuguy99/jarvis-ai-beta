@@ -12,6 +12,7 @@ import { ThemeSwitcher } from "@/components/jarvis/theme-switcher";
 import { FullscreenToggle } from "@/components/jarvis/fullscreen-toggle";
 import { WindowControls } from "@/components/jarvis/window-controls";
 import { StatusClock } from "@/components/jarvis/status-clock";
+import { PersonaSwitcher } from "@/components/jarvis/persona-switcher";
 import {
   Volume2, VolumeX, Ear, EarOff, FileText, Keyboard, Settings,
   Bell, Command, Moon, EyeOff,
@@ -66,14 +67,18 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
       </div>
 
       <div className="relative flex items-center gap-3 overflow-hidden">
-        <div className="hidden items-center gap-2 rounded-full border jarvis-border-cyan bg-card/40 px-3 py-1 lg:flex shrink-0">
+        <div className="desktop-only hidden items-center gap-2 rounded-full border jarvis-border-cyan bg-card/40 px-3 py-1 lg:flex shrink-0">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 anim-pulse-glow" />
           <span className="font-mono text-[10px] uppercase tracking-widest text-emerald-300/90">
             Systems Online
           </span>
         </div>
 
+        {/* Voice Persona Switcher */}
+        <div className="desktop-only"><PersonaSwitcher /></div>
+
         {/* Command Palette trigger */}
+        <div className="desktop-only">
         <button
           onClick={() => setPaletteOpen(true)}
           className="hidden sm:flex items-center gap-1.5 rounded-full border jarvis-border-cyan bg-card/40 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-muted-foreground transition hover:border-primary/50 hover:text-primary hover:jarvis-box-glow shrink-0"
@@ -82,8 +87,10 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
           <Keyboard className="h-3 w-3" />
           <span className="hidden sm:inline">Commands</span>
         </button>
+        </div>
 
         {/* Notes toggle */}
+        <div className="desktop-only">
         <button
           onClick={() => toggleNotes()}
           className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition shrink-0 ${
@@ -96,8 +103,10 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
           <FileText className="h-3 w-3" />
           <span className="hidden sm:inline">Notes</span>
         </button>
+        </div>
 
         {/* Wake Word Toggle */}
+        <div className="desktop-only">
         <button
           onClick={() => setWakeWordEnabled((prev: boolean) => !prev)}
           className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition shrink-0 ${
@@ -116,7 +125,9 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
             </span>
           )}
         </button>
+        </div>
 
+        <div className="desktop-only">
         <button
           onClick={() => jarvis.setAutoSpeakOn(!jarvis.autoSpeakOn)}
           className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition shrink-0 ${
@@ -129,8 +140,10 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
           {jarvis.autoSpeakOn ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
           <span className="hidden sm:inline">{jarvis.autoSpeakOn ? "Voice On" : "Muted"}</span>
         </button>
+        </div>
 
         {/* Do Not Disturb Toggle (quiet mode) */}
+        <div className="desktop-only">
         <button
           onClick={() => toggleQuietMode()}
           className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition shrink-0 ${
@@ -143,8 +156,10 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
           {quietMode ? <Moon className="h-3 w-3" /> : <Bell className="h-3 w-3" />}
           <span className="hidden sm:inline">{quietMode ? "DND: On" : "DND"}</span>
         </button>
+        </div>
 
         {/* Incognito Toggle */}
+        <div className="desktop-only">
         <button
           onClick={() => {
             const wasActive = useUIStore.getState().incognitoMode;
@@ -163,8 +178,10 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
           <EyeOff className="h-3 w-3" />
           <span className="hidden sm:inline">{incognitoMode ? "Incognito" : "Normal"}</span>
         </button>
+        </div>
 
         {/* DnD Toggle (widget drag-and-drop) */}
+        <div className="desktop-only">
         <button
           onClick={() => { playSound("click"); toggleDnd(); }}
           className={`hidden sm:flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition shrink-0 ${
@@ -177,8 +194,10 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
           <Command className="h-3 w-3" />
           <span className="hidden sm:inline">DnD</span>
         </button>
+        </div>
 
         {/* Notification Bell */}
+        <div className="desktop-only">
         <button
           onClick={() => { playSound("click"); toggleNotif(); }}
           className={`hidden sm:flex relative items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-widest transition shrink-0 ${
@@ -191,6 +210,7 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
           <Bell className="h-3 w-3" />
           <span className="hidden sm:inline">Alerts</span>
         </button>
+        </div>
 
         <button
           onClick={() => { playSound("click"); setSettingsOpen(true); }}
@@ -200,7 +220,7 @@ export function JarvisHeader({ jarvis, isWakeListening }: JarvisHeaderProps) {
           <Settings className="h-3 w-3" />
         </button>
 
-        <div className="hidden sm:flex items-center gap-2 shrink-0">
+        <div className="desktop-only hidden sm:flex items-center gap-2 shrink-0">
           <ThemeSwitcher onOpenEditor={() => setThemeEditorOpen(true)} />
           <FullscreenToggle />
           <WindowControls />

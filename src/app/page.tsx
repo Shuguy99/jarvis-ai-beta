@@ -8,9 +8,10 @@
 
 import { useCallback, useRef, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mic, Search, Monitor, FileText, FileCode, Bot, Puzzle, LayoutGrid, Settings, AlertTriangle, Moon, EyeOff, BarChart3 } from "lucide-react";
+import { Mic, Search, Monitor, FileText, FileCode, Bot, Puzzle, LayoutGrid, Settings, AlertTriangle, Moon, EyeOff, BarChart3, Menu, LayoutDashboard } from "lucide-react";
 
 import { useJarvis, type CommandHandlers } from "@/hooks/use-jarvis";
+import { useMobileSidebar } from "@/hooks/use-mobile-sidebar";
 import { useWakeWord } from "@/hooks/use-wake-word";
 import { useHotkeys } from "@/hooks/use-hotkeys";
 import { usePushToTalk } from "@/hooks/use-push-to-talk";
@@ -65,6 +66,7 @@ export default function Home() {
   const closeAllPanels = useUIStore(s => s.closeAllPanels);
   const setJarvisSettings = useUIStore(s => s.setJarvisSettings);
 
+  const { isMobile, leftOpen, rightOpen, toggleLeft, toggleRight, closeAll } = useMobileSidebar();
   const timerRef = useRef<TimerHandle>(null);
   const briefingShownRef = useRef(false);
   const [pushToTalkActive, setPushToTalkActive] = useState(false);
@@ -258,15 +260,25 @@ export default function Home() {
           <motion.div className="jarvis-no-select flex min-h-screen flex-col" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, ease: "easeOut" }}>
             <NewsTicker />
             <JarvisHeader jarvis={jarvis} isWakeListening={isWakeListening} />
+            {isMobile && (
+              <>
+                <button onClick={toggleLeft} className="md:hidden jarvis-touch-target flex items-center justify-center rounded-lg border border-primary/20 bg-card/60 text-primary">
+                  <Menu className="h-5 w-5" />
+                </button>
+                <button onClick={toggleRight} className="md:hidden jarvis-touch-target flex items-center justify-center rounded-lg border border-primary/20 bg-card/60 text-primary">
+                  <LayoutDashboard className="h-5 w-5" />
+                </button>
+              </>
+            )}
 
             <main className="relative flex-1 overflow-hidden">
               <JarvisParticles count={40} />
               <div className="pointer-events-none absolute inset-0 jarvis-grid-bg opacity-30" />
               <div className="relative mx-auto grid h-full max-w-[1600px] grid-cols-1 gap-3 p-3 md:grid-cols-12 md:gap-4 md:p-4">
-                <JarvisLeftSidebar jarvis={jarvis} />
+                <JarvisLeftSidebar jarvis={jarvis} className={leftOpen ? "sidebar-open" : ""} />
 
                 {/* Center column */}
-                <section className="flex flex-col gap-3 lg:col-span-6 lg:max-h-[calc(100vh-12rem)] lg:overflow-hidden">
+                <section className="jarvis-chat-main flex flex-col gap-3 lg:col-span-6 lg:max-h-[calc(100vh-12rem)] lg:overflow-hidden">
                   <motion.div className="jarvis-box-glow jarvis-hologram jarvis-noise relative overflow-hidden rounded-xl border jarvis-border-cyan bg-card/40 p-4 backdrop-blur-sm" initial={{ opacity: 0, y: 20, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ delay: 0.1, duration: 0.8, ease: "easeOut" }}>
                     <div className="pointer-events-none absolute inset-0 jarvis-grid-bg opacity-30" />
                     <div className="pointer-events-none absolute inset-0 jarvis-data-stream opacity-30" />
@@ -312,8 +324,11 @@ export default function Home() {
                   </motion.div>
                 </section>
 
-                <JarvisRightSidebar jarvis={jarvis} timerRef={timerRef} />
+                <JarvisRightSidebar jarvis={jarvis} timerRef={timerRef} className={rightOpen ? "sidebar-open" : ""} />
               </div>
+              {isMobile && (leftOpen || rightOpen) && (
+                <div className="sidebar-backdrop" onClick={closeAll} />
+              )}
             </main>
 
             <QuickActionsBar actions={[

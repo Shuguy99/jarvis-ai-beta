@@ -6,6 +6,7 @@
 
 import { create } from "zustand";
 import type { ChatMessage, Conversation } from "@/lib/types";
+import type { TaskPlan } from "@/lib/task-planner";
 
 // ── Shared types (imported by use-jarvis.ts and page.tsx) ─────
 
@@ -87,6 +88,7 @@ export interface JarvisStoreState {
   isRecording: boolean;
   audioLevel: number;
   continuousMode: boolean;
+  taskPlan: TaskPlan | null;
 }
 
 export interface JarvisStoreActions {
@@ -104,6 +106,7 @@ export interface JarvisStoreActions {
   setIsRecording: (v: boolean) => void;
   setAudioLevel: (v: number | ((prev: number) => number)) => void;
   setContinuousMode: (v: boolean | ((prev: boolean) => boolean)) => void;
+  setTaskPlan: (plan: TaskPlan | null) => void;
   clearChat: () => void;
   resetToIdle: () => void;
 }
@@ -129,6 +132,7 @@ export const useJarvisStore = create<JarvisStoreState & JarvisStoreActions>()(
     isRecording: false,
     audioLevel: 0,
     continuousMode: false,
+    taskPlan: null,
 
     // Core chat
     addMessage: (msg) =>
@@ -174,6 +178,8 @@ export const useJarvisStore = create<JarvisStoreState & JarvisStoreActions>()(
 
     setContinuousMode: (v) =>
       set((s) => ({ continuousMode: apply(v, s.continuousMode) })),
+
+    setTaskPlan: (plan) => set({ taskPlan: plan }),
 
     // Convenience
     clearChat: () =>
