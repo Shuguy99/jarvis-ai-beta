@@ -303,7 +303,7 @@ describe("POST /api/jarvis/agent", () => {
     vi.resetModules();
   });
 
-  it("returns 400 when task is missing", async () => {
+  it("returns 400 when message is missing", async () => {
     const { POST } = await import(
       "@/app/api/jarvis/agent/route"
     );
@@ -316,18 +316,18 @@ describe("POST /api/jarvis/agent", () => {
 
     const res = await POST(req as never);
     expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toContain("Task description is required");
+    const text = await res.text();
+    expect(text).toContain("Message is required");
   });
 
-  it("returns 400 when task is empty string", async () => {
+  it("returns 400 when message is empty string", async () => {
     const { POST } = await import(
       "@/app/api/jarvis/agent/route"
     );
 
     const req = new Request("http://localhost/api/jarvis/agent", {
       method: "POST",
-      body: JSON.stringify({ task: "   " }),
+      body: JSON.stringify({ message: "   " }),
       headers: {
         "content-type": "application/json",
         "content-length": "18",
@@ -336,13 +336,13 @@ describe("POST /api/jarvis/agent", () => {
 
     const res = await POST(req as never);
     expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error).toContain("Task description is required");
+    const text = await res.text();
+    expect(text).toContain("Message is required");
   });
 });
 
 describe("GET /api/jarvis/agent", () => {
-  it("returns health check with online:true and maxToolCalls:5", async () => {
+  it("returns health check with online:true and maxIterations:10", async () => {
     const { GET } = await import(
       "@/app/api/jarvis/agent/route"
     );
@@ -351,7 +351,7 @@ describe("GET /api/jarvis/agent", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.online).toBe(true);
-    expect(body.maxToolCalls).toBe(5);
+    expect(body.maxIterations).toBe(10);
     expect(body.functionCalling).toBe(true);
     expect(body.name).toContain("J.A.R.V.I.S");
   });
